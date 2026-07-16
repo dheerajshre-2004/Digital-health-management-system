@@ -423,3 +423,170 @@
   background-color: #e0e7ff;
   color: #4f46e5;
 }
+
+/* Badges for Appointments */
+.rd-badge-source, .rd-badge-type {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  display: inline-block;
+}
+
+.rd-badge-source.online {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.rd-badge-source.walk-in {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.rd-badge-type.physical {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.rd-badge-type.telemedicine {
+  background-color: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #e9d5ff;
+}
+
+.rd-status-badge.pending-confirmation {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.rd-status-badge.confirmed {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.rd-status-badge.checked-in {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.rd-status-badge.scheduled {
+  background-color: #faf5ff;
+  color: #7c3aed;
+}
+
+/* Patient Records Table */
+.rd-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.rd-table th {
+  padding: 12px 16px;
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.rd-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 14px;
+}
+
+.rd-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Pagination */
+.rd-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.rd-page-info {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.rd-pagination-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.rd-page-btn {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: white;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rd-page-btn:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.rd-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Extra Status Badge Colors */
+.rd-status-badge.in-consultation {
+  background-color: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #d8b4fe;
+}
+
+.rd-status-badge.completed {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #6ee7b7;
+}
+
+.rd-status-badge.paid {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.rd-status-badge.unpaid {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.rd-status-badge.on-duty {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.rd-status-badge.on-break {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.rd-status-badge.in-surgery {
+  background-color: #fce7f3;
+  color: #be185d;
+}
+
+.rd-status-badge.on-leave {
+  background-color: #f1f5f9;
+  color: #475569;
+}

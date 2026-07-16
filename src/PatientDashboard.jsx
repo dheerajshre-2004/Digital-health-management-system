@@ -76,6 +76,14 @@ export default function PatientDashboard({ onLogout }) {
   const [newTeleTime, setNewTeleTime] = useState('');
   const [newTeleReason, setNewTeleReason] = useState('');
 
+  // Physical Appointment Request States
+  const [showRequestApptModal, setShowRequestApptModal] = useState(false);
+  const [newApptDoctor, setNewApptDoctor] = useState('Dr. Gregory House');
+  const [newApptDept, setNewApptDept] = useState('Cardiology');
+  const [newApptDate, setNewApptDate] = useState('');
+  const [newApptTime, setNewApptTime] = useState('');
+  const [newApptReason, setNewApptReason] = useState('');
+
   const visitHistoryData = [
     {
       id: "V-9082",
@@ -134,7 +142,7 @@ export default function PatientDashboard({ onLogout }) {
           <h1>Welcome back, <span className="highlight">John Doe</span></h1>
           <p>Your comprehensive health profile is securely encrypted and maintained.</p>
         </div>
-        <button className="pd-btn-primary">
+        <button className="pd-btn-primary" onClick={() => setShowRequestApptModal(true)}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
           Request Appointment
         </button>
@@ -279,6 +287,87 @@ export default function PatientDashboard({ onLogout }) {
           </div>
         </div>
       </div>
+
+      {/* Physical Appointment Request Modal */}
+      {showRequestApptModal && (
+        <div className="pd-modal-overlay" onClick={() => setShowRequestApptModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleRequestApptSubmit}>
+              <div className="pd-modal-header">
+                <h2>Request Clinic Appointment</h2>
+                <button className="pd-modal-close" type="button" onClick={() => setShowRequestApptModal(false)}>&times;</button>
+              </div>
+              <div className="pd-modal-body">
+                <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Doctor</label>
+                    <select 
+                      value={newApptDoctor} 
+                      onChange={(e) => setNewApptDoctor(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
+                    >
+                      <option value="Dr. Gregory House">Dr. Gregory House (Cardiology)</option>
+                      <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery)</option>
+                      <option value="Dr. John Watson">Dr. John Watson (Primary Care)</option>
+                    </select>
+                  </div>
+                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Department</label>
+                    <select 
+                      value={newApptDept} 
+                      onChange={(e) => setNewApptDept(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
+                    >
+                      <option value="Cardiology">Cardiology</option>
+                      <option value="General Surgery">General Surgery</option>
+                      <option value="Primary Care">Primary Care</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Date</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={newApptDate} 
+                      onChange={(e) => setNewApptDate(e.target.value)} 
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Time Slot</label>
+                    <input 
+                      type="time" 
+                      required 
+                      value={newApptTime} 
+                      onChange={(e) => setNewApptTime(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Reason for Visit</label>
+                  <textarea 
+                    required 
+                    value={newApptReason} 
+                    onChange={(e) => setNewApptReason(e.target.value)} 
+                    placeholder="Describe symptoms or reasons for visit..."
+                    rows="3"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical' }}
+                  />
+                </div>
+              </div>
+              <div className="pd-modal-footer">
+                <button className="pd-btn-primary" type="submit">Submit Request</button>
+                <button className="pd-btn-outline" type="button" onClick={() => setShowRequestApptModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -593,6 +682,31 @@ export default function PatientDashboard({ onLogout }) {
     }, 150);
   };
 
+  const handleRequestApptSubmit = (e) => {
+    e.preventDefault();
+    const newAppt = {
+      id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
+      patientId: "PT-99999",
+      patientName: "John Doe",
+      doctorId: newApptDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
+      doctorName: newApptDoctor,
+      department: newApptDept,
+      date: newApptDate,
+      time: newApptTime,
+      reason: newApptReason,
+      status: "Pending Confirmation",
+      type: "Physical",
+      source: "Online"
+    };
+
+    const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    localStorage.setItem('dhms_appointments', JSON.stringify([newAppt, ...currentAppts]));
+
+    setShowRequestApptModal(false);
+    setNewApptReason('');
+    alert("Appointment request submitted successfully!");
+  };
+
   const handleScheduleTeleSubmit = (e) => {
     e.preventDefault();
     const newConsult = {
@@ -605,6 +719,24 @@ export default function PatientDashboard({ onLogout }) {
       reason: newTeleReason || "General health consultation."
     };
     setTeleconsultations(prev => [...prev, newConsult]);
+
+    const newAppt = {
+      id: newConsult.id,
+      patientId: "PT-99999",
+      patientName: "John Doe",
+      doctorId: newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
+      doctorName: newTeleDoctor,
+      department: newTeleDept,
+      date: newConsult.date,
+      time: newConsult.time,
+      reason: newConsult.reason,
+      status: "Scheduled",
+      type: "Telemedicine",
+      source: "Online"
+    };
+    const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    localStorage.setItem('dhms_appointments', JSON.stringify([newAppt, ...currentAppts]));
+
     setShowScheduleTeleModal(false);
     setNewTeleReason('');
   };
