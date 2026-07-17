@@ -32,6 +32,26 @@ function App() {
       ];
       localStorage.setItem('dhms_appointments', JSON.stringify(initialAppointments));
     }
+
+    // Seed initial prescriptions if not present
+    if (!localStorage.getItem('dhms_prescriptions')) {
+      const initialPrescriptions = [
+        { id: "RX-701", patientId: "PT-80234", patientName: "Alice Johnson", medication: "Amoxicillin 500mg", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "$25.00", status: "Pending" },
+        { id: "RX-702", patientId: "PT-11922", patientName: "Bob Smith", medication: "Atorvastatin 20mg", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "$45.00", status: "Pending" },
+        { id: "RX-703", patientId: "PT-55310", patientName: "Carol Davis", medication: "Lisinopril 10mg", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "$15.00", status: "Dispensed & Billed" }
+      ];
+      localStorage.setItem('dhms_prescriptions', JSON.stringify(initialPrescriptions));
+    }
+
+    // Seed initial lab requests if not present
+    if (!localStorage.getItem('dhms_lab_requests')) {
+      const initialLabRequests = [
+        { id: "LAB-101", patientId: "PT-80234", patientName: "Alice Johnson", testName: "Lipid Panel", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "$120.00", status: "Pending" },
+        { id: "LAB-102", patientId: "PT-11922", patientName: "Bob Smith", testName: "Thyroid Panel", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "$85.00", status: "Pending" },
+        { id: "LAB-103", patientId: "PT-22345", patientName: "David Wilson", testName: "Complete Blood Count (CBC)", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "$45.00", status: "Completed & Billed" }
+      ];
+      localStorage.setItem('dhms_lab_requests', JSON.stringify(initialLabRequests));
+    }
   }, []);
 
   const handleAuthSubmit = (e) => {

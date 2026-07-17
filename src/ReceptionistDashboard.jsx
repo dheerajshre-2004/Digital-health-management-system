@@ -813,7 +813,14 @@ export default function ReceptionistDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
               Check-In Queue
             </li>
-            <li className={activeTab === 'billing' ? 'active' : ''} onClick={() => { setActiveTab('billing'); setBillingPage(1); }}>
+            <li className={activeTab === 'billing' ? 'active' : ''} onClick={() => { 
+              setActiveTab('billing'); 
+              setBillingPage(1); 
+              const saved = localStorage.getItem('dhms_billing');
+              if (saved) {
+                setBillingList(JSON.parse(saved));
+              }
+            }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               Billing & Payments
             </li>
