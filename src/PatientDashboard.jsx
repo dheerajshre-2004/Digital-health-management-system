@@ -59,6 +59,7 @@ export default function PatientDashboard({ onLogout }) {
   const [selectedLabOrder, setSelectedLabOrder] = useState(null);
   const [showOrderLabModal, setShowOrderLabModal] = useState(false);
   const [newLabTestName, setNewLabTestName] = useState('Thyroid Panel (TSH, Free T4)');
+  const [labSubTab, setLabSubTab] = useState('orders');
 
   // Telemedicine States
   const [teleconsultations, setTeleconsultations] = useState([
@@ -740,15 +741,24 @@ export default function PatientDashboard({ onLogout }) {
     setShowScheduleTeleModal(false);
     setNewTeleReason('');
   };
-
   const handleOrderLabSubmit = (e) => {
     e.preventDefault();
+    const costMap = {
+      "Thyroid Panel (TSH, Free T4)": "85.00",
+      "Lipid Profile (Cholesterol, HDL, LDL)": "120.00",
+      "Urinalysis & Urine Culture": "45.00",
+      "Vitamin D-25 Hydroxy Screen": "95.00"
+    };
+    const orderCost = costMap[newLabTestName] || "85.00";
     const newOrder = {
       id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: "PT-99999",
+      patientName: "John Doe",
       testName: newLabTestName,
-      status: "Processing",
+      status: "Pending",
       date: new Date().toISOString().split('T')[0],
-      doctor: "Dr. Gregory House",
+      doctorName: "Self Requested",
+      cost: `$${orderCost}`,
       timeline: [
         { title: "Order Created", date: new Date().toLocaleString(), done: true },
         { title: "Sample Collection", date: "Pending", done: false },
@@ -758,6 +768,10 @@ export default function PatientDashboard({ onLogout }) {
       results: []
     };
     setLabOrders(prev => [newOrder, ...prev]);
+
+    const centralLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+    localStorage.setItem('dhms_lab_requests', JSON.stringify([newOrder, ...centralLabs]));
+
     setShowOrderLabModal(false);
   };
 
@@ -988,6 +1002,15 @@ export default function PatientDashboard({ onLogout }) {
   };
 
   const renderLaboratoryCenter = () => {
+    const labFacilities = [
+      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "$45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "$120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "$85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "$110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "$95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "$45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    ];
+
     return (
       <div className="pd-lab-view">
         <div className="pd-welcome-banner">
@@ -1002,51 +1025,111 @@ export default function PatientDashboard({ onLogout }) {
           </div>
         </div>
 
-        {/* List of lab orders */}
-        <div className="pd-section-card">
-          <div className="pd-section-header">
-            <h3>Recent Pathology & Lab Orders</h3>
-          </div>
-          <div className="pd-lab-list">
-            {labOrders.map(order => (
-              <div key={order.id} className="pd-lab-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div className="pd-lab-info">
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#1e293b' }}>{order.testName}</h4>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Ordered by {order.doctor} on {order.date}</p>
-                  </div>
-                  <div className="pd-lab-status-actions">
-                    <span className={`pd-badge ${order.status === 'Completed' ? 'completed' : 'in-session'}`}>{order.status}</span>
-                    {order.status === 'Completed' && (
-                      <button className="pd-btn-secondary" onClick={() => setSelectedLabOrder(order)}>
-                        View Results Table
-                      </button>
-                    )}
-                  </div>
-                </div>
+        {/* Tab Selection */}
+        <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setLabSubTab('orders')}
+            style={{
+              padding: '10px 16px',
+              background: 'none',
+              border: 'none',
+              borderBottom: labSubTab === 'orders' ? '3px solid #6366f1' : '3px solid transparent',
+              color: labSubTab === 'orders' ? '#6366f1' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            My Lab Orders
+          </button>
+          <button
+            type="button"
+            onClick={() => setLabSubTab('facilities')}
+            style={{
+              padding: '10px 16px',
+              background: 'none',
+              border: 'none',
+              borderBottom: labSubTab === 'facilities' ? '3px solid #6366f1' : '3px solid transparent',
+              color: labSubTab === 'facilities' ? '#6366f1' : '#64748b',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            Lab Facilities & Services Catalog
+          </button>
+        </div>
 
-                {/* Tracker stepper */}
-                <div className="pd-lab-stepper">
-                  {order.timeline.map((step, idx) => (
-                    <div key={idx} className={`pd-step-node ${step.done ? 'done' : 'pending'}`}>
-                      <div className="circle">
-                        {step.done ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        ) : (
-                          <span>{idx+1}</span>
-                        )}
-                      </div>
-                      <div className="step-label-group">
-                        <span className="step-title">{step.title}</span>
-                        <span className="step-date">{step.date}</span>
-                      </div>
-                    </div>
-                  ))}
+        {labSubTab === 'facilities' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+            {labFacilities.map((fac, idx) => (
+              <div key={idx} className="pd-section-card" style={{ padding: '20px', margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '12px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: 'bold' }}>{fac.code}</span>
+                    <h3 style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#1e293b' }}>{fac.name}</h3>
+                  </div>
+                  <span className="price-tag" style={{ fontSize: '16px', color: '#4f46e5', fontWeight: 'bold' }}>{fac.cost}</span>
+                </div>
+                <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{fac.description}</p>
+                <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px' }}>
+                  <span>Department: <strong>{fac.dept}</strong></span>
+                  <span>•</span>
+                  <span>Turnaround: <strong>{fac.time}</strong></span>
+                  <span>•</span>
+                  <span><strong>{fac.fast}</strong></span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        ) : (
+          /* List of lab orders */
+          <div className="pd-section-card">
+            <div className="pd-section-header">
+              <h3>Recent Pathology & Lab Orders</h3>
+            </div>
+            <div className="pd-lab-list">
+              {labOrders.map(order => (
+                <div key={order.id} className="pd-lab-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="pd-lab-info">
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#1e293b' }}>{order.testName}</h4>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Ordered by {order.doctor} on {order.date}</p>
+                    </div>
+                    <div className="pd-lab-status-actions">
+                      <span className={`pd-badge ${order.status === 'Completed' ? 'completed' : 'in-session'}`}>{order.status}</span>
+                      {order.status === 'Completed' && (
+                        <button className="pd-btn-secondary" onClick={() => setSelectedLabOrder(order)}>
+                          View Results Table
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tracker stepper */}
+                  <div className="pd-lab-stepper">
+                    {order.timeline.map((step, idx) => (
+                      <div key={idx} className={`pd-step-node ${step.done ? 'done' : 'pending'}`}>
+                        <div className="circle">
+                          {step.done ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          ) : (
+                            <span>{idx+1}</span>
+                          )}
+                        </div>
+                        <div className="step-label-group">
+                          <span className="step-title">{step.title}</span>
+                          <span className="step-date">{step.date}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Order Lab Modal */}
         {showOrderLabModal && (

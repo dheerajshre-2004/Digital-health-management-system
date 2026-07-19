@@ -92,6 +92,12 @@ export default function Dashboard({ onLogout, role }) {
   const [reportTitle, setReportTitle] = useState('');
   const [reportContent, setReportContent] = useState('');
 
+  // Laboratory Module Completion States
+  const [selectedLabForResults, setSelectedLabForResults] = useState(null);
+  const [labResultsText, setLabResultsText] = useState('');
+  const [labRemarks, setLabRemarks] = useState('');
+  const [viewedLabRequestResults, setViewedLabRequestResults] = useState(null);
+
   // Core records from localStorage
   const [appointments, setAppointments] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
@@ -386,6 +392,79 @@ export default function Dashboard({ onLogout, role }) {
       localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
       setBillingList(updatedBilling);
     }
+  };
+
+  const handleCompleteLabWithResults = (e) => {
+    e.preventDefault();
+    if (!selectedLabForResults) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // 1. Update the lab request with status and results
+    const updatedLab = labRequests.map(lab => {
+      if (lab.id === selectedLabForResults.id) {
+        return { 
+          ...lab, 
+          status: 'Completed & Billed',
+          results: labResultsText,
+          remarks: labRemarks,
+          completedDate: todayStr
+        };
+      }
+      return lab;
+    });
+    setLabRequests(updatedLab);
+    localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLab));
+
+    // 2. Append a new Lab Report to the patient's EHR profile in localStorage
+    const patientList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const newReport = {
+      id: `EHR-${Math.floor(100 + Math.random() * 900)}`,
+      name: `${selectedLabForResults.testName} Report`,
+      type: 'Lab Report',
+      size: '1.8 KB',
+      date: todayStr,
+      author: 'Laboratory Specialist',
+      details: { 
+        summary: labResultsText,
+        remarks: labRemarks,
+        labRequestId: selectedLabForResults.id,
+        orderedBy: selectedLabForResults.doctorName
+      }
+    };
+
+    const updatedPatients = patientList.map(p => {
+      if (p.id === selectedLabForResults.patientId) {
+        return {
+          ...p,
+          reports: [newReport, ...(p.reports || [])]
+        };
+      }
+      return p;
+    });
+    localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+    setPatients(updatedPatients);
+
+    // 3. Dispatch billing invoice
+    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const newInvoice = {
+      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: selectedLabForResults.patientId,
+      patientName: selectedLabForResults.patientName,
+      date: todayStr,
+      amount: selectedLabForResults.cost,
+      status: "Unpaid",
+      type: "Lab Diagnostics"
+    };
+    const updatedBilling = [newInvoice, ...billing];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    // Clean up
+    setSelectedLabForResults(null);
+    setLabResultsText('');
+    setLabRemarks('');
+    alert('Lab diagnostic report completed, saved to EHR, and billed successfully.');
   };
 
   const getNavItems = () => {
@@ -1245,7 +1324,11 @@ export default function Dashboard({ onLogout, role }) {
                     <td>
                       {req.status === 'Pending' ? (
                         <button 
-                          onClick={() => handleCompleteLab(req.id)}
+                          onClick={() => {
+                            setSelectedLabForResults(req);
+                            setLabResultsText('');
+                            setLabRemarks('');
+                          }}
                           style={{
                             backgroundColor: '#5c6bc0',
                             color: 'white',
@@ -1253,13 +1336,33 @@ export default function Dashboard({ onLogout, role }) {
                             borderRadius: '4px',
                             padding: '6px 12px',
                             cursor: 'pointer',
-                            fontWeight: '600'
+                            fontWeight: '600',
+                            fontSize: '12px'
                           }}
                         >
-                          Complete & Bill
+                          Enter Results & Complete
                         </button>
                       ) : (
-                        <span style={{ color: '#64748b', fontSize: '13px' }}>Billed</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="status-badge available" style={{ fontSize: '11px' }}>Billed</span>
+                          {req.results && (
+                            <button
+                              onClick={() => setViewedLabRequestResults(req)}
+                              style={{
+                                padding: '4px 8px',
+                                border: '1px solid #5c6bc0',
+                                color: '#5c6bc0',
+                                background: 'white',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                fontWeight: '600'
+                              }}
+                            >
+                              View Report
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -2057,6 +2160,180 @@ export default function Dashboard({ onLogout, role }) {
                 style={{ padding: '8px 16px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
                 Close Folder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lab Results Submission Modal */}
+      {selectedLabForResults && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '500px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#3f51b5',
+              color: 'white'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px' }}>Lab Report Entry - {selectedLabForResults.testName}</h3>
+              <button 
+                onClick={() => setSelectedLabForResults(null)}
+                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={handleCompleteLabWithResults} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+                <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div><strong>Patient:</strong> {selectedLabForResults.patientName} (ID: {selectedLabForResults.patientId})</div>
+                  <div><strong>Ordered By:</strong> {selectedLabForResults.doctorName}</div>
+                  <div><strong>Cost:</strong> {selectedLabForResults.cost}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Diagnostic Results / Key Findings</label>
+                  <textarea 
+                    placeholder="Enter test results details (e.g. Cholesterol: 215 mg/dL, HDL: 45 mg/dL, LDL: 142 mg/dL...)"
+                    value={labResultsText}
+                    onChange={(e) => setLabResultsText(e.target.value)}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '100px', fontSize: '13px', fontFamily: 'inherit' }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Technician Remarks / Recommendations</label>
+                  <textarea 
+                    placeholder="Any specific observations or general remarks..."
+                    value={labRemarks}
+                    onChange={(e) => setLabRemarks(e.target.value)}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '60px', fontSize: '13px', fontFamily: 'inherit' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'end', gap: '12px', backgroundColor: '#f8fafc' }}>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedLabForResults(null)}
+                  style={{ padding: '8px 16px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  style={{ padding: '8px 16px', background: '#3f51b5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Complete & Save to EHR
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lab Results View Modal */}
+      {viewedLabRequestResults && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '500px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#5c6bc0',
+              color: 'white'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px' }}>Lab Report Summary - {viewedLabRequestResults.testName}</h3>
+              <button 
+                onClick={() => setViewedLabRequestResults(null)}
+                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div><strong>Patient:</strong> {viewedLabRequestResults.patientName} (ID: {viewedLabRequestResults.patientId})</div>
+                <div><strong>Ordered By:</strong> {viewedLabRequestResults.doctorName}</div>
+                <div><strong>Date Completed:</strong> {viewedLabRequestResults.completedDate || viewedLabRequestResults.date}</div>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#475569' }}>Diagnostic Findings:</h4>
+                <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', color: '#1e293b', borderLeft: '4px solid #5c6bc0' }}>
+                  {viewedLabRequestResults.results}
+                </div>
+              </div>
+
+              {viewedLabRequestResults.remarks && (
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#475569' }}>Technician Remarks:</h4>
+                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', color: '#475569', fontStyle: 'italic' }}>
+                    {viewedLabRequestResults.remarks}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'end', backgroundColor: '#f8fafc' }}>
+              <button 
+                onClick={() => setViewedLabRequestResults(null)}
+                style={{ padding: '8px 16px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+              >
+                Close Report
               </button>
             </div>
           </div>

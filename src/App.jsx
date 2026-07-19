@@ -3,6 +3,7 @@ import './index.css';
 import Dashboard from './Dashboard';
 import PatientDashboard from './PatientDashboard';
 import ReceptionistDashboard from './ReceptionistDashboard';
+import LaboratoryDashboard from './LaboratoryDashboard';
 
 function App() {
   const [activeTab, setActiveTab] = useState('signin');
@@ -69,6 +70,9 @@ function App() {
     }
     if (userRole === 'receptionist') {
       return <ReceptionistDashboard onLogout={handleLogout} />;
+    }
+    if (userRole === 'laboratory') {
+      return <LaboratoryDashboard onLogout={handleLogout} />;
     }
     return <Dashboard onLogout={handleLogout} role={userRole} />;
   }
