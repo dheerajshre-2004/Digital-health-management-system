@@ -85,6 +85,61 @@ export default function PatientDashboard({ onLogout }) {
   const [newApptTime, setNewApptTime] = useState('');
   const [newApptReason, setNewApptReason] = useState('');
 
+  // Admissions and Billing states
+  const [admissions, setAdmissions] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+  });
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [selectedAdmissionForPay, setSelectedAdmissionForPay] = useState(null);
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+
+  const handlePayAndDischarge = (e) => {
+    e.preventDefault();
+    if (!selectedAdmissionForPay) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const totalBill = (selectedAdmissionForPay.medications || [])
+      .filter(m => m.status === 'Dispensed')
+      .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
+
+    const updatedAdmissions = admissions.map(a => {
+      if (a.id === selectedAdmissionForPay.id) {
+        return {
+          ...a,
+          status: 'Discharged',
+          dischargeDate: today,
+          pharmacyBillPaid: true
+        };
+      }
+      return a;
+    });
+
+    setAdmissions(updatedAdmissions);
+    localStorage.setItem('dhms_admissions', JSON.stringify(updatedAdmissions));
+
+    // Update billing central registry
+    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const newInvoice = {
+      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: selectedAdmissionForPay.patientId,
+      patientName: selectedAdmissionForPay.patientName,
+      date: today,
+      amount: `$${totalBill.toFixed(2)}`,
+      status: 'Paid',
+      type: 'Admitted Pharmacy Bill'
+    };
+    localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
+
+    alert(`Payment of $${totalBill.toFixed(2)} successful! You have been discharged.`);
+    setShowCheckoutModal(false);
+    setSelectedAdmissionForPay(null);
+    setCardNumber('');
+    setCardExpiry('');
+    setCardCvv('');
+  };
+
   const visitHistoryData = [
     {
       id: "V-9082",
@@ -1426,6 +1481,154 @@ export default function PatientDashboard({ onLogout }) {
     );
   };
 
+  const renderAdmissionsBilling = () => {
+    // Calculate Running Pharmacy Bill for an admission
+    const calculatePharmacyBill = (adm) => {
+      if (!adm.medications) return 0;
+      return adm.medications
+        .filter(m => m.status === 'Dispensed')
+        .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
+    };
+
+    return (
+      <div className="pd-section-card" style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px' }}>
+        <div className="pd-section-header" style={{ marginBottom: '16px' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px', marginRight: '8px', color: '#10b981' }}>
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+            <line x1="12" y1="4" x2="12" y2="20"></line>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Hospital Admissions & Pharmacy Billing</h2>
+        </div>
+        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+          Monitor your active hospital admissions, view medications administered by doctors, track your running pharmacy bill, and process payment.
+        </p>
+
+        {admissions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px' }}>
+            No hospital admission records found for your account.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {admissions.map(adm => {
+              const billTotal = calculatePharmacyBill(adm);
+              return (
+                <div key={adm.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Admission ID</span>
+                      <h4 style={{ margin: 0, fontSize: '15px', color: '#0f172a' }}>{adm.id}</h4>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Ward / Room</span>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.ward}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Admission Date</span>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.admissionDate}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Status</span>
+                      <div style={{ marginTop: '2px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          backgroundColor: adm.status === 'Admitted' ? '#fee2e2' : '#d1fae5',
+                          color: adm.status === 'Admitted' ? '#ef4444' : '#065f46'
+                        }}>
+                          {adm.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '20px' }}>
+                    <div style={{ marginBottom: '16px' }}>
+                      <strong style={{ display: 'block', fontSize: '13px', color: '#475569', marginBottom: '8px' }}>Admitting Doctor Note:</strong>
+                      <p style={{ margin: 0, fontSize: '14px', color: '#334155', background: '#f8fafc', padding: '12px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '4px solid #cbd5e1' }}>
+                        {adm.notes}
+                      </p>
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                      <strong style={{ display: 'block', fontSize: '13px', color: '#475569', marginBottom: '8px' }}>Administered Medications:</strong>
+                      {(!adm.medications || adm.medications.length === 0) ? (
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>No medications dispensed yet.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {adm.medications.map((med, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              <div>
+                                <strong style={{ fontSize: '14px', color: '#0f172a' }}>{med.name}</strong>
+                                <span style={{ marginLeft: '12px', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600', backgroundColor: med.status === 'Dispensed' ? '#d1fae5' : '#fee2e2', color: med.status === 'Dispensed' ? '#065f46' : '#b91c1c' }}>
+                                  {med.status}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <span style={{ fontSize: '12px', color: '#64748b' }}>{med.date}</span>
+                                <strong style={{ fontSize: '14px', color: '#1e3a8a' }}>${parseFloat(med.cost).toFixed(2)}</strong>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <div>
+                        <span style={{ fontSize: '13px', color: '#64748b' }}>Total Pharmacy Cost:</span>
+                        <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#1e3a8a' }}>
+                          ${billTotal.toFixed(2)}
+                        </h3>
+                      </div>
+                      
+                      {adm.status === 'Admitted' ? (
+                        <button
+                          onClick={() => {
+                            if (billTotal <= 0) {
+                              alert("No outstanding bill to pay yet. Pharmacy has not dispensed any medication.");
+                              return;
+                            }
+                            setSelectedAdmissionForPay(adm);
+                            setShowCheckoutModal(true);
+                          }}
+                          style={{
+                            padding: '12px 24px',
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: '700',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            boxShadow: '0 4px 6px -1px rgba(16,185,129,0.2)'
+                          }}
+                        >
+                          Pay Pharmacy Bill & Discharge
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: '700', fontSize: '14px' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}>
+                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                          </svg>
+                          Discharged & Paid
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="pd-container">
       {/* Topbar */}
@@ -1485,6 +1688,10 @@ export default function PatientDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
               Telemedicine Clinic
             </li>
+            <li className={activeTab === 'admissions_billing' ? 'active' : ''} onClick={() => setActiveTab('admissions_billing')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+              Admissions & Billing
+            </li>
           </ul>
         </aside>
 
@@ -1496,8 +1703,126 @@ export default function PatientDashboard({ onLogout }) {
           {activeTab === 'ehr_records' && renderEHRRecords()}
           {activeTab === 'laboratory' && renderLaboratoryCenter()}
           {activeTab === 'telemedicine' && renderTelemedicineClinic()}
+          {activeTab === 'admissions_billing' && renderAdmissionsBilling()}
         </main>
       </div>
+
+      {showCheckoutModal && selectedAdmissionForPay && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '450px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#10b981',
+              color: 'white'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Pharmacy Payment Portal</h3>
+              <button 
+                onClick={() => { setShowCheckoutModal(false); setSelectedAdmissionForPay(null); }}
+                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={handlePayAndDischarge} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                  <span>Patient Name:</span>
+                  <strong>{selectedAdmissionForPay.patientName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                  <span>Admission ID:</span>
+                  <strong>{selectedAdmissionForPay.id}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                  <span style={{ fontWeight: '600' }}>Total Pharmacy Bill:</span>
+                  <strong style={{ color: '#10b981', fontSize: '16px' }}>
+                    ${(selectedAdmissionForPay.medications || []).filter(m => m.status === 'Dispensed').reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0).toFixed(2)}
+                  </strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Credit / Debit Card Number</label>
+                <input 
+                  type="text" 
+                  placeholder="xxxx xxxx xxxx xxxx" 
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Expiry Date</label>
+                  <input 
+                    type="text" 
+                    placeholder="MM/YY" 
+                    value={cardExpiry}
+                    onChange={(e) => setCardExpiry(e.target.value)}
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>CVV</label>
+                  <input 
+                    type="password" 
+                    placeholder="***" 
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value)}
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                style={{
+                  padding: '12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  marginTop: '10px',
+                  transition: 'background-color 0.2s'
+                }}
+              >
+                Pay & Complete Discharge
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

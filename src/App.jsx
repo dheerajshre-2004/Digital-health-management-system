@@ -4,6 +4,7 @@ import Dashboard from './Dashboard';
 import PatientDashboard from './PatientDashboard';
 import ReceptionistDashboard from './ReceptionistDashboard';
 import LaboratoryDashboard from './LaboratoryDashboard';
+import PharmacistDashboard from './PharmacistDashboard';
 
 function App() {
   const [activeTab, setActiveTab] = useState('signin');
@@ -37,9 +38,9 @@ function App() {
     // Seed initial prescriptions if not present
     if (!localStorage.getItem('dhms_prescriptions')) {
       const initialPrescriptions = [
-        { id: "RX-701", patientId: "PT-80234", patientName: "Alice Johnson", medication: "Amoxicillin 500mg", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "$25.00", status: "Pending" },
-        { id: "RX-702", patientId: "PT-11922", patientName: "Bob Smith", medication: "Atorvastatin 20mg", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "$45.00", status: "Pending" },
-        { id: "RX-703", patientId: "PT-55310", patientName: "Carol Davis", medication: "Lisinopril 10mg", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "$15.00", status: "Dispensed & Billed" }
+        { id: "RX-701", patientId: "PT-80234", patientName: "Alice Johnson", medication: "Amoxicillin 500mg", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "25.00", status: "Pending" },
+        { id: "RX-702", patientId: "PT-11922", patientName: "Bob Smith", medication: "Atorvastatin 20mg", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "45.00", status: "Pending" },
+        { id: "RX-703", patientId: "PT-55310", patientName: "Carol Davis", medication: "Lisinopril 10mg", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "15.00", status: "Dispensed & Billed" }
       ];
       localStorage.setItem('dhms_prescriptions', JSON.stringify(initialPrescriptions));
     }
@@ -47,11 +48,52 @@ function App() {
     // Seed initial lab requests if not present
     if (!localStorage.getItem('dhms_lab_requests')) {
       const initialLabRequests = [
-        { id: "LAB-101", patientId: "PT-80234", patientName: "Alice Johnson", testName: "Lipid Panel", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "$120.00", status: "Pending" },
-        { id: "LAB-102", patientId: "PT-11922", patientName: "Bob Smith", testName: "Thyroid Panel", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "$85.00", status: "Pending" },
-        { id: "LAB-103", patientId: "PT-22345", patientName: "David Wilson", testName: "Complete Blood Count (CBC)", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "$45.00", status: "Completed & Billed" }
+        { id: "LAB-101", patientId: "PT-80234", patientName: "Alice Johnson", testName: "Lipid Panel", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "120.00", status: "Pending" },
+        { id: "LAB-102", patientId: "PT-11922", patientName: "Bob Smith", testName: "Thyroid Panel", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "85.00", status: "Pending" },
+        { id: "LAB-103", patientId: "PT-22345", patientName: "David Wilson", testName: "Complete Blood Count (CBC)", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "45.00", status: "Completed & Billed" }
       ];
       localStorage.setItem('dhms_lab_requests', JSON.stringify(initialLabRequests));
+    }
+
+    // Seed initial medications if not present
+    if (!localStorage.getItem('dhms_medications')) {
+      const initialMedications = [
+        { id: "MED-001", name: "Amoxicillin 500mg", genericName: "Amoxicillin", category: "Antibiotics", stock: 120, price: 25.00, isEmergency: false, lowStockThreshold: 20 },
+        { id: "MED-002", name: "Atorvastatin 20mg", genericName: "Atorvastatin", category: "Cardiovascular", stock: 85, price: 45.00, isEmergency: false, lowStockThreshold: 15 },
+        { id: "MED-003", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 140, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
+        { id: "MED-004", name: "Epinephrine 1mg/mL Injection", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 8, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
+        { id: "MED-005", name: "Amiodarone 150mg/3mL Injection", genericName: "Amiodarone", category: "Antiarrhythmic", stock: 12, price: 80.00, isEmergency: true, lowStockThreshold: 10 },
+        { id: "MED-006", name: "Atropine 1mg/10mL Syringe", genericName: "Atropine", category: "Anticholinergic", stock: 15, price: 40.00, isEmergency: true, lowStockThreshold: 10 },
+        { id: "MED-007", name: "Naloxone 0.4mg/mL Injection", genericName: "Naloxone", category: "Opioid Antagonist", stock: 5, price: 50.00, isEmergency: true, lowStockThreshold: 8 },
+        { id: "MED-008", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 5.00, isEmergency: false, lowStockThreshold: 30 },
+        { id: "MED-009", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 8.00, isEmergency: false, lowStockThreshold: 25 }
+      ];
+      localStorage.setItem('dhms_medications', JSON.stringify(initialMedications));
+    }
+
+    // Seed initial pharmacy staff if not present
+    if (!localStorage.getItem('dhms_pharmacy_staff')) {
+      const initialStaff = [
+        { id: "STF-P01", name: "Dr. Sarah Jenkins", role: "Chief Pharmacist", status: "Active", phone: "+1 (555) 123-9988", email: "sarah.j@dhms.com" },
+        { id: "STF-P02", name: "James Carter", role: "Pharmacy Technician", status: "Active", phone: "+1 (555) 123-9989", email: "james.c@dhms.com" },
+        { id: "STF-P03", name: "Emily Watson", role: "Clinical Pharmacist", status: "Active", phone: "+1 (555) 123-9990", email: "emily.w@dhms.com" }
+      ];
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(initialStaff));
+    }
+
+    // Seed empty/default attendance if not present
+    if (!localStorage.getItem('dhms_pharmacy_attendance')) {
+      const initialAttendance = [
+        { date: "2026-07-19", staffId: "STF-P01", name: "Dr. Sarah Jenkins", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present" },
+        { date: "2026-07-19", staffId: "STF-P02", name: "James Carter", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present" },
+        { date: "2026-07-19", staffId: "STF-P03", name: "Emily Watson", checkIn: "09:15 AM", checkOut: "05:30 PM", status: "Late" }
+      ];
+      localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify(initialAttendance));
+    }
+
+    // Seed empty admissions if not present
+    if (!localStorage.getItem('dhms_admissions')) {
+      localStorage.setItem('dhms_admissions', JSON.stringify([]));
     }
   }, []);
 
@@ -73,6 +115,9 @@ function App() {
     }
     if (userRole === 'laboratory') {
       return <LaboratoryDashboard onLogout={handleLogout} />;
+    }
+    if (userRole === 'pharmacist') {
+      return <PharmacistDashboard onLogout={handleLogout} />;
     }
     return <Dashboard onLogout={handleLogout} role={userRole} />;
   }

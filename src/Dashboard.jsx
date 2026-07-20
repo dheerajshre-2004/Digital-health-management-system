@@ -88,6 +88,11 @@ export default function Dashboard({ onLogout, role }) {
   const [newConditions, setNewConditions] = useState('');
   const [newBloodType, setNewBloodType] = useState('O+');
 
+  // Admission States
+  const [isAdmitted, setIsAdmitted] = useState(false);
+  const [admissionNotes, setAdmissionNotes] = useState('');
+  const [admissionWard, setAdmissionWard] = useState('General Ward A');
+
   // Add custom report to EHR
   const [reportTitle, setReportTitle] = useState('');
   const [reportContent, setReportContent] = useState('');
@@ -158,6 +163,9 @@ export default function Dashboard({ onLogout, role }) {
     setLabTestName('');
     setLabPriority('Routine');
     setLabCost('85.00');
+    setIsAdmitted(false);
+    setAdmissionNotes('');
+    setAdmissionWard('General Ward A');
   };
 
   const handleSendCallMessage = (e) => {
@@ -227,13 +235,40 @@ export default function Dashboard({ onLogout, role }) {
         medication: `${rxDrugName} ${rxDose} (${rxFrequency}, ${rxDuration})`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `$${parseFloat(rxCost).toFixed(2)}`,
-        status: 'Pending',
-        instructions: rxInstructions
+        cost: `${parseFloat(rxCost).toFixed(2)}`,
+        status: isAdmitted ? 'Advised' : 'Pending',
+        instructions: rxInstructions,
+        type: isAdmitted ? 'Inpatient' : 'Outpatient'
       };
       const finalRx = [newRx, ...rxList];
       localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
       setPrescriptions(finalRx);
+    }
+
+    // 3.5 Check Admission
+    if (isAdmitted) {
+      const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+      const newAdm = {
+        id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: apptToComplete.patientId,
+        patientName: apptToComplete.patientName,
+        doctorName: currentDoc.name,
+        admissionDate: todayStr,
+        dischargeDate: null,
+        ward: admissionWard,
+        notes: admissionNotes || 'Admitted from consultation.',
+        status: 'Admitted',
+        medications: rxDrugName.trim() ? [{
+          name: `${rxDrugName} ${rxDose}`,
+          instructions: rxInstructions,
+          cost: parseFloat(rxCost) || 0.00,
+          status: 'Advised', // Status: Advised -> Dispensed
+          date: todayStr
+        }] : [],
+        pharmacyBillPaid: false
+      };
+      const finalAdms = [newAdm, ...adms];
+      localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
     }
 
     // 4. Dispatch lab request to laboratory if test name entered
@@ -246,7 +281,7 @@ export default function Dashboard({ onLogout, role }) {
         testName: `${labTestName} (${labPriority} Priority)`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `$${parseFloat(labCost).toFixed(2)}`,
+        cost: `${parseFloat(labCost).toFixed(2)}`,
         status: 'Pending'
       };
       const finalLab = [newLab, ...labList];
@@ -1836,6 +1871,29 @@ export default function Dashboard({ onLogout, role }) {
                   </select>
                   <input type="number" step="0.01" placeholder="Cost ($)" value={labCost} onChange={(e) => setLabCost(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                 </div>
+              </div>
+
+              {/* Inpatient Admission Options */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>INPATIENT ADMISSION (OPTIONAL)</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isAdmitted} onChange={(e) => setIsAdmitted(e.target.checked)} />
+                  Admit Patient to Hospital
+                </label>
+                {isAdmitted && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <select value={admissionWard} onChange={(e) => setAdmissionWard(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}>
+                        <option value="General Ward A">General Ward A</option>
+                        <option value="General Ward B">General Ward B</option>
+                        <option value="ICU">Intensive Care Unit (ICU)</option>
+                        <option value="Cardiac Wing">Cardiac Wing</option>
+                        <option value="Pediatric Care">Pediatric Care</option>
+                      </select>
+                      <input type="text" placeholder="Admission Notes / Reason" value={admissionNotes} onChange={(e) => setAdmissionNotes(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
