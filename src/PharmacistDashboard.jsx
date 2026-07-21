@@ -54,6 +54,33 @@ export default function PharmacistDashboard({ onLogout }) {
   const saveAttendance = (updated) => {
     setAttendance(updated);
     localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify(updated));
+
+    // Also sync to dhms_master_attendance
+    const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    let currentMaster = [...allAtt];
+
+    updated.forEach(log => {
+      const newRecord = {
+        id: `ATT-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: log.date,
+        module: 'Pharmacist',
+        staffId: log.staffId,
+        staffName: log.name,
+        role: 'Pharmacist Specialist',
+        checkIn: log.status === 'Absent' || log.status === 'On Leave' ? '-' : log.checkIn,
+        checkOut: log.status === 'Absent' || log.status === 'On Leave' ? '-' : log.checkOut,
+        status: log.status,
+        remarks: 'Pharmacy Counter Shift'
+      };
+      const idx = currentMaster.findIndex(a => a.date === newRecord.date && a.staffId === newRecord.staffId);
+      if (idx >= 0) {
+        currentMaster[idx] = { ...currentMaster[idx], ...newRecord };
+      } else {
+        currentMaster.unshift(newRecord);
+      }
+    });
+
+    localStorage.setItem('dhms_master_attendance', JSON.stringify(currentMaster));
   };
 
   const savePrescriptions = (updated) => {

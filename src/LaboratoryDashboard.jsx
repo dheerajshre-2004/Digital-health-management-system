@@ -38,6 +38,47 @@ export default function LaboratoryDashboard({ onLogout }) {
   const totalApptPages = Math.ceil(labAppointments.length / apptsPerPage) || 1;
   const currentAppts = labAppointments.slice((apptPage - 1) * apptsPerPage, apptPage * apptsPerPage);
 
+  // Laboratory Attendance State
+  const [labAttendanceForm, setLabAttendanceForm] = useState({
+    staffId: 'LAB-201',
+    staffName: 'Dr. Alex Vance',
+    role: 'Chief Lab Specialist',
+    date: new Date().toISOString().split('T')[0],
+    status: 'Present',
+    checkIn: '08:45 AM',
+    checkOut: '05:15 PM',
+    remarks: 'Biochemistry Unit'
+  });
+
+  const handleMarkLabAttendance = (e) => {
+    e.preventDefault();
+    const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    const newRecord = {
+      id: `ATT-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: labAttendanceForm.date,
+      module: 'Laboratory',
+      staffId: labAttendanceForm.staffId,
+      staffName: labAttendanceForm.staffName,
+      role: labAttendanceForm.role,
+      checkIn: labAttendanceForm.status === 'Absent' || labAttendanceForm.status === 'On Leave' ? '-' : labAttendanceForm.checkIn,
+      checkOut: labAttendanceForm.status === 'Absent' || labAttendanceForm.status === 'On Leave' ? '-' : labAttendanceForm.checkOut,
+      status: labAttendanceForm.status,
+      remarks: labAttendanceForm.remarks || 'Laboratory Duty'
+    };
+
+    const idx = allAtt.findIndex(a => a.date === newRecord.date && a.staffId === newRecord.staffId);
+    let updated;
+    if (idx >= 0) {
+      updated = [...allAtt];
+      updated[idx] = newRecord;
+    } else {
+      updated = [newRecord, ...allAtt];
+    }
+
+    localStorage.setItem('dhms_master_attendance', JSON.stringify(updated));
+    alert(`Attendance logged successfully for ${labAttendanceForm.staffName} (${labAttendanceForm.status}).`);
+  };
+
   // Laboratory Services / Packages Available
   const labFacilities = [
     { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "$45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
@@ -202,6 +243,10 @@ export default function LaboratoryDashboard({ onLogout }) {
             <li className={activeTab === 'facilities' ? 'active' : ''} onClick={() => setActiveTab('facilities')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
               Lab Facilities & Services
+            </li>
+            <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              Staff Attendance Log
             </li>
           </ul>
         </div>
@@ -505,6 +550,130 @@ export default function LaboratoryDashboard({ onLogout }) {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'attendance' && (
+            <div className="lab-view-container animate-fade-in">
+              <div className="lab-welcome-banner">
+                <h1>Laboratory Staff Shift Attendance</h1>
+                <p>Record daily check-in / check-out times and log shift attendance for lab technicians and specialists.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginTop: '20px' }}>
+                {/* Form Card */}
+                <div className="lab-card">
+                  <h2 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Mark Daily Attendance</h2>
+                  <form onSubmit={handleMarkLabAttendance} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="form-group">
+                      <label>Select Lab Specialist / Technician</label>
+                      <select 
+                        value={labAttendanceForm.staffId} 
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          const name = id === 'LAB-201' ? 'Dr. Alex Vance' : 'Linda Martinez';
+                          const role = id === 'LAB-201' ? 'Chief Lab Specialist' : 'Pathology Technician';
+                          setLabAttendanceForm({ ...labAttendanceForm, staffId: id, staffName: name, role: role });
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      >
+                        <option value="LAB-201">Dr. Alex Vance (Chief Lab Specialist)</option>
+                        <option value="LAB-202">Linda Martinez (Pathology Technician)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Shift Date</label>
+                      <input 
+                        type="date" 
+                        required 
+                        value={labAttendanceForm.date} 
+                        onChange={(e) => setLabAttendanceForm({ ...labAttendanceForm, date: e.target.value })} 
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Attendance Status</label>
+                      <select 
+                        value={labAttendanceForm.status} 
+                        onChange={(e) => setLabAttendanceForm({ ...labAttendanceForm, status: e.target.value })}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      >
+                        <option value="Present">Present</option>
+                        <option value="Late">Late</option>
+                        <option value="Absent">Absent</option>
+                        <option value="On Leave">On Leave</option>
+                      </select>
+                    </div>
+
+                    {labAttendanceForm.status !== 'Absent' && labAttendanceForm.status !== 'On Leave' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div className="form-group">
+                          <label>Check In Time</label>
+                          <input type="text" value={labAttendanceForm.checkIn} onChange={(e) => setLabAttendanceForm({ ...labAttendanceForm, checkIn: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                        </div>
+                        <div className="form-group">
+                          <label>Check Out Time</label>
+                          <input type="text" value={labAttendanceForm.checkOut} onChange={(e) => setLabAttendanceForm({ ...labAttendanceForm, checkOut: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="form-group">
+                      <label>Shift Remarks / Absence Reason</label>
+                      <input type="text" placeholder="e.g. Biochemistry Duty / Approved leave" value={labAttendanceForm.remarks} onChange={(e) => setLabAttendanceForm({ ...labAttendanceForm, remarks: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                    </div>
+
+                    <button type="submit" style={{ padding: '10px', background: '#3f51b5', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+                      Save Attendance Record
+                    </button>
+                  </form>
+                </div>
+
+                {/* History Log Table */}
+                <div className="lab-card">
+                  <h2 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Laboratory Attendance History</h2>
+                  <table className="lab-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Staff Member</th>
+                        <th>Check In / Out</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'))
+                        .filter(a => a.module === 'Laboratory')
+                        .map(att => (
+                          <tr key={att.id}>
+                            <td><strong>{att.date}</strong></td>
+                            <td>
+                              <strong>{att.staffName}</strong>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{att.role}</div>
+                            </td>
+                            <td>{att.checkIn} - {att.checkOut}</td>
+                            <td>
+                              <span className="badge" style={{
+                                padding: '4px 10px',
+                                borderRadius: '999px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                backgroundColor: att.status === 'Present' ? '#dcfce7' : att.status === 'Late' ? '#fef3c7' : '#fee2e2',
+                                color: att.status === 'Present' ? '#15803d' : att.status === 'Late' ? '#b45309' : '#b91c1c'
+                              }}>
+                                {att.status}
+                              </span>
+                            </td>
+                            <td>{att.remarks}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

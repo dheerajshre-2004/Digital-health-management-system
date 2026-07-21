@@ -59,6 +59,53 @@ export default function ReceptionistDashboard({ onLogout }) {
   const [billingPage, setBillingPage] = useState(1);
   const [queuePage, setQueuePage] = useState(1);
 
+  // Attendance State for Receptionist Staff
+  const [masterAttendance, setMasterAttendance] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+  });
+
+  const [recAttendanceForm, setRecAttendanceForm] = useState({
+    staffId: 'REC-101',
+    staffName: 'Sarah Connor',
+    role: 'Senior Receptionist',
+    date: new Date().toISOString().split('T')[0],
+    status: 'Present',
+    checkIn: '08:00 AM',
+    checkOut: '04:30 PM',
+    remarks: 'Front Desk Morning Shift'
+  });
+
+  const handleMarkRecAttendance = (e) => {
+    e.preventDefault();
+    const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    const newRecord = {
+      id: `ATT-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: recAttendanceForm.date,
+      module: 'Receptionist',
+      staffId: recAttendanceForm.staffId,
+      staffName: recAttendanceForm.staffName,
+      role: recAttendanceForm.role,
+      checkIn: recAttendanceForm.status === 'Absent' || recAttendanceForm.status === 'On Leave' ? '-' : recAttendanceForm.checkIn,
+      checkOut: recAttendanceForm.status === 'Absent' || recAttendanceForm.status === 'On Leave' ? '-' : recAttendanceForm.checkOut,
+      status: recAttendanceForm.status,
+      remarks: recAttendanceForm.remarks || 'Reception Duty'
+    };
+
+    // Replace if record for same date & staffId exists
+    const idx = allAtt.findIndex(a => a.date === newRecord.date && a.staffId === newRecord.staffId);
+    let updated;
+    if (idx >= 0) {
+      updated = [...allAtt];
+      updated[idx] = newRecord;
+    } else {
+      updated = [newRecord, ...allAtt];
+    }
+
+    localStorage.setItem('dhms_master_attendance', JSON.stringify(updated));
+    setMasterAttendance(updated);
+    alert(`Attendance logged successfully for ${recAttendanceForm.staffName} (${recAttendanceForm.status}).`);
+  };
+
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
     const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -729,6 +776,144 @@ export default function ReceptionistDashboard({ onLogout }) {
     );
   };
 
+  const renderAttendance = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const recAttRecords = (JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'))
+      .filter(a => a.module === 'Receptionist');
+
+    return (
+      <div className="rd-view-container">
+        <div className="rd-header-banner">
+          <div>
+            <h2>Receptionist Shift Attendance Log</h2>
+            <p>Record daily check-in / check-out times and shift attendance status for front desk staff.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+          {/* Form Card */}
+          <div className="rd-card">
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Mark Daily Attendance</h3>
+            <form className="rd-form" onSubmit={handleMarkRecAttendance}>
+              <div className="rd-form-group">
+                <label>Select Reception Staff Member</label>
+                <select 
+                  value={recAttendanceForm.staffId} 
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const name = id === 'REC-101' ? 'Sarah Connor' : 'Mark Taylor';
+                    const role = id === 'REC-101' ? 'Senior Receptionist' : 'Front Desk Associate';
+                    setRecAttendanceForm({ ...recAttendanceForm, staffId: id, staffName: name, role: role });
+                  }}
+                >
+                  <option value="REC-101">Sarah Connor (Senior Receptionist)</option>
+                  <option value="REC-102">Mark Taylor (Front Desk Associate)</option>
+                </select>
+              </div>
+
+              <div className="rd-form-group">
+                <label>Shift Date</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={recAttendanceForm.date} 
+                  onChange={(e) => setRecAttendanceForm({ ...recAttendanceForm, date: e.target.value })} 
+                />
+              </div>
+
+              <div className="rd-form-group">
+                <label>Attendance Status</label>
+                <select 
+                  value={recAttendanceForm.status} 
+                  onChange={(e) => setRecAttendanceForm({ ...recAttendanceForm, status: e.target.value })}
+                >
+                  <option value="Present">Present</option>
+                  <option value="Late">Late</option>
+                  <option value="Absent">Absent</option>
+                  <option value="On Leave">On Leave</option>
+                </select>
+              </div>
+
+              {recAttendanceForm.status !== 'Absent' && recAttendanceForm.status !== 'On Leave' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="rd-form-group">
+                    <label>Check In Time</label>
+                    <input 
+                      type="text" 
+                      value={recAttendanceForm.checkIn} 
+                      onChange={(e) => setRecAttendanceForm({ ...recAttendanceForm, checkIn: e.target.value })} 
+                    />
+                  </div>
+                  <div className="rd-form-group">
+                    <label>Check Out Time</label>
+                    <input 
+                      type="text" 
+                      value={recAttendanceForm.checkOut} 
+                      onChange={(e) => setRecAttendanceForm({ ...recAttendanceForm, checkOut: e.target.value })} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="rd-form-group">
+                <label>Shift Remarks / Absence Reason</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Front desk morning shift / Sick leave" 
+                  value={recAttendanceForm.remarks} 
+                  onChange={(e) => setRecAttendanceForm({ ...recAttendanceForm, remarks: e.target.value })} 
+                />
+              </div>
+
+              <button type="submit" className="rd-btn-primary mt-4">Save Attendance Record</button>
+            </form>
+          </div>
+
+          {/* History Log Table */}
+          <div className="rd-card">
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Receptionist Attendance Log History</h3>
+            <table className="rd-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Staff Member</th>
+                  <th>Check In / Out</th>
+                  <th>Status</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recAttRecords.length === 0 ? (
+                  <tr><td colSpan="5" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No receptionist attendance logged yet.</td></tr>
+                ) : (
+                  recAttRecords.map(att => (
+                    <tr key={att.id}>
+                      <td><strong>{att.date}</strong></td>
+                      <td>
+                        <strong>{att.staffName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{att.role}</div>
+                      </td>
+                      <td>{att.checkIn} - {att.checkOut}</td>
+                      <td>
+                        <span className="rd-status-badge" style={{
+                          backgroundColor: att.status === 'Present' ? '#dcfce7' : att.status === 'Late' ? '#fef3c7' : '#fee2e2',
+                          color: att.status === 'Present' ? '#15803d' : att.status === 'Late' ? '#b45309' : '#b91c1c'
+                        }}>
+                          {att.status}
+                        </span>
+                      </td>
+                      <td>{att.remarks}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDoctors = () => {
     return (
       <div className="rd-view-container">
@@ -828,6 +1013,10 @@ export default function ReceptionistDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
               Doctor Availability
             </li>
+            <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              Shift Attendance Log
+            </li>
           </ul>
         </aside>
 
@@ -839,6 +1028,7 @@ export default function ReceptionistDashboard({ onLogout }) {
           {activeTab === 'checkin_queue' && renderCheckInQueue()}
           {activeTab === 'billing' && renderBilling()}
           {activeTab === 'doctors' && renderDoctors()}
+          {activeTab === 'attendance' && renderAttendance()}
         </main>
       </div>
     </div>

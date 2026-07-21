@@ -2,23 +2,12 @@ import React, { useState } from 'react';
 import './Dashboard.css';
 
 const DUMMY_DEPARTMENTS = [
-  { id: 1, name: 'Cardiology', head: 'Dr. Smith' },
-  { id: 2, name: 'Neurology', head: 'Dr. Adams' },
-  { id: 3, name: 'Pediatrics', head: 'Dr. Johnson' },
-  { id: 4, name: 'Orthopedics', head: 'Dr. Williams' },
-];
-
-const DUMMY_DOCTORS = [
-  { id: 1, name: 'Dr. Sarah Smith', department: 'Cardiology', status: 'Available' },
-  { id: 2, name: 'Dr. John Adams', department: 'Neurology', status: 'On Leave' },
-  { id: 3, name: 'Dr. Emily Johnson', department: 'Pediatrics', status: 'Available' },
-  { id: 4, name: 'Dr. Michael Williams', department: 'Orthopedics', status: 'In Surgery' },
-];
-
-const DUMMY_PATIENTS = [
-  { id: 101, name: 'Michael Brown', age: 45, gender: 'Male', lastVisit: '2026-07-10' },
-  { id: 102, name: 'Lisa Ray', age: 32, gender: 'Female', lastVisit: '2026-07-12' },
-  { id: 103, name: 'David Kim', age: 28, gender: 'Male', lastVisit: '2026-07-14' },
+  { id: 1, name: 'Cardiology', head: 'Dr. Gregory House', code: 'CARD' },
+  { id: 2, name: 'Neurology', head: 'Dr. John Adams', code: 'NEUR' },
+  { id: 3, name: 'Pediatrics', head: 'Dr. Emily Johnson', code: 'PEDS' },
+  { id: 4, name: 'Orthopedics', head: 'Dr. Michael Williams', code: 'ORTH' },
+  { id: 5, name: 'Primary Care', head: 'Dr. John Watson', code: 'PRIM' },
+  { id: 6, name: 'General Surgery', head: 'Dr. Meredith Grey', code: 'SURG' }
 ];
 
 const DOCTORS = [
@@ -30,11 +19,103 @@ const DOCTORS = [
 export default function Dashboard({ onLogout, role }) {
   const [activeView, setActiveView] = useState('overview');
 
-  // Phase 3 States
-  const [adminSubTab, setAdminSubTab] = useState('appointments');
+  // Admin Module States & Controls
   const [adminSearch, setAdminSearch] = useState('');
   const [adminStatusFilter, setAdminStatusFilter] = useState('All');
-  const [selectedAdminPatientEhr, setSelectedAdminPatientEhr] = useState(null);
+  const [adminPharmacySubTab, setAdminPharmacySubTab] = useState('medications');
+
+  // Attendance Tracker States
+  const [adminAttendanceDate, setAdminAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [adminAttendanceModuleFilter, setAdminAttendanceModuleFilter] = useState('All');
+  const [adminAttendanceStatusFilter, setAdminAttendanceStatusFilter] = useState('All');
+
+  const [docAttendanceForm, setDocAttendanceForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    status: 'Present',
+    checkIn: '08:30 AM',
+    checkOut: '05:00 PM',
+    remarks: 'Morning Clinical Rounds & OPD'
+  });
+
+  const handleDoctorLogAttendance = (e) => {
+    e.preventDefault();
+    const activeDocObj = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+    const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    const newRecord = {
+      id: `ATT-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: docAttendanceForm.date,
+      module: 'Doctor',
+      staffId: activeDocObj.id,
+      staffName: activeDocObj.name,
+      role: activeDocObj.department + ' Physician',
+      checkIn: docAttendanceForm.status === 'Absent' || docAttendanceForm.status === 'On Leave' ? '-' : docAttendanceForm.checkIn,
+      checkOut: docAttendanceForm.status === 'Absent' || docAttendanceForm.status === 'On Leave' ? '-' : docAttendanceForm.checkOut,
+      status: docAttendanceForm.status,
+      remarks: docAttendanceForm.remarks || 'Clinical Duty'
+    };
+
+    const idx = allAtt.findIndex(a => a.date === newRecord.date && a.staffId === newRecord.staffId);
+    let updated;
+    if (idx >= 0) {
+      updated = [...allAtt];
+      updated[idx] = newRecord;
+    } else {
+      updated = [newRecord, ...allAtt];
+    }
+
+    localStorage.setItem('dhms_master_attendance', JSON.stringify(updated));
+    alert(`Shift attendance logged successfully for ${activeDocObj.name} (${docAttendanceForm.status}).`);
+  };
+
+  const handleAdminUpdateMasterAttendance = (attId, newStatus) => {
+    const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    const updated = allAtt.map(a => a.id === attId ? { ...a, status: newStatus } : a);
+    localStorage.setItem('dhms_master_attendance', JSON.stringify(updated));
+  };
+
+  const [departmentsList, setDepartmentsList] = useState(() => {
+    const saved = localStorage.getItem('dhms_departments');
+    if (saved) return JSON.parse(saved);
+    localStorage.setItem('dhms_departments', JSON.stringify(DUMMY_DEPARTMENTS));
+    return DUMMY_DEPARTMENTS;
+  });
+
+  const [doctorsRoster, setDoctorsRoster] = useState(() => {
+    const saved = localStorage.getItem('dhms_doctors');
+    if (saved) return JSON.parse(saved);
+    const defaults = [
+      { id: 'dr_watson', name: 'Dr. John Watson', department: 'Primary Care', status: 'Available', email: 'watson@dhms.org', phone: '+1 (555) 019-2001' },
+      { id: 'dr_house', name: 'Dr. Gregory House', department: 'Cardiology', status: 'Available', email: 'house@dhms.org', phone: '+1 (555) 019-2002' },
+      { id: 'dr_grey', name: 'Dr. Meredith Grey', department: 'General Surgery', status: 'In Surgery', email: 'grey@dhms.org', phone: '+1 (555) 019-2003' },
+      { id: 'dr_adams', name: 'Dr. John Adams', department: 'Neurology', status: 'On Leave', email: 'adams@dhms.org', phone: '+1 (555) 019-2004' },
+      { id: 'dr_johnson', name: 'Dr. Emily Johnson', department: 'Pediatrics', status: 'Available', email: 'johnson@dhms.org', phone: '+1 (555) 019-2005' },
+      { id: 'dr_williams', name: 'Dr. Michael Williams', department: 'Orthopedics', status: 'In Surgery', email: 'williams@dhms.org', phone: '+1 (555) 019-2006' }
+    ];
+    localStorage.setItem('dhms_doctors', JSON.stringify(defaults));
+    return defaults;
+  });
+
+  // Modals state for Admin
+  const [showAddDeptModal, setShowAddDeptModal] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptHead, setNewDeptHead] = useState('');
+  const [newDeptCode, setNewDeptCode] = useState('');
+
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [newDocDept, setNewDocDept] = useState('Primary Care');
+  const [newDocStatus, setNewDocStatus] = useState('Available');
+  const [newDocEmail, setNewDocEmail] = useState('');
+  const [newDocPhone, setNewDocPhone] = useState('');
+
+  const [showAdminBookingModal, setShowAdminBookingModal] = useState(false);
+  const [adminBookPatient, setAdminBookPatient] = useState('');
+  const [adminBookDoctor, setAdminBookDoctor] = useState('dr_watson');
+  const [adminBookDept, setAdminBookDept] = useState('Primary Care');
+  const [adminBookDate, setAdminBookDate] = useState(new Date().toISOString().split('T')[0]);
+  const [adminBookTime, setAdminBookTime] = useState('10:00 AM');
+  const [adminBookReason, setAdminBookReason] = useState('Routine Checkup');
+  const [adminBookType, setAdminBookType] = useState('Physical');
 
   // Billing state
   const [billingList, setBillingList] = useState(() => {
@@ -49,7 +130,6 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_billing', JSON.stringify(defaults));
     return defaults;
   });
-
 
   // Doctor state
   const [activeDoctorId, setActiveDoctorId] = useState('dr_watson');
@@ -118,7 +198,6 @@ export default function Dashboard({ onLogout, role }) {
 
   const [patients, setPatients] = useState(() => {
     const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
-    // Inject default clinical profiles if missing
     let modified = false;
     const updated = list.map(p => {
       let isChanged = false;
@@ -188,7 +267,6 @@ export default function Dashboard({ onLogout, role }) {
     const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. Update appointment to Completed
     const updatedAppts = appointments.map(appt => {
       if (appt.id === apptToComplete.id) {
         return { 
@@ -203,7 +281,6 @@ export default function Dashboard({ onLogout, role }) {
     setAppointments(updatedAppts);
     localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
 
-    // 2. Append consultation clinical history and vitals directly to the patient's EHR profile
     const updatedPatients = patients.map(p => {
       if (p.id === apptToComplete.patientId) {
         const historyEntry = {
@@ -225,7 +302,6 @@ export default function Dashboard({ onLogout, role }) {
     setPatients(updatedPatients);
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
-    // 3. Dispatch prescription to pharmacy if drug name entered
     if (rxDrugName.trim()) {
       const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
       const newRx = {
@@ -245,7 +321,6 @@ export default function Dashboard({ onLogout, role }) {
       setPrescriptions(finalRx);
     }
 
-    // 3.5 Check Admission
     if (isAdmitted) {
       const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
       const newAdm = {
@@ -262,7 +337,7 @@ export default function Dashboard({ onLogout, role }) {
           name: `${rxDrugName} ${rxDose}`,
           instructions: rxInstructions,
           cost: parseFloat(rxCost) || 0.00,
-          status: 'Advised', // Status: Advised -> Dispensed
+          status: 'Advised',
           date: todayStr
         }] : [],
         pharmacyBillPaid: false
@@ -271,7 +346,6 @@ export default function Dashboard({ onLogout, role }) {
       localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
     }
 
-    // 4. Dispatch lab request to laboratory if test name entered
     if (labTestName.trim()) {
       const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
       const newLab = {
@@ -289,7 +363,6 @@ export default function Dashboard({ onLogout, role }) {
       setLabRequests(finalLab);
     }
 
-    // 5. Instantly generate a consultation invoice for the receptionist billing system
     const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
     const newConsultationInvoice = {
       id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -304,7 +377,6 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
     setBillingList(updatedBillingList);
 
-    // Clean up calling and modal states
     setSelectedApptForCheckup(null);
     setIsVideoCallActive(false);
     setActiveCallAppt(null);
@@ -373,69 +445,12 @@ export default function Dashboard({ onLogout, role }) {
     alert('New clinical report saved to patient record.');
   };
 
-  const handleDispenseRx = (rxId) => {
-    const updatedRx = prescriptions.map(rx => {
-      if (rx.id === rxId) {
-        return { ...rx, status: 'Dispensed & Billed' };
-      }
-      return rx;
-    });
-    setPrescriptions(updatedRx);
-    localStorage.setItem('dhms_prescriptions', JSON.stringify(updatedRx));
-
-    const rxItem = prescriptions.find(rx => rx.id === rxId);
-    if (rxItem) {
-      const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-      const newInvoice = {
-        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: rxItem.patientId,
-        patientName: rxItem.patientName,
-        date: new Date().toISOString().split('T')[0],
-        amount: rxItem.cost,
-        status: "Unpaid",
-        type: "Prescription Co-pay"
-      };
-      const updatedBilling = [newInvoice, ...billing];
-      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
-      setBillingList(updatedBilling);
-    }
-  };
-
-  const handleCompleteLab = (labId) => {
-    const updatedLab = labRequests.map(lab => {
-      if (lab.id === labId) {
-        return { ...lab, status: 'Completed & Billed' };
-      }
-      return lab;
-    });
-    setLabRequests(updatedLab);
-    localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLab));
-
-    const labItem = labRequests.find(lab => lab.id === labId);
-    if (labItem) {
-      const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-      const newInvoice = {
-        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: labItem.patientId,
-        patientName: labItem.patientName,
-        date: new Date().toISOString().split('T')[0],
-        amount: labItem.cost,
-        status: "Unpaid",
-        type: "Lab Diagnostics"
-      };
-      const updatedBilling = [newInvoice, ...billing];
-      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
-      setBillingList(updatedBilling);
-    }
-  };
-
   const handleCompleteLabWithResults = (e) => {
     e.preventDefault();
     if (!selectedLabForResults) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. Update the lab request with status and results
     const updatedLab = labRequests.map(lab => {
       if (lab.id === selectedLabForResults.id) {
         return { 
@@ -451,7 +466,6 @@ export default function Dashboard({ onLogout, role }) {
     setLabRequests(updatedLab);
     localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLab));
 
-    // 2. Append a new Lab Report to the patient's EHR profile in localStorage
     const patientList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
     const newReport = {
       id: `EHR-${Math.floor(100 + Math.random() * 900)}`,
@@ -480,7 +494,6 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
     setPatients(updatedPatients);
 
-    // 3. Dispatch billing invoice
     const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
     const newInvoice = {
       id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -495,21 +508,110 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
     setBillingList(updatedBilling);
 
-    // Clean up
     setSelectedLabForResults(null);
     setLabResultsText('');
     setLabRemarks('');
     alert('Lab diagnostic report completed, saved to EHR, and billed successfully.');
   };
 
+  // Admin Module Action Handlers
+  const handleAddDepartment = (e) => {
+    e.preventDefault();
+    if (!newDeptName.trim()) return;
+    const newDept = {
+      id: departmentsList.length + 1,
+      name: newDeptName.trim(),
+      head: newDeptHead.trim() || 'TBD',
+      code: newDeptCode.trim().toUpperCase() || 'DEPT'
+    };
+    const updated = [...departmentsList, newDept];
+    setDepartmentsList(updated);
+    localStorage.setItem('dhms_departments', JSON.stringify(updated));
+    setNewDeptName('');
+    setNewDeptHead('');
+    setNewDeptCode('');
+    setShowAddDeptModal(false);
+    alert(`Department "${newDept.name}" created successfully.`);
+  };
+
+  const handleAddDoctor = (e) => {
+    e.preventDefault();
+    if (!newDocName.trim()) return;
+    const idStr = `dr_${newDocName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Math.floor(100 + Math.random() * 900)}`;
+    const newDoc = {
+      id: idStr,
+      name: newDocName.startsWith('Dr.') ? newDocName : `Dr. ${newDocName}`,
+      department: newDocDept,
+      status: newDocStatus,
+      email: newDocEmail || `${newDocName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+      phone: newDocPhone || '+1 (555) 000-0000'
+    };
+    const updated = [...doctorsRoster, newDoc];
+    setDoctorsRoster(updated);
+    localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+    setNewDocName('');
+    setNewDocEmail('');
+    setNewDocPhone('');
+    setShowAddDoctorModal(false);
+    alert(`${newDoc.name} added to hospital doctors roster.`);
+  };
+
+  const handleToggleDoctorStatus = (docId, newStatus) => {
+    const updated = doctorsRoster.map(d => d.id === docId ? { ...d, status: newStatus } : d);
+    setDoctorsRoster(updated);
+    localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+  };
+
+  const handleAdminCreateAppointment = (e) => {
+    e.preventDefault();
+    if (!adminBookPatient.trim()) return;
+    const selectedDocObj = doctorsRoster.find(d => d.id === adminBookDoctor) || doctorsRoster[0] || DOCTORS[0];
+    const newAppt = {
+      id: `APT-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: `PT-${Math.floor(10000 + Math.random() * 90000)}`,
+      patientName: adminBookPatient.trim(),
+      doctorId: selectedDocObj.id,
+      doctorName: selectedDocObj.name,
+      department: adminBookDept,
+      date: adminBookDate,
+      time: adminBookTime,
+      reason: adminBookReason,
+      status: 'Upcoming',
+      type: adminBookType,
+      source: 'Admin Office'
+    };
+    const updated = [newAppt, ...appointments];
+    setAppointments(updated);
+    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+    setAdminBookPatient('');
+    setShowAdminBookingModal(false);
+    alert(`Appointment ${newAppt.id} booked successfully for ${newAppt.patientName}.`);
+  };
+
+  const handleAdminMarkPaid = (invoiceId) => {
+    const updated = billingList.map(inv => {
+      if (inv.id === invoiceId) {
+        return { ...inv, status: 'Paid' };
+      }
+      return inv;
+    });
+    setBillingList(updated);
+    localStorage.setItem('dhms_billing', JSON.stringify(updated));
+    alert(`Invoice ${invoiceId} status marked as Paid.`);
+  };
+
   const getNavItems = () => {
     switch (role) {
       case 'admin':
         return [
-          { id: 'overview', label: 'Overview' },
-          { id: 'departments', label: 'Departments' },
-          { id: 'doctors', label: 'Doctors' },
-          { id: 'patients', label: 'Patients' }
+          { id: 'overview', label: 'Operations Overview' },
+          { id: 'departments', label: 'Departments & Staff' },
+          { id: 'doctors', label: 'Doctors Roster' },
+          { id: 'receptionist', label: 'Receptionist Desk' },
+          { id: 'laboratory', label: 'Laboratory Desk' },
+          { id: 'pharmacy', label: 'Pharmacy & Stock' },
+          { id: 'billing', label: 'Financials & Billing' },
+          { id: 'attendance', label: 'Attendance & Absentees' }
         ];
       case 'doctor':
         return [
@@ -517,7 +619,8 @@ export default function Dashboard({ onLogout, role }) {
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
           { id: 'prescriptions', label: 'Prescription History' },
-          { id: 'labs', label: 'Lab Orders History' }
+          { id: 'labs', label: 'Lab Orders History' },
+          { id: 'attendance', label: 'My Shift Attendance' }
         ];
       case 'patient':
         return [
@@ -544,21 +647,129 @@ export default function Dashboard({ onLogout, role }) {
 
   const renderRoleOverview = () => {
     if (role === 'admin') {
+      const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace('$', '').trim()) || 0;
+      const totalRev = billingList.filter(i => i.status === 'Paid').reduce((sum, i) => sum + cleanAmount(i.amount), 0);
+      const meds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+      const lowStockCount = meds.filter(m => m.stock <= (m.lowStockThreshold || 15)).length;
+
       return (
         <>
-          <p>Welcome Admin. You can manage foundational entities (Departments, Doctors, Patients) across the hospital.</p>
-          <div className="stats-grid">
-            <div className="stat-card" onClick={() => setActiveView('departments')}>
+          <p style={{ color: '#475569', fontSize: '15px' }}>
+            Welcome <strong>Administrator</strong>. Executive Operations Console connecting hospital departments, doctors roster, receptionist desk, laboratory orders, pharmacy inventory, and billing ledger.
+          </p>
+          
+          <div className="stats-grid" style={{ marginTop: '20px' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', cursor: 'pointer' }} onClick={() => setActiveView('departments')}>
               <h3>Departments</h3>
-              <div className="stat-value">{DUMMY_DEPARTMENTS.length}</div>
+              <div className="stat-value">{departmentsList.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Active Hospital Wings</div>
             </div>
-            <div className="stat-card" onClick={() => setActiveView('doctors')}>
-              <h3>Doctors</h3>
-              <div className="stat-value">{DUMMY_DOCTORS.length}</div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #10b981', cursor: 'pointer' }} onClick={() => setActiveView('doctors')}>
+              <h3>Available Doctors</h3>
+              <div className="stat-value">{doctorsRoster.filter(d => d.status === 'Available').length} / {doctorsRoster.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>On Active Duty</div>
             </div>
-            <div className="stat-card" onClick={() => setActiveView('patients')}>
-              <h3>Patients</h3>
-              <div className="stat-value">{DUMMY_PATIENTS.length}</div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => setActiveView('receptionist')}>
+              <h3>Appointments Desk</h3>
+              <div className="stat-value">{appointments.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span style={{ color: '#10b981', fontWeight: '600' }}>{appointments.filter(a => a.status === 'Completed').length}</span> Completed
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #6366f1', cursor: 'pointer' }} onClick={() => setActiveView('laboratory')}>
+              <h3>Diagnostic Lab Orders</h3>
+              <div className="stat-value">{labRequests.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span style={{ color: '#ef4444', fontWeight: '600' }}>{labRequests.filter(l => l.status === 'Pending').length}</span> Pending Tests
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #ec4899', cursor: 'pointer' }} onClick={() => setActiveView('pharmacy')}>
+              <h3>Pharmacy & Stock</h3>
+              <div className="stat-value">{meds.length} Meds</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span style={{ color: lowStockCount > 0 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{lowStockCount} Low Stock Items</span>
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }} onClick={() => setActiveView('billing')}>
+              <h3>Hospital Revenue</h3>
+              <div className="stat-value">${totalRev.toFixed(2)}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Collected Billing Ledger</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setActiveView('attendance')}>
+              <h3>Shift Attendance</h3>
+              <div className="stat-value">
+                {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]')).filter(a => a.date === adminAttendanceDate && a.status === 'Present').length} Present
+              </div>
+              <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', fontWeight: 'bold' }}>
+                {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]')).filter(a => a.date === adminAttendanceDate && (a.status === 'Absent' || a.status === 'On Leave')).length} Absent / On Leave
+              </div>
+            </div>
+          </div>
+
+          {/* Connected Operations Desks Matrix */}
+          <div style={{ marginTop: '30px' }}>
+            <h3 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Connected Operational Desks</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              
+              {/* Card 1: Reception Desk Quick Access */}
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#1e3a8a' }}>Reception & Appointments Desk</h4>
+                  <button onClick={() => setActiveView('receptionist')} style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
+                </div>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Overview of current patient bookings, walk-ins, and schedule statuses.</p>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>Upcoming: <strong>{appointments.filter(a => a.status === 'Upcoming' || a.status === 'Confirmed').length}</strong></div>
+                  <div>Checked In: <strong>{appointments.filter(a => a.status === 'Checked In').length}</strong></div>
+                  <div>Completed: <strong>{appointments.filter(a => a.status === 'Completed').length}</strong></div>
+                </div>
+              </div>
+
+              {/* Card 2: Laboratory Desk Quick Access */}
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#4338ca' }}>Laboratory Diagnostics Desk</h4>
+                  <button onClick={() => setActiveView('laboratory')} style={{ padding: '6px 12px', background: '#eef2ff', color: '#4338ca', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
+                </div>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Track diagnostic lab orders, test turnaround times, and completed reports.</p>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>Pending Tests: <strong style={{ color: '#ef4444' }}>{labRequests.filter(l => l.status === 'Pending').length}</strong></div>
+                  <div>Completed & Billed: <strong style={{ color: '#10b981' }}>{labRequests.filter(l => l.status === 'Completed & Billed').length}</strong></div>
+                </div>
+              </div>
+
+              {/* Card 3: Pharmacy Desk Quick Access */}
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#047857' }}>Pharmacy & Stock Control</h4>
+                  <button onClick={() => setActiveView('pharmacy')} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#047857', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
+                </div>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Monitor drug inventory levels, emergency medications, and prescription logs.</p>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>Pending RX: <strong style={{ color: '#ef4444' }}>{prescriptions.filter(r => r.status === 'Pending').length}</strong></div>
+                  <div>Dispensed: <strong style={{ color: '#10b981' }}>{prescriptions.filter(r => r.status === 'Dispensed & Billed').length}</strong></div>
+                </div>
+              </div>
+
+              {/* Card 4: Financials & Billing Quick Access */}
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#6b21a8' }}>Hospital Billing & Revenue</h4>
+                  <button onClick={() => setActiveView('billing')} style={{ padding: '6px 12px', background: '#faf5ff', color: '#6b21a8', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
+                </div>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Master ledger across consultations, laboratory tests, and pharmacy billing.</p>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>Paid Invoices: <strong style={{ color: '#10b981' }}>{billingList.filter(b => b.status === 'Paid').length}</strong></div>
+                  <div>Unpaid Invoices: <strong style={{ color: '#ef4444' }}>{billingList.filter(b => b.status === 'Unpaid').length}</strong></div>
+                </div>
+              </div>
+
             </div>
           </div>
         </>
@@ -581,550 +792,7 @@ export default function Dashboard({ onLogout, role }) {
               <div className="stat-value">{docAppts.filter(a => a.status !== 'Completed').length}</div>
             </div>
           </div>
-
-          <div className="rd-card" style={{ marginTop: '24px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Assigned Schedule Overview</h3>
-            {docAppts.length === 0 ? (
-              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>No appointments scheduled for today.</p>
-            ) : (
-              <table className="data-table" style={{ boxShadow: 'none', border: 'none' }}>
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Patient Name</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {docAppts.slice(0, 5).map(appt => (
-                    <tr key={appt.id}>
-                      <td><strong>{appt.time}</strong></td>
-                      <td>{appt.patientName}</td>
-                      <td>{appt.reason}</td>
-                      <td>
-                        <span className={`status-badge`} style={{
-                          backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
-                          color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
-                        }}>
-                          {appt.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </>
-      );
-    } else if (role === 'patient') {
-      return (
-        <>
-          <p>Welcome to your personal health portal. Find doctors and view your medical records.</p>
-          <div className="stats-grid">
-            <div className="stat-card" onClick={() => setActiveView('doctors')}>
-              <h3>Available Doctors</h3>
-              <div className="stat-value">{DUMMY_DOCTORS.filter(d => d.status === 'Available').length}</div>
-            </div>
-            <div className="stat-card">
-              <h3>Upcoming Visits</h3>
-              <div className="stat-value">1</div>
-            </div>
-          </div>
-        </>
-      );
-    } else if (role === 'laboratory') {
-      const pendingLabCount = labRequests.filter(req => req.status === 'Pending').length;
-      return (
-        <>
-          <p>Welcome to the Laboratory portal. Manage test requests and results.</p>
-          <div className="stats-grid">
-            <div className="stat-card" onClick={() => setActiveView('requests')}>
-              <h3>Pending Requests</h3>
-              <div className="stat-value">{pendingLabCount}</div>
-            </div>
-          </div>
-        </>
-      );
-    } else if (role === 'pharmacist') {
-      const pendingRxCount = prescriptions.filter(rx => rx.status === 'Pending').length;
-      return (
-        <>
-          <p>Welcome to the Pharmacy portal. Manage prescriptions and inventory.</p>
-          <div className="stats-grid">
-            <div className="stat-card" onClick={() => setActiveView('prescriptions')}>
-              <h3>New Prescriptions</h3>
-              <div className="stat-value">{pendingRxCount}</div>
-            </div>
-          </div>
-        </>
-      );
-    }
-  };
-
-  const renderPhase3Console = () => {
-    const totalAppointmentsCount = appointments.length;
-    const completedApptsCount = appointments.filter(a => a.status === 'Completed').length;
-    const upcomingApptsCount = appointments.filter(a => a.status === 'Upcoming' || a.status === 'Confirmed' || a.status === 'Checked In').length;
-
-    const totalEhrsCount = patients.length;
-
-    const totalPrescriptionsCount = prescriptions.length;
-    const pendingRxCount = prescriptions.filter(r => r.status === 'Pending').length;
-    const dispensedRxCount = prescriptions.filter(r => r.status === 'Dispensed & Billed').length;
-
-    const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace('$', '').trim()) || 0;
-    const totalRevenue = billingList
-      .filter(inv => inv.status === 'Paid')
-      .reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
-    const unpaidRevenue = billingList
-      .filter(inv => inv.status === 'Unpaid')
-      .reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
-    const totalBilled = totalRevenue + unpaidRevenue;
-
-    if (role === 'admin') {
-      const filteredAppointments = appointments.filter(appt => {
-        const matchesSearch = appt.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              appt.doctorName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              appt.id.toLowerCase().includes(adminSearch.toLowerCase());
-        const matchesStatus = adminStatusFilter === 'All' || appt.status === adminStatusFilter;
-        return matchesSearch && matchesStatus;
-      });
-
-      const filteredPatients = patients.filter(p => {
-        const query = adminSearch.toLowerCase();
-        return p.id.toLowerCase().includes(query) ||
-               `${p.firstName} ${p.lastName}`.toLowerCase().includes(query) ||
-               (p.phone && p.phone.includes(query));
-      });
-
-      const filteredPrescriptions = prescriptions.filter(rx => {
-        const matchesSearch = rx.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              rx.medication.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              rx.id.toLowerCase().includes(adminSearch.toLowerCase());
-        const matchesStatus = adminStatusFilter === 'All' || rx.status === adminStatusFilter;
-        return matchesSearch && matchesStatus;
-      });
-
-      const filteredBilling = billingList.filter(inv => {
-        const matchesSearch = inv.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              inv.id.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                              inv.type.toLowerCase().includes(adminSearch.toLowerCase());
-        const matchesStatus = adminStatusFilter === 'All' || inv.status === adminStatusFilter;
-        return matchesSearch && matchesStatus;
-      });
-
-      const handleMarkAsPaid = (invoiceId) => {
-        const updated = billingList.map(inv => {
-          if (inv.id === invoiceId) {
-            return { ...inv, status: 'Paid' };
-          }
-          return inv;
-        });
-        setBillingList(updated);
-        localStorage.setItem('dhms_billing', JSON.stringify(updated));
-      };
-
-      return (
-        <div className="phase3-console" style={{ marginTop: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>Phase 3 Hospital Operations & Financials</h3>
-            <span style={{ fontSize: '12px', background: '#dbeafe', color: '#1e40af', padding: '4px 10px', borderRadius: '999px', fontWeight: '600' }}>Active Operations Console</span>
-          </div>
-
-          <div className="stats-grid" style={{ marginBottom: '24px' }}>
-            <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }} onClick={() => { setAdminSubTab('appointments'); setAdminSearch(''); setAdminStatusFilter('All'); }}>
-              <h3>Appointments</h3>
-              <div className="stat-value">{totalAppointmentsCount}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                <span style={{ color: '#10b981', fontWeight: '600' }}>{completedApptsCount}</span> Completed | <span style={{ color: '#f59e0b', fontWeight: '600' }}>{upcomingApptsCount}</span> Active
-              </div>
-            </div>
-
-            <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }} onClick={() => { setAdminSubTab('ehr'); setAdminSearch(''); setAdminStatusFilter('All'); }}>
-              <h3>Active Patient EHRs</h3>
-              <div className="stat-value">{totalEhrsCount}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                Clinical Records & Summaries
-              </div>
-            </div>
-
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => { setAdminSubTab('prescriptions'); setAdminSearch(''); setAdminStatusFilter('All'); }}>
-              <h3>Medications Issued</h3>
-              <div className="stat-value">{totalPrescriptionsCount}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                <span style={{ color: '#10b981', fontWeight: '600' }}>{dispensedRxCount}</span> Dispensed | <span style={{ color: '#ef4444', fontWeight: '600' }}>{pendingRxCount}</span> Pending
-              </div>
-            </div>
-
-            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }} onClick={() => { setAdminSubTab('billing'); setAdminSearch(''); setAdminStatusFilter('All'); }}>
-              <h3>Hospital Billing</h3>
-              <div className="stat-value">${totalRevenue.toFixed(2)}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                Total: <span style={{ fontWeight: '600' }}>${totalBilled.toFixed(2)}</span> | Unpaid: <span style={{ color: '#ef4444', fontWeight: '600' }}>${unpaidRevenue.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px' }}>
-            {['appointments', 'ehr', 'prescriptions', 'billing'].map(tab => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => { setAdminSubTab(tab); setAdminSearch(''); setAdminStatusFilter('All'); }}
-                style={{
-                  padding: '10px 16px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: adminSubTab === tab ? '3px solid #3b82f6' : '3px solid transparent',
-                  color: adminSubTab === tab ? '#1e3a8a' : '#64748b',
-                  fontWeight: '600',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
-                  marginBottom: '-2px'
-                }}
-              >
-                {tab === 'ehr' ? 'EHR Explorer' : tab}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder={`Search ${adminSubTab}...`}
-              value={adminSearch}
-              onChange={(e) => setAdminSearch(e.target.value)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                width: '320px',
-                fontSize: '14px',
-                outline: 'none'
-              }}
-            />
-
-            {adminSubTab !== 'ehr' && (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>Filter Status:</span>
-                <select
-                  value={adminStatusFilter}
-                  onChange={(e) => setAdminStatusFilter(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px' }}
-                >
-                  <option value="All">All Statuses</option>
-                  {adminSubTab === 'appointments' && (
-                    <>
-                      <option value="Upcoming">Upcoming</option>
-                      <option value="Confirmed">Confirmed</option>
-                      <option value="Checked In">Checked In</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Completed">Completed</option>
-                    </>
-                  )}
-                  {adminSubTab === 'prescriptions' && (
-                    <>
-                      <option value="Pending">Pending</option>
-                      <option value="Dispensed & Billed">Dispensed & Billed</option>
-                    </>
-                  )}
-                  {adminSubTab === 'billing' && (
-                    <>
-                      <option value="Paid">Paid</option>
-                      <option value="Unpaid">Unpaid</option>
-                    </>
-                  )}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="admin-console-tab-content">
-            {adminSubTab === 'appointments' && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Appointment ID</th>
-                    <th>Patient Details</th>
-                    <th>Physician / Dept</th>
-                    <th>Date / Time</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAppointments.length === 0 ? (
-                    <tr><td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No appointments match filter</td></tr>
-                  ) : (
-                    filteredAppointments.map(appt => (
-                      <tr key={appt.id}>
-                        <td><strong>{appt.id}</strong></td>
-                        <td>
-                          <strong>{appt.patientName}</strong>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div>
-                        </td>
-                        <td>
-                          <div>{appt.doctorName}</div>
-                          <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{appt.department}</span>
-                        </td>
-                        <td>
-                          <strong>{appt.date}</strong>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>{appt.time}</div>
-                        </td>
-                        <td>
-                          <span className={`status-badge`} style={{
-                            backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
-                            color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
-                          }}>
-                            {appt.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {adminSubTab === 'ehr' && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Patient ID</th>
-                    <th>Name</th>
-                    <th>Blood Group</th>
-                    <th>Known Allergies</th>
-                    <th>Chronic Conditions</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPatients.length === 0 ? (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No patients found</td></tr>
-                  ) : (
-                    filteredPatients.map(p => (
-                      <tr key={p.id}>
-                        <td><strong>{p.id}</strong></td>
-                        <td><strong>{p.firstName} {p.lastName}</strong><div style={{ fontSize: '11px', color: '#64748b' }}>DOB: {p.dob}</div></td>
-                        <td><span style={{ background: '#fef2f2', color: '#b91c1c', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>{p.bloodType || 'O+'}</span></td>
-                        <td>{p.allergies || 'None'}</td>
-                        <td>{p.chronicConditions || 'None'}</td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedAdminPatientEhr(p)}
-                            style={{
-                              padding: '5px 10px',
-                              backgroundColor: '#eff6ff',
-                              color: '#1d4ed8',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '12px'
-                            }}
-                          >
-                            Inspect EHR
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {adminSubTab === 'prescriptions' && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>RX ID</th>
-                    <th>Patient Name</th>
-                    <th>Medication Details</th>
-                    <th>Prescribing Doctor</th>
-                    <th>Date</th>
-                    <th>Co-pay Cost</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPrescriptions.length === 0 ? (
-                    <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No prescriptions match filter</td></tr>
-                  ) : (
-                    filteredPrescriptions.map(rx => (
-                      <tr key={rx.id}>
-                        <td><strong>{rx.id}</strong></td>
-                        <td>{rx.patientName}</td>
-                        <td><strong>{rx.medication}</strong></td>
-                        <td>{rx.doctorName}</td>
-                        <td>{rx.date}</td>
-                        <td><strong>{rx.cost}</strong></td>
-                        <td>
-                          <span className={`status-badge`} style={{
-                            backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
-                            color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c'
-                          }}>
-                            {rx.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            {adminSubTab === 'billing' && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Invoice ID</th>
-                    <th>Patient Details</th>
-                    <th>Billing Description</th>
-                    <th>Date</th>
-                    <th>Charge Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBilling.length === 0 ? (
-                    <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No invoices match filter</td></tr>
-                  ) : (
-                    filteredBilling.map(inv => (
-                      <tr key={inv.id}>
-                        <td><strong>{inv.id}</strong></td>
-                        <td>
-                          <strong>{inv.patientName}</strong>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {inv.patientId}</div>
-                        </td>
-                        <td>{inv.type}</td>
-                        <td>{inv.date}</td>
-                        <td><strong>{inv.amount}</strong></td>
-                        <td>
-                          <span className={`status-badge ${inv.status.toLowerCase()}`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {inv.status === 'Unpaid' && (
-                              <button
-                                type="button"
-                                onClick={() => handleMarkAsPaid(inv.id)}
-                                style={{
-                                  padding: '4px 8px',
-                                  backgroundColor: '#10b981',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '11px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                Collect Payment
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => alert(`Printing Invoice ${inv.id} Receipt...`)}
-                              style={{
-                                padding: '4px 8px',
-                                border: '1px solid #cbd5e1',
-                                background: 'white',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                color: '#475569'
-                              }}
-                            >
-                              Print
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      );
-    } else if (role === 'doctor') {
-      const activeDoctor = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
-      const docAppts = appointments.filter(appt => appt.doctorId === activeDoctorId);
-      const docRx = prescriptions.filter(rx => rx.doctorName === activeDoctor.name);
-      
-      return (
-        <div className="phase3-console" style={{ marginTop: '30px' }}>
-          <h3 style={{ fontSize: '18px', color: '#1e293b' }}>Doctor's Prescriptions & Clinic Revenue Summary</h3>
-          <div className="stats-grid" style={{ marginTop: '16px' }}>
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-              <h3>Prescriptions Written</h3>
-              <div className="stat-value">{docRx.length}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                <span style={{ color: '#10b981', fontWeight: '600' }}>{docRx.filter(r => r.status === 'Dispensed & Billed').length}</span> Dispensed | <span style={{ color: '#ef4444', fontWeight: '600' }}>{docRx.filter(r => r.status === 'Pending').length}</span> Pending
-              </div>
-            </div>
-            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-              <h3>Clinic Revenue Contribution</h3>
-              <div className="stat-value">
-                ${(docAppts.filter(a => a.status === 'Completed').length * 150).toFixed(2)}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                From completed checkup consultation fees
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    } else if (role === 'laboratory') {
-      const deptLabs = labRequests;
-      const cleanCost = (c) => parseFloat(c.replace('$', '').trim()) || 0;
-      const labRevenue = deptLabs.filter(l => l.status === 'Completed & Billed').reduce((sum, l) => sum + cleanCost(l.cost), 0);
-      return (
-        <div className="phase3-console" style={{ marginTop: '30px' }}>
-          <h3 style={{ fontSize: '18px', color: '#1e293b' }}>Lab Turnaround & Financial Highlights</h3>
-          <div className="stats-grid" style={{ marginTop: '16px' }}>
-            <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-              <h3>Completed Lab Orders</h3>
-              <div className="stat-value">{deptLabs.filter(l => l.status === 'Completed & Billed').length}</div>
-            </div>
-            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-              <h3>Lab Service Billings</h3>
-              <div className="stat-value">${labRevenue.toFixed(2)}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                Outstanding orders: <span style={{ color: '#ef4444', fontWeight: '600' }}>${deptLabs.filter(l => l.status === 'Pending').reduce((sum, l) => sum + cleanCost(l.cost), 0).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    } else if (role === 'pharmacist') {
-      const deptRx = prescriptions;
-      const cleanCost = (c) => parseFloat(c.replace('$', '').trim()) || 0;
-      const rxRevenue = deptRx.filter(r => r.status === 'Dispensed & Billed').reduce((sum, r) => sum + cleanCost(r.cost), 0);
-      return (
-        <div className="phase3-console" style={{ marginTop: '30px' }}>
-          <h3 style={{ fontSize: '18px', color: '#1e293b' }}>Pharmacy Inventory & Billing Highlights</h3>
-          <div className="stats-grid" style={{ marginTop: '16px' }}>
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-              <h3>Dispensed Medications</h3>
-              <div className="stat-value">{deptRx.filter(r => r.status === 'Dispensed & Billed').length}</div>
-            </div>
-            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-              <h3>Pharmacy Revenue Collected</h3>
-              <div className="stat-value">${rxRevenue.toFixed(2)}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                Pending orders value: <span style={{ color: '#ef4444', fontWeight: '600' }}>${deptRx.filter(r => r.status === 'Pending').reduce((sum, r) => sum + cleanCost(r.cost), 0).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
       );
     }
     return null;
@@ -1135,36 +803,645 @@ export default function Dashboard({ onLogout, role }) {
       case 'departments':
         return (
           <div className="module-content">
-            <h2>Departments (Module 2)</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Hospital Departments & Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Configure departments and assign department heads across the hospital.</p>
+              </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => setShowAddDeptModal(true)}
+                  style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add New Department
+                </button>
+              )}
+            </div>
+
             <table className="data-table">
-              <thead><tr><th>ID</th><th>Department Name</th><th>Head of Department</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Dept Code</th>
+                  <th>Department Name</th>
+                  <th>Head of Department</th>
+                  <th>Operational Status</th>
+                </tr>
+              </thead>
               <tbody>
-                {DUMMY_DEPARTMENTS.map(d => (
-                  <tr key={d.id}><td>{d.id}</td><td>{d.name}</td><td>{d.head}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      case 'doctors':
-        return (
-          <div className="module-content">
-            <h2>Doctors (Module 2)</h2>
-            <table className="data-table">
-              <thead><tr><th>ID</th><th>Doctor Name</th><th>Department</th><th>Status</th></tr></thead>
-              <tbody>
-                {DUMMY_DOCTORS.map(d => (
-                  <tr key={d.id}><td>{d.id}</td><td>{d.name}</td><td>{d.department}</td>
-                    <td><span className={`status-badge ${d.status === 'Available' ? 'available' : d.status === 'On Leave' ? 'leave' : 'surgery'}`}>{d.status}</span></td>
+                {departmentsList.map(d => (
+                  <tr key={d.id}>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>{d.code || `DEPT-0${d.id}`}</span></td>
+                    <td><strong>{d.name}</strong></td>
+                    <td>{d.head}</td>
+                    <td><span className="status-badge available">Active Wing</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {/* Add Dept Modal */}
+            {showAddDeptModal && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h3 style={{ margin: 0, color: '#1e293b' }}>Add New Department</h3>
+                  <form onSubmit={handleAddDepartment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department Name</label>
+                      <input type="text" required value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="e.g. Oncology" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Dept Code</label>
+                      <input type="text" required value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} placeholder="e.g. ONCO" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Head of Department</label>
+                      <input type="text" value={newDeptHead} onChange={(e) => setNewDeptHead(e.target.value)} placeholder="e.g. Dr. Robert House" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                      <button type="button" onClick={() => setShowAddDeptModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                      <button type="submit" style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Department</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         );
+
+      case 'doctors':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Doctors & Medical Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage physicians, active statuses, and department assignments.</p>
+              </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => setShowAddDoctorModal(true)}
+                  style={{ padding: '10px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add New Doctor
+                </button>
+              )}
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Doctor ID</th>
+                  <th>Doctor Name</th>
+                  <th>Department</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {doctorsRoster.map(d => (
+                  <tr key={d.id}>
+                    <td><strong>{d.id}</strong></td>
+                    <td><strong>{d.name}</strong></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{d.department}</span></td>
+                    <td>{d.email}</td>
+                    <td>
+                      <span className={`status-badge ${d.status === 'Available' ? 'available' : d.status === 'On Leave' ? 'leave' : 'surgery'}`}>
+                        {d.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td>
+                        <select 
+                          value={d.status} 
+                          onChange={(e) => handleToggleDoctorStatus(d.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                          <option value="In Surgery">In Surgery</option>
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Add Doctor Modal */}
+            {showAddDoctorModal && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h3 style={{ margin: 0, color: '#1e293b' }}>Add New Doctor to Roster</h3>
+                  <form onSubmit={handleAddDoctor} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Doctor Full Name</label>
+                      <input type="text" required value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Dr. Alice Vance" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department</label>
+                      <select value={newDocDept} onChange={(e) => setNewDocDept(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        {departmentsList.map(dept => (
+                          <option key={dept.id} value={dept.name}>{dept.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
+                      <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        <option value="Available">Available</option>
+                        <option value="On Leave">On Leave</option>
+                        <option value="In Surgery">In Surgery</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Email Address</label>
+                      <input type="email" value={newDocEmail} onChange={(e) => setNewDocEmail(e.target.value)} placeholder="alice@dhms.org" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                      <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                      <button type="submit" style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Doctor</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'receptionist':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Receptionist & Appointment Desk</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>View and manage patient appointments, check-in statuses, and bookings.</p>
+              </div>
+              <button 
+                onClick={() => setShowAdminBookingModal(true)}
+                style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+              >
+                + Schedule Appointment
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Search appointments by ID, patient or doctor..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '320px', outline: 'none' }}
+              />
+              <select 
+                value={adminStatusFilter}
+                onChange={(e) => setAdminStatusFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Upcoming">Upcoming</option>
+                <option value="Checked In">Checked In</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Appt ID</th>
+                  <th>Patient Name</th>
+                  <th>Assigned Physician / Dept</th>
+                  <th>Date & Time</th>
+                  <th>Reason</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appointments
+                  .filter(a => {
+                    const matchQ = a.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   a.doctorName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   a.id.toLowerCase().includes(adminSearch.toLowerCase());
+                    const matchS = adminStatusFilter === 'All' || a.status === adminStatusFilter;
+                    return matchQ && matchS;
+                  })
+                  .map(appt => (
+                    <tr key={appt.id}>
+                      <td><strong>{appt.id}</strong></td>
+                      <td>{appt.patientName}</td>
+                      <td>
+                        <div>{appt.doctorName}</div>
+                        <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{appt.department}</span>
+                      </td>
+                      <td><strong>{appt.date}</strong> <span style={{ fontSize: '12px', color: '#64748b' }}>({appt.time})</span></td>
+                      <td>{appt.reason}</td>
+                      <td>
+                        <span className="status-badge" style={{
+                          backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
+                          color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
+                        }}>
+                          {appt.status}
+                        </span>
+                      </td>
+                      <td>
+                        {appt.status !== 'Completed' && (
+                          <select 
+                            value={appt.status} 
+                            onChange={(e) => handleUpdateApptStatus(appt.id, e.target.value)}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}
+                          >
+                            <option value="Upcoming">Upcoming</option>
+                            <option value="Checked In">Checked In</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+
+            {/* Schedule Appointment Modal */}
+            {showAdminBookingModal && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '440px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h3 style={{ margin: 0, color: '#1e293b' }}>Schedule Patient Appointment</h3>
+                  <form onSubmit={handleAdminCreateAppointment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Patient Full Name</label>
+                      <input type="text" required value={adminBookPatient} onChange={(e) => setAdminBookPatient(e.target.value)} placeholder="e.g. Sarah Connor" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Assign Physician</label>
+                      <select value={adminBookDoctor} onChange={(e) => setAdminBookDoctor(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        {doctorsRoster.map(doc => (
+                          <option key={doc.id} value={doc.id}>{doc.name} ({doc.department})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Date</label>
+                        <input type="date" required value={adminBookDate} onChange={(e) => setAdminBookDate(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Time</label>
+                        <input type="text" required value={adminBookTime} onChange={(e) => setAdminBookTime(e.target.value)} placeholder="10:00 AM" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Reason for Visit</label>
+                      <input type="text" required value={adminBookReason} onChange={(e) => setAdminBookReason(e.target.value)} placeholder="Consultation / Checkup" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                      <button type="button" onClick={() => setShowAdminBookingModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                      <button type="submit" style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Confirm Booking</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'laboratory':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Laboratory Diagnostic Orders</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Master log of lab requests, test turnaround, and completion status.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Search lab orders by test or patient..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '320px', outline: 'none' }}
+              />
+              <select 
+                value={adminStatusFilter}
+                onChange={(e) => setAdminStatusFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Completed & Billed">Completed & Billed</option>
+              </select>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Lab Order ID</th>
+                  <th>Patient Name</th>
+                  <th>Diagnostic Test Name</th>
+                  <th>Prescribing Doctor</th>
+                  <th>Date</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labRequests
+                  .filter(l => {
+                    const matchQ = l.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   l.testName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   l.id.toLowerCase().includes(adminSearch.toLowerCase());
+                    const matchS = adminStatusFilter === 'All' || l.status === adminStatusFilter;
+                    return matchQ && matchS;
+                  })
+                  .map(lab => (
+                    <tr key={lab.id}>
+                      <td><strong>{lab.id}</strong></td>
+                      <td>{lab.patientName}</td>
+                      <td><strong>{lab.testName}</strong></td>
+                      <td>{lab.doctorName}</td>
+                      <td>{lab.date}</td>
+                      <td><strong>${lab.cost}</strong></td>
+                      <td>
+                        <span className="status-badge" style={{
+                          backgroundColor: lab.status === 'Completed & Billed' ? '#dcfce7' : '#fee2e2',
+                          color: lab.status === 'Completed & Billed' ? '#15803d' : '#b91c1c'
+                        }}>
+                          {lab.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'pharmacy':
+        const medsList = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+        const pStaff = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+        const pAttend = JSON.parse(localStorage.getItem('dhms_pharmacy_attendance') || '[]');
+
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Pharmacy & Stock Control Center</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor medication stock levels, prescription fulfillment, and pharmacy staff.</p>
+              </div>
+            </div>
+
+            {/* Sub-tabs for Pharmacy Desk */}
+            <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px' }}>
+              <button 
+                onClick={() => setAdminPharmacySubTab('medications')}
+                style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'medications' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'medications' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Medication Stock ({medsList.length})
+              </button>
+              <button 
+                onClick={() => setAdminPharmacySubTab('prescriptions')}
+                style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'prescriptions' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'prescriptions' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Prescription Log ({prescriptions.length})
+              </button>
+              <button 
+                onClick={() => setAdminPharmacySubTab('staff')}
+                style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'staff' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'staff' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Staff & Shift Roster ({pStaff.length})
+              </button>
+            </div>
+
+            {adminPharmacySubTab === 'medications' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Med ID</th>
+                    <th>Medication Name</th>
+                    <th>Category</th>
+                    <th>In Stock</th>
+                    <th>Unit Price</th>
+                    <th>Emergency Drug</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {medsList.map(m => (
+                    <tr key={m.id}>
+                      <td><strong>{m.id}</strong></td>
+                      <td><strong>{m.name}</strong></td>
+                      <td>{m.category}</td>
+                      <td>
+                        <span style={{ fontWeight: 'bold', color: m.stock <= m.lowStockThreshold ? '#ef4444' : '#10b981' }}>
+                          {m.stock} units
+                        </span>
+                      </td>
+                      <td>${parseFloat(m.price).toFixed(2)}</td>
+                      <td>
+                        {m.isEmergency ? (
+                          <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>Emergency</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Standard</span>
+                        )}
+                      </td>
+                      <td>
+                        <button 
+                          onClick={() => handleRestockMedication(m.id)}
+                          style={{ padding: '4px 8px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
+                        >
+                          + Restock (+50)
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {adminPharmacySubTab === 'prescriptions' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>RX ID</th>
+                    <th>Patient Name</th>
+                    <th>Medication Prescribed</th>
+                    <th>Prescribing Doctor</th>
+                    <th>Date</th>
+                    <th>Co-pay Cost</th>
+                    <th>Fulfillment Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prescriptions.map(rx => (
+                    <tr key={rx.id}>
+                      <td><strong>{rx.id}</strong></td>
+                      <td>{rx.patientName}</td>
+                      <td><strong>{rx.medication}</strong></td>
+                      <td>{rx.doctorName}</td>
+                      <td>{rx.date}</td>
+                      <td><strong>${rx.cost}</strong></td>
+                      <td>
+                        <span className="status-badge" style={{
+                          backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
+                          color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c'
+                        }}>
+                          {rx.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {adminPharmacySubTab === 'staff' && (
+              <div>
+                <h4 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>Pharmacy Shift & Attendance Log</h4>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Staff Name</th>
+                      <th>Check In</th>
+                      <th>Check Out</th>
+                      <th>Attendance Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pAttend.map((att, i) => (
+                      <tr key={i}>
+                        <td>{att.date}</td>
+                        <td><strong>{att.name}</strong></td>
+                        <td>{att.checkIn}</td>
+                        <td>{att.checkOut}</td>
+                        <td>
+                          <span className="status-badge" style={{
+                            backgroundColor: att.status === 'Present' ? '#dcfce7' : '#fef3c7',
+                            color: att.status === 'Present' ? '#15803d' : '#b45309'
+                          }}>
+                            {att.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'billing':
+        const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace('$', '').trim()) || 0;
+        const paidRev = billingList.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
+        const unpaidRev = billingList.filter(inv => inv.status === 'Unpaid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
+
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Hospital Financials & Master Billing</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Master billing ledger covering consultations, diagnostics, and pharmacy charges.</p>
+              </div>
+            </div>
+
+            <div className="stats-grid" style={{ marginBottom: '20px' }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <h3>Collected Revenue</h3>
+                <div className="stat-value">${paidRev.toFixed(2)}</div>
+              </div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                <h3>Outstanding Unpaid</h3>
+                <div className="stat-value">${unpaidRev.toFixed(2)}</div>
+              </div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                <h3>Total Invoices</h3>
+                <div className="stat-value">{billingList.length}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Search invoice by ID, patient or type..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '320px', outline: 'none' }}
+              />
+              <select 
+                value={adminStatusFilter}
+                onChange={(e) => setAdminStatusFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+              >
+                <option value="All">All Invoices</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Invoice ID</th>
+                  <th>Patient Details</th>
+                  <th>Billing Description</th>
+                  <th>Date</th>
+                  <th>Charge Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billingList
+                  .filter(inv => {
+                    const matchQ = inv.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   inv.id.toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   inv.type.toLowerCase().includes(adminSearch.toLowerCase());
+                    const matchS = adminStatusFilter === 'All' || inv.status === adminStatusFilter;
+                    return matchQ && matchS;
+                  })
+                  .map(inv => (
+                    <tr key={inv.id}>
+                      <td><strong>{inv.id}</strong></td>
+                      <td>{inv.patientName}</td>
+                      <td>{inv.type}</td>
+                      <td>{inv.date}</td>
+                      <td><strong>{inv.amount}</strong></td>
+                      <td>
+                        <span className={`status-badge ${inv.status.toLowerCase()}`}>
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {inv.status === 'Unpaid' && (
+                            <button
+                              onClick={() => handleAdminMarkPaid(inv.id)}
+                              style={{ padding: '4px 8px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
+                            >
+                              Collect Payment
+                            </button>
+                          )}
+                          <button
+                            onClick={() => alert(`Printing Invoice ${inv.id} Receipt...`)}
+                            style={{ padding: '4px 8px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#475569' }}
+                          >
+                            Print
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
       case 'patients':
         if (role === 'doctor') {
-          // EHR directory explorer
           const filtered = patients.filter(p => 
             `${p.firstName} ${p.lastName}`.toLowerCase().includes(patientSearch.toLowerCase()) || 
             p.id.toLowerCase().includes(patientSearch.toLowerCase())
@@ -1172,7 +1449,7 @@ export default function Dashboard({ onLogout, role }) {
           return (
             <div className="module-content">
               <h2>EHR Patient Directory</h2>
-              <p>Explore, search, and manage complete clinical Electronic Health Records for all registered patients.</p>
+              <p>Explore, search, and manage complete clinical Electronic Health Records for assigned patients.</p>
 
               <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
                 <input 
@@ -1180,14 +1457,7 @@ export default function Dashboard({ onLogout, role }) {
                   placeholder="Search patient by ID or name..."
                   value={patientSearch}
                   onChange={(e) => setPatientSearch(e.target.value)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    width: '320px',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
+                  style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '320px', fontSize: '14px', outline: 'none' }}
                 />
               </div>
 
@@ -1239,7 +1509,6 @@ export default function Dashboard({ onLogout, role }) {
                       <button onClick={() => setSelectedEhrPatient(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#64748b' }}>Close File</button>
                     </div>
 
-                    {/* Metadata editor */}
                     <form onSubmit={handleUpdateEhrMetadata} style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Blood Type</label>
@@ -1248,156 +1517,71 @@ export default function Dashboard({ onLogout, role }) {
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
                           <option value="B-">B-</option>
-                          <option value="AB+">AB+</option>
-                          <option value="AB-">AB-</option>
                           <option value="O+">O+</option>
                           <option value="O-">O-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
                         </select>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Known Allergies</label>
-                        <input type="text" value={newAllergies} onChange={(e) => setNewAllergies(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Allergies</label>
+                        <input type="text" value={newAllergies} onChange={(e) => setNewAllergies(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', gridColumn: 'span 2' }}>
+                      <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Chronic Conditions</label>
-                        <input type="text" value={newConditions} onChange={(e) => setNewConditions(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                        <input type="text" value={newConditions} onChange={(e) => setNewConditions(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                       </div>
-                      <button type="submit" style={{ gridColumn: 'span 2', padding: '6px', backgroundColor: '#5c6bc0', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>Update Profile Summary</button>
+                      <button type="submit" style={{ gridColumn: 'span 2', padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Update Clinical Profile</button>
                     </form>
-
-                    {/* Report adding */}
-                    <form onSubmit={handleAddEhrReport} style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Add Clinical Document / Report</label>
-                      <input type="text" placeholder="Report Title (e.g. ECG Analysis, Chest CT)" value={reportTitle} onChange={(e) => setReportTitle(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} required />
-                      <textarea placeholder="Clinical summary details..." value={reportContent} onChange={(e) => setReportContent(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '60px', fontFamily: 'inherit', fontSize: '13px' }} />
-                      <button type="submit" style={{ padding: '6px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>Save Report</button>
-                    </form>
-
-                    {/* History timelines */}
-                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', flex: 1, overflowY: 'auto', maxHeight: '250px' }}>
-                      <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#1e293b' }}>Clinical History Records</h4>
-                      {(!selectedEhrPatient.clinicalHistory || selectedEhrPatient.clinicalHistory.length === 0) && (!selectedEhrPatient.reports || selectedEhrPatient.reports.length === 0) ? (
-                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>No past clinical visit history recorded.</p>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {selectedEhrPatient.reports && selectedEhrPatient.reports.map(r => (
-                            <div key={r.id} style={{ backgroundColor: '#eff6ff', borderLeft: '3px solid #3b82f6', padding: '8px', borderRadius: '0 4px 4px 0', fontSize: '12px' }}>
-                              <div style={{ fontWeight: '700' }}>{r.name} ({r.type})</div>
-                              <div style={{ fontSize: '10px', color: '#64748b' }}>Date: {r.date} | Author: {r.author}</div>
-                              {r.details?.summary && <div style={{ marginTop: '4px', color: '#1e3a8a' }}>{r.details.summary}</div>}
-                            </div>
-                          ))}
-                          {selectedEhrPatient.clinicalHistory && selectedEhrPatient.clinicalHistory.map((h, i) => (
-                            <div key={i} style={{ backgroundColor: '#f8fafc', borderLeft: '3px solid #64748b', padding: '8px', borderRadius: '0 4px 4px 0', fontSize: '12px' }}>
-                              <div style={{ fontWeight: '700' }}>Consultation Visit: {h.reason}</div>
-                              <div style={{ fontSize: '10px', color: '#64748b' }}>Date: {h.date} | Provider: {h.doctor}</div>
-                              <div style={{ marginTop: '4px' }}><strong>Diagnosis:</strong> {h.diagnosis}</div>
-                              {h.vitals && (
-                                <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                                  Vitals: BP: {h.vitals.bp} | HR: {h.vitals.hr} bpm | Temp: {h.vitals.temp} °F | SpO2: {h.vitals.spo2}%
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>
             </div>
           );
         }
+        return null;
+
+      case 'appointments':
+        const docAppts = appointments.filter(a => a.doctorId === activeDoctorId);
         return (
           <div className="module-content">
-            <h2>{role === 'doctor' ? 'My Patients' : 'All Patients'} (Module 2)</h2>
-            <table className="data-table">
-              <thead><tr><th>ID</th><th>Patient Name</th><th>Age</th><th>Gender</th><th>Last Visit</th></tr></thead>
-              <tbody>
-                {DUMMY_PATIENTS.map(p => (
-                  <tr key={p.id}><td>{p.id}</td><td>{p.name}</td><td>{p.age}</td><td>{p.gender}</td><td>{p.lastVisit}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      case 'requests':
-        return (
-          <div className="module-content">
-            <h2>Lab Requests</h2>
-            <p>Process pending lab requests and submit diagnostic charges directly to patient billing.</p>
+            <h2>Appointments Management</h2>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Request ID</th>
-                  <th>Patient Details</th>
-                  <th>Test Name</th>
-                  <th>Requested By</th>
-                  <th>Date</th>
-                  <th>Cost</th>
+                  <th>Appt ID</th>
+                  <th>Patient Name</th>
+                  <th>Date & Time</th>
+                  <th>Reason</th>
+                  <th>Type</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {labRequests.map(req => (
-                  <tr key={req.id}>
-                    <td><strong>{req.id}</strong></td>
+                {docAppts.map(appt => (
+                  <tr key={appt.id}>
+                    <td><strong>{appt.id}</strong></td>
+                    <td>{appt.patientName}</td>
+                    <td>{appt.date} ({appt.time})</td>
+                    <td>{appt.reason}</td>
+                    <td><span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{appt.type}</span></td>
                     <td>
-                      <strong>{req.patientName}</strong>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {req.patientId}</div>
-                    </td>
-                    <td>{req.testName}</td>
-                    <td>{req.doctorName}</td>
-                    <td>{req.date}</td>
-                    <td><strong>{req.cost}</strong></td>
-                    <td>
-                      <span className={`status-badge ${req.status === 'Pending' ? 'surgery' : 'available'}`}>
-                        {req.status}
+                      <span className="status-badge" style={{
+                        backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
+                        color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
+                      }}>
+                        {appt.status}
                       </span>
                     </td>
                     <td>
-                      {req.status === 'Pending' ? (
+                      {appt.status !== 'Completed' && (
                         <button 
-                          onClick={() => {
-                            setSelectedLabForResults(req);
-                            setLabResultsText('');
-                            setLabRemarks('');
-                          }}
-                          style={{
-                            backgroundColor: '#5c6bc0',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '6px 12px',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '12px'
-                          }}
+                          onClick={() => handleOpenCheckupModal(appt)}
+                          style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
                         >
-                          Enter Results & Complete
+                          Start Checkup
                         </button>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="status-badge available" style={{ fontSize: '11px' }}>Billed</span>
-                          {req.results && (
-                            <button
-                              onClick={() => setViewedLabRequestResults(req)}
-                              style={{
-                                padding: '4px 8px',
-                                border: '1px solid #5c6bc0',
-                                color: '#5c6bc0',
-                                background: 'white',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                fontWeight: '600'
-                              }}
-                            >
-                              View Report
-                            </button>
-                          )}
-                        </div>
                       )}
                     </td>
                   </tr>
@@ -1406,103 +1590,77 @@ export default function Dashboard({ onLogout, role }) {
             </table>
           </div>
         );
+
       case 'prescriptions':
-        if (role === 'doctor') {
-          // Prescription tracker for the current doctor
-          const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
-          const doctorRx = prescriptions.filter(rx => rx.doctorName === currentDoc.name);
-          return (
-            <div className="module-content">
-              <h2>Sent Prescriptions</h2>
-              <p>Chronological tracker of all prescribed medications dispatched to the pharmacy portal.</p>
-              {doctorRx.length === 0 ? (
-                <p>No prescriptions ordered yet.</p>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Prescription ID</th>
-                      <th>Patient Details</th>
-                      <th>Medication</th>
-                      <th>Instructions</th>
-                      <th>Cost</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {doctorRx.map(rx => (
-                      <tr key={rx.id}>
-                        <td><strong>{rx.id}</strong></td>
-                        <td>{rx.patientName} (ID: {rx.patientId})</td>
-                        <td>{rx.medication}</td>
-                        <td>{rx.instructions || 'N/A'}</td>
-                        <td><strong>{rx.cost}</strong></td>
-                        <td>
-                          <span className={`status-badge ${rx.status === 'Pending' ? 'surgery' : 'available'}`}>
-                            {rx.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          );
-        }
+        const docRx = prescriptions.filter(r => r.doctorName === (DOCTORS.find(d => d.id === activeDoctorId)?.name || ''));
         return (
           <div className="module-content">
-            <h2>Pharmacy Prescriptions</h2>
-            <p>Dispense prescribed medications and submit prescription co-pay charges directly to patient billing.</p>
+            <h2>Prescription History</h2>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Prescription ID</th>
-                  <th>Patient Details</th>
-                  <th>Medication</th>
-                  <th>Prescribed By</th>
+                  <th>RX ID</th>
+                  <th>Patient Name</th>
+                  <th>Medication Details</th>
                   <th>Date</th>
                   <th>Cost</th>
                   <th>Status</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {prescriptions.map(rx => (
+                {docRx.map(rx => (
                   <tr key={rx.id}>
                     <td><strong>{rx.id}</strong></td>
-                    <td>
-                      <strong>{rx.patientName}</strong>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {rx.patientId}</div>
-                    </td>
-                    <td>{rx.medication}</td>
-                    <td>{rx.doctorName}</td>
+                    <td>{rx.patientName}</td>
+                    <td><strong>{rx.medication}</strong></td>
                     <td>{rx.date}</td>
-                    <td><strong>{rx.cost}</strong></td>
+                    <td>${rx.cost}</td>
                     <td>
-                      <span className={`status-badge ${rx.status === 'Pending' ? 'surgery' : 'available'}`}>
+                      <span className="status-badge" style={{
+                        backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
+                        color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c'
+                      }}>
                         {rx.status}
                       </span>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'labs':
+        const docLabs = labRequests.filter(l => l.doctorName === (DOCTORS.find(d => d.id === activeDoctorId)?.name || ''));
+        return (
+          <div className="module-content">
+            <h2>Lab Orders History</h2>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>LAB ID</th>
+                  <th>Patient Name</th>
+                  <th>Test Name</th>
+                  <th>Date</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docLabs.map(lab => (
+                  <tr key={lab.id}>
+                    <td><strong>{lab.id}</strong></td>
+                    <td>{lab.patientName}</td>
+                    <td><strong>{lab.testName}</strong></td>
+                    <td>{lab.date}</td>
+                    <td>${lab.cost}</td>
                     <td>
-                      {rx.status === 'Pending' ? (
-                        <button 
-                          onClick={() => handleDispenseRx(rx.id)}
-                          style={{
-                            backgroundColor: '#10b981',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '6px 12px',
-                            cursor: 'pointer',
-                            fontWeight: '600'
-                          }}
-                        >
-                          Dispense & Bill
-                        </button>
-                      ) : (
-                        <span style={{ color: '#64748b', fontSize: '13px' }}>Billed</span>
-                      )}
+                      <span className="status-badge" style={{
+                        backgroundColor: lab.status === 'Completed & Billed' ? '#dcfce7' : '#fee2e2',
+                        color: lab.status === 'Completed & Billed' ? '#15803d' : '#b91c1c'
+                      }}>
+                        {lab.status}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -1510,890 +1668,356 @@ export default function Dashboard({ onLogout, role }) {
             </table>
           </div>
         );
-      case 'labs':
-        if (role === 'doctor') {
-          // Lab tracker for current doctor
-          const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
-          const doctorLabs = labRequests.filter(lab => lab.doctorName === currentDoc.name);
-          return (
-            <div className="module-content">
-              <h2>Sent Laboratory Diagnostic Orders</h2>
-              <p>Log of diagnostic lab requests dispatched to the laboratory portal.</p>
-              {doctorLabs.length === 0 ? (
-                <p>No lab orders sent yet.</p>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Order ID</th>
-                      <th>Patient Details</th>
-                      <th>Test Details</th>
-                      <th>Cost</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {doctorLabs.map(lab => (
-                      <tr key={lab.id}>
-                        <td><strong>{lab.id}</strong></td>
-                        <td>{lab.patientName} (ID: {lab.patientId})</td>
-                        <td>{lab.testName}</td>
-                        <td><strong>{lab.cost}</strong></td>
-                        <td>
-                          <span className={`status-badge ${lab.status === 'Pending' ? 'surgery' : 'available'}`}>
-                            {lab.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          );
-        }
-        return null;
-      case 'appointments':
-        if (role === 'doctor') {
-          const docAppts = appointments.filter(appt => appt.doctorId === activeDoctorId);
-          return (
-            <div className="module-content">
-              <h2>Consultation Schedule</h2>
-              <p>Manage appointments, update consultation status, and prescribe treatment/diagnostics.</p>
-              {docAppts.length === 0 ? (
-                <div className="upcoming-module-notice">
-                  <h4>No Appointments Scheduled</h4>
-                  <p>There are no appointments assigned to your profile currently.</p>
-                </div>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Patient Details</th>
-                      <th>Type</th>
-                      <th>Reason</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {docAppts.map(appt => (
-                      <tr key={appt.id}>
-                        <td><strong>{appt.time}</strong></td>
-                        <td>
-                          <strong>{appt.patientName}</strong>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div>
-                        </td>
-                        <td>
-                          <span className={`status-badge`} style={{
-                            backgroundColor: appt.type === 'Telemedicine' ? '#f5f3ff' : '#f1f5f9',
-                            color: appt.type === 'Telemedicine' ? '#7c3aed' : '#475569'
-                          }}>
-                            {appt.type || 'Physical'}
-                          </span>
-                        </td>
-                        <td>{appt.reason}</td>
-                        <td>
-                          <span className={`status-badge`} style={{
-                            backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
-                            color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
-                          }}>
-                            {appt.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            {appt.type === 'Telemedicine' && appt.status !== 'Completed' && (
-                              <button 
-                                onClick={() => {
-                                  setActiveCallAppt(appt);
-                                  setIsVideoCallActive(true);
-                                  setCallChatMessages([
-                                    { sender: "patient", text: `Hello Doctor, I'm online for our video consult regarding: "${appt.reason}"`, time: appt.time }
-                                  ]);
-                                  handleOpenCheckupModal(appt);
-                                }}
-                                className="rd-btn-small"
-                                style={{ backgroundColor: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontWeight: '600' }}
-                              >
-                                Join Telecall
-                              </button>
-                            )}
 
-                            {appt.type !== 'Telemedicine' && appt.status === 'Checked In' && (
-                              <button 
-                                onClick={() => handleUpdateApptStatus(appt.id, 'In Progress')}
-                                className="rd-btn-small"
-                                style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontWeight: '600' }}
-                              >
-                                Start Consultation
-                              </button>
-                            )}
-                            {appt.type !== 'Telemedicine' && appt.status === 'In Progress' && (
-                              <button 
-                                onClick={() => handleOpenCheckupModal(appt)}
-                                className="rd-btn-small"
-                                style={{ backgroundColor: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontWeight: '600' }}
-                              >
-                                Complete Checkup
-                              </button>
-                            )}
-                            {appt.status === 'Completed' && appt.diagnosis && (
-                              <div style={{ fontSize: '12px', color: '#166534' }}>
-                                <strong>Diagnosis:</strong> {appt.diagnosis}
-                              </div>
-                            )}
-                          </div>
+      case 'attendance':
+        if (role === 'admin') {
+          const masterAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+          
+          // Filter by Date, Module & Status
+          const filtered = masterAtt.filter(a => {
+            const matchDate = a.date === adminAttendanceDate;
+            const matchMod = adminAttendanceModuleFilter === 'All' || a.module === adminAttendanceModuleFilter;
+            const matchStat = adminAttendanceStatusFilter === 'All' || a.status === adminAttendanceStatusFilter;
+            return matchDate && matchMod && matchStat;
+          });
+
+          // Absentees for the selected date
+          const dateAbsentees = masterAtt.filter(a => a.date === adminAttendanceDate && (a.status === 'Absent' || a.status === 'On Leave'));
+
+          return (
+            <div className="module-content">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2>Master Hospital Attendance & Absence Tracker</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor daily shift attendance, check-in times, and absentees across all hospital departments.</p>
+                </div>
+              </div>
+
+              {/* Date & Filter Toolbar */}
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', alignItems: 'center', background: 'white', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Select Attendance Date:</label>
+                  <input 
+                    type="date" 
+                    value={adminAttendanceDate}
+                    onChange={(e) => setAdminAttendanceDate(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', color: '#1e293b' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Filter Module / Dept:</label>
+                  <select 
+                    value={adminAttendanceModuleFilter}
+                    onChange={(e) => setAdminAttendanceModuleFilter(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                  >
+                    <option value="All">All Modules</option>
+                    <option value="Doctor">Doctor Roster</option>
+                    <option value="Receptionist">Receptionist Desk</option>
+                    <option value="Laboratory">Laboratory Desk</option>
+                    <option value="Pharmacist">Pharmacist Desk</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '4px' }}>Filter Status:</label>
+                  <select 
+                    value={adminAttendanceStatusFilter}
+                    onChange={(e) => setAdminAttendanceStatusFilter(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Present">Present</option>
+                    <option value="Late">Late</option>
+                    <option value="Absent">Absent</option>
+                    <option value="On Leave">On Leave</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ABSENTEES PROMINENT ALERT SECTION */}
+              <div style={{ backgroundColor: dateAbsentees.length > 0 ? '#fef2f2' : '#f0fdf4', border: dateAbsentees.length > 0 ? '2px solid #fca5a5' : '1px solid #bbf7d0', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: dateAbsentees.length > 0 ? '#991b1b' : '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{dateAbsentees.length > 0 ? '⚠️' : '✅'}</span>
+                    Absentees & On-Leave Staff Log ({adminAttendanceDate})
+                  </h3>
+                  <span style={{ fontSize: '12px', background: dateAbsentees.length > 0 ? '#fee2e2' : '#dcfce7', color: dateAbsentees.length > 0 ? '#991b1b' : '#166534', padding: '4px 10px', borderRadius: '999px', fontWeight: 'bold' }}>
+                    {dateAbsentees.length} Staff Member(s) Absent / On Leave
+                  </span>
+                </div>
+
+                {dateAbsentees.length === 0 ? (
+                  <p style={{ margin: 0, color: '#15803d', fontSize: '14px' }}>All scheduled staff members are present for {adminAttendanceDate}. No absences recorded.</p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', marginTop: '12px' }}>
+                    {dateAbsentees.map(ab => (
+                      <div key={ab.id} style={{ background: 'white', border: '1px solid #fecdd3', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ color: '#1e293b', fontSize: '14px' }}>{ab.staffName}</strong>
+                          <span style={{ fontSize: '11px', background: ab.status === 'Absent' ? '#fee2e2' : '#fef3c7', color: ab.status === 'Absent' ? '#b91c1c' : '#b45309', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                            {ab.status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>Module: <strong>{ab.module}</strong> ({ab.role})</div>
+                        <div style={{ fontSize: '12px', color: '#991b1b', fontStyle: 'italic', marginTop: '4px' }}>Reason: "{ab.remarks}"</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Master Attendance Table */}
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Record ID</th>
+                    <th>Module / Dept</th>
+                    <th>Staff Name & Details</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Attendance Status</th>
+                    <th>Remarks</th>
+                    <th>Admin Override</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No attendance records found matching filters for date {adminAttendanceDate}.</td></tr>
+                  ) : (
+                    filtered.map(att => (
+                      <tr key={att.id}>
+                        <td><strong>{att.id}</strong></td>
+                        <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{att.module}</span></td>
+                        <td>
+                          <strong>{att.staffName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {att.staffId} | {att.role}</div>
+                        </td>
+                        <td>{att.checkIn}</td>
+                        <td>{att.checkOut}</td>
+                        <td>
+                          <span className="status-badge" style={{
+                            backgroundColor: att.status === 'Present' ? '#dcfce7' : att.status === 'Late' ? '#fef3c7' : '#fee2e2',
+                            color: att.status === 'Present' ? '#15803d' : att.status === 'Late' ? '#b45309' : '#b91c1c'
+                          }}>
+                            {att.status}
+                          </span>
+                        </td>
+                        <td>{att.remarks}</td>
+                        <td>
+                          <select 
+                            value={att.status}
+                            onChange={(e) => handleAdminUpdateMasterAttendance(att.id, e.target.value)}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                          >
+                            <option value="Present">Present</option>
+                            <option value="Late">Late</option>
+                            <option value="Absent">Absent</option>
+                            <option value="On Leave">On Leave</option>
+                          </select>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        } else if (role === 'doctor') {
+          const activeDocObj = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+          const docRecords = (JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'))
+            .filter(a => a.module === 'Doctor' && a.staffId === activeDocObj.id);
+
+          return (
+            <div className="module-content">
+              <h2>Doctor Shift Attendance Log</h2>
+              <p style={{ color: '#64748b', fontSize: '14px' }}>Log your daily shift check-in, check-out times, and clinical attendance for <strong>{activeDocObj.name}</strong>.</p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginTop: '20px' }}>
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Log Shift Attendance</h3>
+                  <form onSubmit={handleDoctorLogAttendance} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Shift Date</label>
+                      <input type="date" required value={docAttendanceForm.date} onChange={(e) => setDocAttendanceForm({ ...docAttendanceForm, date: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Attendance Status</label>
+                      <select value={docAttendanceForm.status} onChange={(e) => setDocAttendanceForm({ ...docAttendanceForm, status: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
+                        <option value="Present">Present</option>
+                        <option value="Late">Late</option>
+                        <option value="Absent">Absent</option>
+                        <option value="On Leave">On Leave</option>
+                      </select>
+                    </div>
+
+                    {docAttendanceForm.status !== 'Absent' && docAttendanceForm.status !== 'On Leave' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Check In</label>
+                          <input type="text" value={docAttendanceForm.checkIn} onChange={(e) => setDocAttendanceForm({ ...docAttendanceForm, checkIn: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Check Out</label>
+                          <input type="text" value={docAttendanceForm.checkOut} onChange={(e) => setDocAttendanceForm({ ...docAttendanceForm, checkOut: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Shift Notes / Remarks</label>
+                      <input type="text" placeholder="e.g. Clinical OPD & Rounds" value={docAttendanceForm.remarks} onChange={(e) => setDocAttendanceForm({ ...docAttendanceForm, remarks: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
+
+                    <button type="submit" style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+                      Submit Attendance Record
+                    </button>
+                  </form>
+                </div>
+
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Attendance History Log</h3>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Check In / Out</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {docRecords.length === 0 ? (
+                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No shift attendance logged yet.</td></tr>
+                      ) : (
+                        docRecords.map(att => (
+                          <tr key={att.id}>
+                            <td><strong>{att.date}</strong></td>
+                            <td>{att.checkIn} - {att.checkOut}</td>
+                            <td>
+                              <span className="status-badge" style={{
+                                backgroundColor: att.status === 'Present' ? '#dcfce7' : att.status === 'Late' ? '#fef3c7' : '#fee2e2',
+                                color: att.status === 'Present' ? '#15803d' : att.status === 'Late' ? '#b45309' : '#b91c1c'
+                              }}>
+                                {att.status}
+                              </span>
+                            </td>
+                            <td>{att.remarks}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           );
         }
         return null;
-      case 'records':
-        return (
-          <div className="module-content">
-            <h2>{navItems.find(n => n.id === activeView)?.label}</h2>
-            <p>Accessing complete Electronic Health Records explorer for all registered hospital entities.</p>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Patient ID</th>
-                  <th>Name</th>
-                  <th>Blood Group</th>
-                  <th>Known Allergies</th>
-                  <th>Chronic Conditions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {patients.map(p => (
-                  <tr key={p.id}>
-                    <td><strong>{p.id}</strong></td>
-                    <td><strong>{p.firstName} {p.lastName}</strong></td>
-                    <td><span style={{ background: '#fef2f2', color: '#b91c1c', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>{p.bloodType || 'O+'}</span></td>
-                    <td>{p.allergies || 'None'}</td>
-                    <td>{p.chronicConditions || 'None'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
+
       default:
-        return (
-          <div className="module-content overview">
-            <h2>{navItems[0].label}</h2>
-            {renderRoleOverview()}
-            {renderPhase3Console()}
-          </div>
-        );
+        return null;
     }
   };
 
   return (
     <div className="dashboard-container">
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>DHMS</h2>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '4px', letterSpacing: '0.05em' }}>{role.toUpperCase()} PORTAL</div>
         </div>
+        
         <ul className="sidebar-nav">
           {navItems.map(item => (
             <li 
-              key={item.id}
-              className={activeView === item.id ? 'active' : ''} 
+              key={item.id} 
+              className={activeView === item.id ? 'active' : ''}
               onClick={() => setActiveView(item.id)}
             >
               {item.label}
             </li>
           ))}
         </ul>
+
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={onLogout}>Sign Out</button>
+          <button className="logout-btn" onClick={onLogout}>Logout</button>
         </div>
       </aside>
-      <main className="dashboard-main">
+
+      {/* Dashboard Main Area */}
+      <div className="dashboard-main">
         <header className="topbar">
-          <div className="topbar-title">Role: <span style={{ textTransform: 'capitalize' }}>{role}</span></div>
-          {role === 'doctor' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>Active Profile:</span>
+          <div className="topbar-title">{role.toUpperCase()} Dashboard</div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {role === 'doctor' && (
               <select 
                 value={activeDoctorId} 
                 onChange={(e) => setActiveDoctorId(e.target.value)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  backgroundColor: 'white',
-                  fontWeight: '600',
-                  color: '#334155',
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
               >
                 {DOCTORS.map(d => (
                   <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
                 ))}
               </select>
+            )}
+            <div className="user-profile">Role: {role.toUpperCase()}</div>
+          </div>
+        </header>
+
+        <main className="content-area">
+          {activeView === 'overview' ? (
+            <div className="overview-container">
+              <h2>Executive Dashboard</h2>
+              {renderRoleOverview()}
             </div>
           ) : (
-            <div className="user-profile">Current User</div>
+            renderContent()
           )}
-        </header>
-        <div className="content-area">
-          {renderContent()}
-        </div>
-      </main>
-      
-      {/* Checkup Modal (For Physical/Routine Visits) */}
-      {!isVideoCallActive && selectedApptForCheckup && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '500px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            overflow: 'hidden',
-            maxHeight: '90vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #f1f5f9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: '#5c6bc0',
-              color: 'white'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>Complete Consultation Checkup</h3>
-              <button 
-                onClick={() => setSelectedApptForCheckup(null)}
-                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
-              >
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleCheckupSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1 }}>
-              <div>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PATIENT</span>
-                <div style={{ fontWeight: '700', color: '#1e293b' }}>{selectedApptForCheckup.patientName}</div>
-              </div>
+        </main>
+      </div>
 
-              {/* Vitals inputs */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ gridColumn: 'span 2', fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PATIENT VITALS</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Blood Pressure (BP)</label>
-                  <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="120/80 mmHg" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Heart Rate (HR)</label>
-                  <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="72 bpm" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Temp (°F)</label>
-                  <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="98.6 °F" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Pulse SpO2 (%)</label>
-                  <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="98%" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Diagnosis Note / Checkup Summary</label>
-                <textarea 
-                  required
-                  placeholder="Enter diagnosis or checkup notes..."
-                  value={diagnosisNote}
-                  onChange={(e) => setDiagnosisNote(e.target.value)}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    minHeight: '60px',
-                    fontFamily: 'inherit',
-                    fontSize: '13px',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-
-              {/* Detailed medication scheduler */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PRESCRIBE MEDICATION (OPTIONAL)</span>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
-                  <input type="text" placeholder="Drug Name (e.g. Lipitor)" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <input type="text" placeholder="Dose (500mg)" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                  <select value={rxFrequency} onChange={(e) => setRxFrequency(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}>
-                    <option value="Once Daily (QD)">Once Daily (QD)</option>
-                    <option value="Twice Daily (BID)">Twice Daily (BID)</option>
-                    <option value="Three Times Daily (TID)">Three Times Daily (TID)</option>
-                    <option value="Four Times Daily (QID)">Four Times Daily (QID)</option>
-                    <option value="As Needed (PRN)">As Needed (PRN)</option>
-                  </select>
-                  <input type="text" placeholder="Duration (e.g. 7 Days)" value={rxDuration} onChange={(e) => setRxDuration(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <input type="number" step="0.01" placeholder="Cost ($)" value={rxCost} onChange={(e) => setRxCost(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <input type="text" placeholder="Instructions (e.g. Take with food)" value={rxInstructions} onChange={(e) => setRxInstructions(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-              </div>
-
-              {/* Lab priorities */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>ORDER DIAGNOSTIC LAB TEST (OPTIONAL)</span>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '8px' }}>
-                  <input type="text" placeholder="Test Name (e.g. Lipid Panel)" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}>
-                    <option value="Routine">Routine</option>
-                    <option value="STAT / Urgent">STAT / Urgent</option>
-                  </select>
-                  <input type="number" step="0.01" placeholder="Cost ($)" value={labCost} onChange={(e) => setLabCost(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-              </div>
-
-              {/* Inpatient Admission Options */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>INPATIENT ADMISSION (OPTIONAL)</span>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={isAdmitted} onChange={(e) => setIsAdmitted(e.target.checked)} />
-                  Admit Patient to Hospital
-                </label>
-                {isAdmitted && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <select value={admissionWard} onChange={(e) => setAdmissionWard(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}>
-                        <option value="General Ward A">General Ward A</option>
-                        <option value="General Ward B">General Ward B</option>
-                        <option value="ICU">Intensive Care Unit (ICU)</option>
-                        <option value="Cardiac Wing">Cardiac Wing</option>
-                        <option value="Pediatric Care">Pediatric Care</option>
-                      </select>
-                      <input type="text" placeholder="Admission Notes / Reason" value={admissionNotes} onChange={(e) => setAdmissionNotes(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedApptForCheckup(null)}
-                  style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer', fontWeight: '600' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  style={{ padding: '8px 16px', border: 'none', borderRadius: '6px', background: '#5c6bc0', color: 'white', cursor: 'pointer', fontWeight: '600' }}
-                >
-                  Save & Complete
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* High-Fidelity Telemedicine consultation room */}
-      {isVideoCallActive && activeCallAppt && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: '#0f172a',
-          zIndex: 10000,
-          display: 'flex'
-        }}>
-          {/* 1. Left Column: Mock Video Stream Viewport */}
-          <div style={{
-            flex: 1.5,
-            position: 'relative',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#1e293b',
-            borderRight: '1px solid #334155'
-          }}>
-            {/* Remote Patient Video Feed */}
-            <div style={{ textAlign: 'center', color: 'white' }}>
-              <div style={{
-                width: '120px',
-                height: '120px',
-                borderRadius: '50%',
-                background: '#475569',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-                boxShadow: '0 0 20px rgba(92, 107, 192, 0.4)'
-              }}>
-                <svg style={{ width: '60px', height: '60px', color: '#cbd5e1' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <h2 style={{ margin: '0 0 4px' }}>{activeCallAppt.patientName}</h2>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>Patient Connection Status: <span style={{ color: '#10b981', fontWeight: 'bold' }}>Live Stream</span></p>
-            </div>
-
-            {/* Doctor's Local Feed (Floating PIP) */}
-            <div style={{
-              position: 'absolute',
-              bottom: '80px',
-              right: '24px',
-              width: '120px',
-              height: '90px',
-              borderRadius: '8px',
-              border: '2px solid #5c6bc0',
-              overflow: 'hidden',
-              background: '#334155',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-            }}>
-              <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold' }}>Your Feed</span>
-              <span style={{ fontSize: '11px', color: '#a5b4fc', textAlign: 'center', padding: '0 4px' }}>
-                {DOCTORS.find(d => d.id === activeDoctorId)?.name || 'Doctor'}
-              </span>
-            </div>
-
-            {/* Call Toolbar Controls */}
-            <div style={{
-              position: 'absolute',
-              bottom: '20px',
-              display: 'flex',
-              gap: '16px'
-            }}>
-              <button style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#334155', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-              </button>
-              <button style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#334155', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-              </button>
-              <button 
-                onClick={() => {
-                  setIsVideoCallActive(false);
-                  setActiveCallAppt(null);
-                }} 
-                style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title="End Consultation Call"
-              >
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 8l2 2m0 0l2 2m-2-2l-2-2m2 2l2-2M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5z" /></svg>
-              </button>
-            </div>
-          </div>
-
-          {/* 2. Middle Column: Live Clinical documentation EMR form */}
-          <div style={{
-            flex: 1.2,
-            background: 'white',
-            padding: '24px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <h3 style={{ margin: 0, borderBottom: '2px solid #5c6bc0', paddingBottom: '8px', color: '#1e293b' }}>Clinical EMR Documentation</h3>
+      {/* Doctor Checkup Modal */}
+      {selectedApptForCheckup && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Consultation & Checkup Log - {selectedApptForCheckup.patientName}</h3>
             <form onSubmit={handleCheckupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              
-              {/* Vitals Form */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <span style={{ gridColumn: 'span 2', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Log Consultation Vitals</span>
-                <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="BP (e.g. 120/80)" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="HR (bpm)" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="Temp (°F)" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="SpO2 (%)" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="BP (e.g. 120/80)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="HR (bpm)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="Temp (°F)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="SpO2 (%)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
               </div>
-
-              {/* Diagnosis note */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Diagnosis Note</label>
-                <textarea 
-                  required 
-                  value={diagnosisNote} 
-                  onChange={(e) => setDiagnosisNote(e.target.value)} 
-                  placeholder="Enter checkup findings during the video consult..." 
-                  style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '60px', fontFamily: 'inherit', fontSize: '13px' }} 
-                />
-              </div>
-
-              {/* Prescribe meds */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Medication Prescriber</span>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px' }}>
-                  <input type="text" placeholder="Drug Name" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <input type="text" placeholder="Dose (e.g. 10mg)" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                  <select value={rxFrequency} onChange={(e) => setRxFrequency(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}>
-                    <option value="Once Daily (QD)">Once Daily (QD)</option>
-                    <option value="Twice Daily (BID)">Twice Daily (BID)</option>
-                    <option value="Three Times Daily (TID)">Three Times Daily (TID)</option>
-                    <option value="As Needed (PRN)">As Needed (PRN)</option>
-                  </select>
-                  <input type="text" placeholder="7 Days" value={rxDuration} onChange={(e) => setRxDuration(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <input type="number" step="0.01" placeholder="Cost ($)" value={rxCost} onChange={(e) => setRxCost(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+              <textarea required value={diagnosisNote} onChange={(e) => setDiagnosisNote(e.target.value)} placeholder="Clinical findings & diagnosis..." style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '80px', fontFamily: 'inherit' }} />
+              
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                <strong style={{ fontSize: '13px' }}>Prescribe Medication</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px', marginTop: '6px' }}>
+                  <input type="text" placeholder="Drug Name" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                  <input type="text" placeholder="Dose" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                 </div>
               </div>
 
-              {/* Lab test */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Laboratory Diagnostic Request</span>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '6px' }}>
-                  <input type="text" placeholder="Test Name" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}>
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                <strong style={{ fontSize: '13px' }}>Order Lab Diagnostic</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px', marginTop: '6px' }}>
+                  <input type="text" placeholder="Test Name" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                  <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                     <option value="Routine">Routine</option>
                     <option value="STAT / Urgent">STAT / Urgent</option>
                   </select>
-                  <input type="number" step="0.01" placeholder="Cost" value={labCost} onChange={(e) => setLabCost(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                 </div>
               </div>
 
-              <button type="submit" style={{ padding: '10px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginTop: '10px' }}>
-                Complete consultation & Bill
-              </button>
-            </form>
-          </div>
-
-          {/* 3. Right Column: Call Chat panel */}
-          <div style={{
-            width: '300px',
-            background: '#f8fafc',
-            borderLeft: '1px solid #cbd5e1',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
-              <h4 style={{ margin: 0, color: '#334155' }}>Consultation Chat</h4>
-            </div>
-            
-            {/* Scrollable messages container */}
-            <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {callChatMessages.map((msg, idx) => (
-                <div key={idx} style={{ alignSelf: msg.sender === 'doctor' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                  <div style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    background: msg.sender === 'doctor' ? '#5c6bc0' : '#e2e8f0',
-                    color: msg.sender === 'doctor' ? 'white' : '#1e293b',
-                    fontSize: '12px'
-                  }}>
-                    {msg.text}
-                  </div>
-                  <div style={{ fontSize: '9px', color: '#64748b', textAlign: msg.sender === 'doctor' ? 'right' : 'left', marginTop: '2px' }}>{msg.time}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Chat message input form */}
-            <form onSubmit={handleSendCallMessage} style={{ padding: '12px', borderTop: '1px solid #e2e8f0', background: 'white', display: 'flex', gap: '6px' }}>
-              <input 
-                type="text" 
-                placeholder="Type a message..." 
-                value={newCallMessage}
-                onChange={(e) => setNewCallMessage(e.target.value)}
-                style={{ flex: 1, padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px', outline: 'none' }}
-              />
-              <button type="submit" style={{ padding: '6px 12px', background: '#5c6bc0', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>Send</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Admin Patient EHR Inspection Modal */}
-      {selectedAdminPatientEhr && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '600px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            overflow: 'hidden',
-            maxHeight: '90vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #f1f5f9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: '#1e3a8a',
-              color: 'white'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>EHR Clinical Folder - {selectedAdminPatientEhr.firstName} {selectedAdminPatientEhr.lastName}</h3>
-              <button 
-                onClick={() => setSelectedAdminPatientEhr(null)}
-                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
-                <div><strong>Patient ID:</strong> <p style={{ margin: '4px 0 0 0', color: '#1e3a8a', fontWeight: 'bold' }}>{selectedAdminPatientEhr.id}</p></div>
-                <div><strong>Date of Birth / DOB:</strong> <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{selectedAdminPatientEhr.dob}</p></div>
-                <div><strong>Gender:</strong> <p style={{ margin: '4px 0 0 0', color: '#475569', textTransform: 'capitalize' }}>{selectedAdminPatientEhr.gender}</p></div>
-                <div><strong>Blood Type:</strong> <p style={{ margin: '4px 0 0 0', color: '#b91c1c', fontWeight: 'bold' }}>{selectedAdminPatientEhr.bloodType || 'O+'}</p></div>
-                <div style={{ gridColumn: 'span 2' }}><strong>Known Allergies:</strong> <p style={{ margin: '4px 0 0 0', color: '#b45309', fontWeight: '600' }}>{selectedAdminPatientEhr.allergies || 'None'}</p></div>
-                <div style={{ gridColumn: 'span 2' }}><strong>Chronic Conditions:</strong> <p style={{ margin: '4px 0 0 0', color: '#1e40af', fontWeight: '600' }}>{selectedAdminPatientEhr.chronicConditions || 'None'}</p></div>
-              </div>
-
-              <div>
-                <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', fontSize: '14px', color: '#334155' }}>Clinical Consultation & Visit History</h4>
-                {(!selectedAdminPatientEhr.clinicalHistory || selectedAdminPatientEhr.clinicalHistory.length === 0) ? (
-                  <p style={{ fontSize: '13px', color: '#64748b', margin: 0, fontStyle: 'italic' }}>No clinical history records found for this patient.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {selectedAdminPatientEhr.clinicalHistory.map((h, i) => (
-                      <div key={i} style={{ backgroundColor: '#f1f5f9', borderLeft: '4px solid #475569', padding: '10px', borderRadius: '0 6px 6px 0', fontSize: '13px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#1e293b' }}>
-                          <span>Visit Reason: {h.reason}</span>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>{h.date}</span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#475569', margin: '4px 0' }}>Consulted by: <strong>{h.doctor}</strong></div>
-                        <div style={{ background: 'white', padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', marginTop: '6px' }}>
-                          <strong>Diagnosis:</strong> {h.diagnosis}
-                        </div>
-                        {h.vitals && (
-                          <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#475569', marginTop: '6px' }}>
-                            <span>BP: <strong>{h.vitals.bp}</strong></span>
-                            <span>HR: <strong>{h.vitals.hr} bpm</strong></span>
-                            <span>Temp: <strong>{h.vitals.temp} °F</strong></span>
-                            <span>SpO2: <strong>{h.vitals.spo2}%</strong></span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
-              <button 
-                type="button"
-                onClick={() => setSelectedAdminPatientEhr(null)}
-                style={{ padding: '8px 16px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-              >
-                Close Folder
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lab Results Submission Modal */}
-      {selectedLabForResults && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '500px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            overflow: 'hidden',
-            maxHeight: '90vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #f1f5f9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: '#3f51b5',
-              color: 'white'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>Lab Report Entry - {selectedLabForResults.testName}</h3>
-              <button 
-                onClick={() => setSelectedLabForResults(null)}
-                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
-              >
-                &times;
-              </button>
-            </div>
-            
-            <form onSubmit={handleCompleteLabWithResults} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
-                <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div><strong>Patient:</strong> {selectedLabForResults.patientName} (ID: {selectedLabForResults.patientId})</div>
-                  <div><strong>Ordered By:</strong> {selectedLabForResults.doctorName}</div>
-                  <div><strong>Cost:</strong> {selectedLabForResults.cost}</div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Diagnostic Results / Key Findings</label>
-                  <textarea 
-                    placeholder="Enter test results details (e.g. Cholesterol: 215 mg/dL, HDL: 45 mg/dL, LDL: 142 mg/dL...)"
-                    value={labResultsText}
-                    onChange={(e) => setLabResultsText(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '100px', fontSize: '13px', fontFamily: 'inherit' }}
-                    required
-                  />
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Technician Remarks / Recommendations</label>
-                  <textarea 
-                    placeholder="Any specific observations or general remarks..."
-                    value={labRemarks}
-                    onChange={(e) => setLabRemarks(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '60px', fontSize: '13px', fontFamily: 'inherit' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'end', gap: '12px', backgroundColor: '#f8fafc' }}>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedLabForResults(null)}
-                  style={{ padding: '8px 16px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  style={{ padding: '8px 16px', background: '#3f51b5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                >
-                  Complete & Save to EHR
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setSelectedApptForCheckup(null)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Complete Checkup</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Lab Results View Modal */}
-      {viewedLabRequestResults && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            width: '100%',
-            maxWidth: '500px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            overflow: 'hidden',
-            maxHeight: '90vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #f1f5f9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: '#5c6bc0',
-              color: 'white'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>Lab Report Summary - {viewedLabRequestResults.testName}</h3>
-              <button 
-                onClick={() => setViewedLabRequestResults(null)}
-                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
-              <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><strong>Patient:</strong> {viewedLabRequestResults.patientName} (ID: {viewedLabRequestResults.patientId})</div>
-                <div><strong>Ordered By:</strong> {viewedLabRequestResults.doctorName}</div>
-                <div><strong>Date Completed:</strong> {viewedLabRequestResults.completedDate || viewedLabRequestResults.date}</div>
-              </div>
-
-              <div>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#475569' }}>Diagnostic Findings:</h4>
-                <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', color: '#1e293b', borderLeft: '4px solid #5c6bc0' }}>
-                  {viewedLabRequestResults.results}
-                </div>
-              </div>
-
-              {viewedLabRequestResults.remarks && (
-                <div>
-                  <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#475569' }}>Technician Remarks:</h4>
-                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', color: '#475569', fontStyle: 'italic' }}>
-                    {viewedLabRequestResults.remarks}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'end', backgroundColor: '#f8fafc' }}>
-              <button 
-                onClick={() => setViewedLabRequestResults(null)}
-                style={{ padding: '8px 16px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-              >
-                Close Report
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -84,11 +84,32 @@ function App() {
     // Seed empty/default attendance if not present
     if (!localStorage.getItem('dhms_pharmacy_attendance')) {
       const initialAttendance = [
-        { date: "2026-07-19", staffId: "STF-P01", name: "Dr. Sarah Jenkins", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present" },
-        { date: "2026-07-19", staffId: "STF-P02", name: "James Carter", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present" },
-        { date: "2026-07-19", staffId: "STF-P03", name: "Emily Watson", checkIn: "09:15 AM", checkOut: "05:30 PM", status: "Late" }
+        { date: "2026-07-21", staffId: "STF-P01", name: "Dr. Sarah Jenkins", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present" },
+        { date: "2026-07-21", staffId: "STF-P02", name: "James Carter", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present" },
+        { date: "2026-07-21", staffId: "STF-P03", name: "Emily Watson", checkIn: "-", checkOut: "-", status: "Absent" }
       ];
       localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify(initialAttendance));
+    }
+
+    // Seed master hospital staff & doctor attendance dataset
+    if (!localStorage.getItem('dhms_master_attendance')) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const initialMasterAttendance = [
+        { id: "ATT-101", date: todayStr, module: "Doctor", staffId: "dr_watson", staffName: "Dr. John Watson", role: "Primary Care Physician", checkIn: "08:30 AM", checkOut: "05:00 PM", status: "Present", remarks: "Morning OPD" },
+        { id: "ATT-102", date: todayStr, module: "Doctor", staffId: "dr_house", staffName: "Dr. Gregory House", role: "Chief of Cardiology", checkIn: "09:15 AM", checkOut: "05:30 PM", status: "Late", remarks: "Traffic delay" },
+        { id: "ATT-103", date: todayStr, module: "Doctor", staffId: "dr_adams", staffName: "Dr. John Adams", role: "Neurologist", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Medical Leave" },
+        { id: "ATT-104", date: todayStr, module: "Receptionist", staffId: "REC-101", staffName: "Sarah Connor", role: "Senior Receptionist", checkIn: "08:00 AM", checkOut: "04:30 PM", status: "Present", remarks: "Front Desk Duty" },
+        { id: "ATT-105", date: todayStr, module: "Receptionist", staffId: "REC-102", staffName: "Mark Taylor", role: "Front Desk Associate", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Unexcused Absence" },
+        { id: "ATT-106", date: todayStr, module: "Laboratory", staffId: "LAB-201", staffName: "Dr. Alex Vance", role: "Chief Lab Specialist", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present", remarks: "Biochemistry Unit" },
+        { id: "ATT-107", date: todayStr, module: "Laboratory", staffId: "LAB-202", staffName: "Linda Martinez", role: "Pathology Technician", checkIn: "-", checkOut: "-", status: "On Leave", remarks: "Approved Leave" },
+        { id: "ATT-108", date: todayStr, module: "Pharmacist", staffId: "STF-P01", staffName: "Dr. Sarah Jenkins", role: "Chief Pharmacist", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present", remarks: "Main Counter" },
+        { id: "ATT-109", date: todayStr, module: "Pharmacist", staffId: "STF-P02", staffName: "James Carter", role: "Pharmacy Technician", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present", remarks: "Stock Room" },
+        { id: "ATT-110", date: todayStr, module: "Pharmacist", staffId: "STF-P03", staffName: "Emily Watson", role: "Clinical Pharmacist", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Sick Leave" },
+        { id: "ATT-111", date: "2026-07-20", module: "Doctor", staffId: "dr_grey", staffName: "Dr. Meredith Grey", role: "General Surgeon", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Post-op Rest" },
+        { id: "ATT-112", date: "2026-07-20", module: "Receptionist", staffId: "REC-102", staffName: "Mark Taylor", role: "Front Desk Associate", checkIn: "09:30 AM", checkOut: "05:00 PM", status: "Late", remarks: "Transit Delay" },
+        { id: "ATT-113", date: "2026-07-20", module: "Laboratory", staffId: "LAB-202", staffName: "Linda Martinez", role: "Pathology Technician", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Unplanned Absence" }
+      ];
+      localStorage.setItem('dhms_master_attendance', JSON.stringify(initialMasterAttendance));
     }
 
     // Seed empty admissions if not present
