@@ -284,7 +284,16 @@ export default function Dashboard({ onLogout, role }) {
     setLabTestName('');
     setIsVideoCallActive(false);
     setActiveCallAppt(null);
-    alert('Telemedicine consultation completed and billed successfully.');
+    if (window.Swal) {
+      window.Swal.fire({
+        title: 'Consultation Completed',
+        text: 'Telemedicine consultation completed and billed successfully.',
+        icon: 'success',
+        confirmButtonColor: '#10b981'
+      });
+    } else {
+      alert('Telemedicine consultation completed and billed successfully.');
+    }
   };
 
   const handleEndCall = () => {
@@ -299,7 +308,16 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_appointments', JSON.stringify(updated));
     setIsVideoCallActive(false);
     setActiveCallAppt(null);
-    alert('Telemedicine session ended. The patient must book a new appointment to reconnect.');
+    if (window.Swal) {
+      window.Swal.fire({
+        title: 'Session Ended',
+        text: 'Telemedicine session ended. The patient must book a new appointment to reconnect.',
+        icon: 'info',
+        confirmButtonColor: '#3b82f6'
+      });
+    } else {
+      alert('Telemedicine session ended. The patient must book a new appointment to reconnect.');
+    }
   };
 
   // Checkup Consultation Forms
