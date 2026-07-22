@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 
 const DUMMY_DEPARTMENTS = [
@@ -142,6 +142,165 @@ export default function Dashboard({ onLogout, role }) {
   const [activeCallAppt, setActiveCallAppt] = useState(null);
   const [callChatMessages, setCallChatMessages] = useState([]);
   const [newCallMessage, setNewCallMessage] = useState('');
+  const [teleActiveTab, setTeleActiveTab] = useState('chat');
+
+  useEffect(() => {
+    if (role !== 'doctor' || !isVideoCallActive || !activeCallAppt) return;
+    const chatKey = `dhms_tele_chat_${activeCallAppt.id}`;
+    if (!localStorage.getItem(chatKey)) {
+      const initialMsgs = [
+        { sender: "doctor", text: `Hello ${activeCallAppt.patientName}, how can I help you today?`, time: "01:50 PM" }
+      ];
+      localStorage.setItem(chatKey, JSON.stringify(initialMsgs));
+    }
+    
+    const interval = setInterval(() => {
+      const msgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+      setCallChatMessages(msgs);
+    }, 800);
+    return () => clearInterval(interval);
+  }, [role, isVideoCallActive, activeCallAppt]);
+
+  const handleSendDoctorChatMessage = (e) => {
+    e.preventDefault();
+    if (!newCallMessage.trim() || !activeCallAppt) return;
+    const chatKey = `dhms_tele_chat_${activeCallAppt.id}`;
+    const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+    const docMsg = {
+      sender: "doctor",
+      text: newCallMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    const updated = [...currentMsgs, docMsg];
+    localStorage.setItem(chatKey, JSON.stringify(updated));
+    setCallChatMessages(updated);
+    setNewCallMessage('');
+  };
+
+  const handleTeleCheckupSubmit = (e) => {
+    e.preventDefault();
+    if (!activeCallAppt) return;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+
+    // 1. Update appointment status
+    const updatedAppts = appointments.map(appt => {
+      if (appt.id === activeCallAppt.id) {
+        return { 
+          ...appt, 
+          status: 'Completed',
+          diagnosis: diagnosisNote || 'Telemedicine consultation completed.',
+          vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 }
+        };
+      }
+      return appt;
+    });
+    setAppointments(updatedAppts);
+    localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+
+    // 2. Update patient medical file
+    const updatedPatients = patients.map(p => {
+      if (p.id === activeCallAppt.patientId) {
+        const historyEntry = {
+          date: todayStr,
+          doctor: currentDoc.name,
+          diagnosis: diagnosisNote || 'Telemedicine consultation completed.',
+          reason: activeCallAppt.reason,
+          vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 },
+          prescriptions: rxDrugName.trim() ? [`${rxDrugName} ${rxDose} - ${rxFrequency} (${rxDuration})`] : [],
+          labs: labTestName.trim() ? [`${labTestName} [${labPriority}]`] : []
+        };
+        return {
+          ...p,
+          clinicalHistory: [historyEntry, ...(p.clinicalHistory || [])]
+        };
+      }
+      return p;
+    });
+    setPatients(updatedPatients);
+    localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+
+    // 3. Create prescription if filled
+    if (rxDrugName.trim()) {
+      const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+      const newRx = {
+        id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: activeCallAppt.patientId,
+        patientName: activeCallAppt.patientName,
+        medication: `${rxDrugName} ${rxDose} (${rxFrequency}, ${rxDuration})`,
+        doctorName: currentDoc.name,
+        date: todayStr,
+        cost: `${parseFloat(rxCost).toFixed(2)}`,
+        status: 'Pending',
+        instructions: rxInstructions,
+        type: 'Outpatient'
+      };
+      const finalRx = [newRx, ...rxList];
+      localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
+      setPrescriptions(finalRx);
+    }
+
+    // 4. Create lab request if filled
+    if (labTestName.trim()) {
+      const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+      const newLab = {
+        id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: activeCallAppt.patientId,
+        patientName: activeCallAppt.patientName,
+        testName: `${labTestName} (${labPriority} Priority)`,
+        doctorName: currentDoc.name,
+        date: todayStr,
+        cost: `${parseFloat(labCost).toFixed(2)}`,
+        status: 'Pending'
+      };
+      const finalLab = [newLab, ...labList];
+      localStorage.setItem('dhms_lab_requests', JSON.stringify(finalLab));
+      setLabRequests(finalLab);
+    }
+
+    // 5. Create billing invoice
+    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const newConsultationInvoice = {
+      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: activeCallAppt.patientId,
+      patientName: activeCallAppt.patientName,
+      date: todayStr,
+      amount: '$150.00',
+      status: 'Unpaid',
+      type: 'Telemedicine consultation Fee'
+    };
+    const updatedBillingList = [newConsultationInvoice, ...billing];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
+    setBillingList(updatedBillingList);
+
+    // Reset forms and close call
+    setDiagnosisNote('');
+    setVitalBP('120/80');
+    setVitalHR('72');
+    setVitalTemp('98.6');
+    setVitalSpO2('98');
+    setRxDrugName('');
+    setLabTestName('');
+    setIsVideoCallActive(false);
+    setActiveCallAppt(null);
+    alert('Telemedicine consultation completed and billed successfully.');
+  };
+
+  const handleEndCall = () => {
+    if (!activeCallAppt) return;
+    const updated = appointments.map(appt => {
+      if (appt.id === activeCallAppt.id) {
+        return { ...appt, status: 'Completed' };
+      }
+      return appt;
+    });
+    setAppointments(updated);
+    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+    setIsVideoCallActive(false);
+    setActiveCallAppt(null);
+    alert('Telemedicine session ended. The patient must book a new appointment to reconnect.');
+  };
 
   // Checkup Consultation Forms
   const [diagnosisNote, setDiagnosisNote] = useState('');
@@ -1542,7 +1701,12 @@ export default function Dashboard({ onLogout, role }) {
         return null;
 
       case 'appointments':
-        const docAppts = appointments.filter(a => a.doctorId === activeDoctorId);
+        const docAppts = appointments.filter(a => {
+          return a.doctorId === activeDoctorId || 
+                 (activeDoctorId === 'dr_house' && (a.doctorId === 'dr_gregory_house' || a.doctorName?.includes('House'))) ||
+                 (activeDoctorId === 'dr_watson' && (a.doctorId === 'dr_john_watson' || a.doctorName?.includes('Watson'))) ||
+                 (activeDoctorId === 'dr_grey' && (a.doctorId === 'dr_meredith_grey' || a.doctorName?.includes('Grey')));
+        });
         return (
           <div className="module-content">
             <h2>Appointments Management</h2>
@@ -1576,12 +1740,26 @@ export default function Dashboard({ onLogout, role }) {
                     </td>
                     <td>
                       {appt.status !== 'Completed' && (
-                        <button 
-                          onClick={() => handleOpenCheckupModal(appt)}
-                          style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
-                        >
-                          Start Checkup
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {appt.type === 'Telemedicine' ? (
+                            <button 
+                              onClick={() => {
+                                setActiveCallAppt(appt);
+                                setIsVideoCallActive(true);
+                              }}
+                              style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              🎥 Connect Call
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleOpenCheckupModal(appt)}
+                              style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
+                            >
+                              Start Checkup
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1921,6 +2099,236 @@ export default function Dashboard({ onLogout, role }) {
         return null;
     }
   };
+
+  const renderTelemedicineWorkspace = () => {
+    const currentPatientObj = patients.find(p => p.id === activeCallAppt.patientId) || {
+      id: activeCallAppt.patientId || "PT-99999",
+      firstName: activeCallAppt.patientName?.split(' ')[0] || "John",
+      lastName: activeCallAppt.patientName?.split(' ')[1] || "Doe",
+      gender: "Male",
+      dob: "1990-01-01",
+      bloodType: "O+",
+      allergies: "None",
+      chronicConditions: "None",
+      clinicalHistory: []
+    };
+
+    const age = new Date().getFullYear() - new Date(currentPatientObj.dob).getFullYear();
+
+    return (
+      <div className="tele-workspace-container">
+        {/* Workspace Header */}
+        <div className="tele-workspace-header">
+          <div className="tele-header-left">
+            <span className="tele-live-badge">● LIVE SESSION</span>
+            <h2>Tele-Consultation Suite — {activeCallAppt.patientName} ({activeCallAppt.id})</h2>
+          </div>
+          <button className="tele-end-btn-top" onClick={handleEndCall}>
+            Leave Workspace
+          </button>
+        </div>
+
+        {/* Main Columns */}
+        <div className="tele-workspace-main">
+          {/* Left Column: Video Feeds */}
+          <div className="tele-video-column">
+            <div className="tele-video-grid">
+              {/* Remote Patient Video Feed */}
+              <div className="tele-video-frame remote">
+                <div className="tele-video-placeholder">
+                  <div className="tele-video-avatar">
+                    {currentPatientObj.firstName?.[0]}{currentPatientObj.lastName?.[0]}
+                  </div>
+                  <h3>{activeCallAppt.patientName}</h3>
+                  <p>Patient Connection (Ready)</p>
+                  <div className="pulse-circle"></div>
+                </div>
+                <div className="tele-video-label">Patient: {activeCallAppt.patientName}</div>
+              </div>
+
+              {/* Local Doctor Video Feed */}
+              <div className="tele-video-frame local">
+                <div className="tele-video-placeholder">
+                  <div className="tele-video-avatar doctor">
+                    {DOCTORS.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0]}
+                  </div>
+                  <h3>You</h3>
+                  <p>Camera Streaming</p>
+                </div>
+                <div className="tele-video-label">Doctor (You)</div>
+              </div>
+            </div>
+
+            {/* Video Controls */}
+            <div className="tele-video-controls">
+              <button className="tele-ctrl-btn active" title="Mute Microphone">🎤 Mic</button>
+              <button className="tele-ctrl-btn active" title="Stop Camera">📹 Cam</button>
+              <button className="tele-ctrl-btn" title="Share Screen">🖥️ Share</button>
+              <button className="tele-ctrl-btn end-call" title="Disconnect Session" onClick={handleEndCall}>
+                📞 End Consultation
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Information & Actions Console */}
+          <div className="tele-console-column">
+            {/* Tabs */}
+            <div className="tele-console-tabs">
+              <button 
+                className={teleActiveTab === 'chat' ? 'active' : ''} 
+                onClick={() => setTeleActiveTab('chat')}
+              >
+                💬 Chat Room
+              </button>
+              <button 
+                className={teleActiveTab === 'note' ? 'active' : ''} 
+                onClick={() => setTeleActiveTab('note')}
+              >
+                📋 Vitals & Checkup
+              </button>
+              <button 
+                className={teleActiveTab === 'ehr' ? 'active' : ''} 
+                onClick={() => setTeleActiveTab('ehr')}
+              >
+                🩺 Patient File (EHR)
+              </button>
+            </div>
+
+            {/* Tab Contents */}
+            <div className="tele-console-content">
+              {teleActiveTab === 'chat' && (
+                <div className="tele-chat-container">
+                  <div className="tele-chat-scroller">
+                    {callChatMessages.map((msg, idx) => (
+                      <div key={idx} className={`tele-chat-bubble-row ${msg.sender}`}>
+                        <div className="tele-chat-bubble">
+                          <p>{msg.text}</p>
+                          <span className="tele-chat-time">{msg.time}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <form onSubmit={handleSendDoctorChatMessage} className="tele-chat-input-row">
+                    <input 
+                      type="text" 
+                      placeholder="Type a message to the patient..."
+                      value={newCallMessage}
+                      onChange={(e) => setNewCallMessage(e.target.value)}
+                    />
+                    <button type="submit">Send</button>
+                  </form>
+                </div>
+              )}
+
+              {teleActiveTab === 'note' && (
+                <div className="tele-note-container">
+                  <h3>Clinical Checkup & Log</h3>
+                  <form onSubmit={handleTeleCheckupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Blood Pressure</label>
+                        <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="120/80" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Heart Rate (bpm)</label>
+                        <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="72" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Temp (°F)</label>
+                        <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="98.6" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>SpO2 (%)</label>
+                        <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="98" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Clinical Diagnosis & Findings</label>
+                      <textarea required value={diagnosisNote} onChange={(e) => setDiagnosisNote(e.target.value)} placeholder="Log patient symptoms, examination details, and diagnosis note..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', minHeight: '80px', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                      <strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>Prescribe Outpatient Medication</strong>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px' }}>
+                        <input type="text" placeholder="Drug Name (e.g. Amoxicillin)" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                        <input type="text" placeholder="Dose (e.g. 500mg)" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                      <strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>Order Laboratory Diagnostic Test</strong>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px' }}>
+                        <input type="text" placeholder="Test Name (e.g. Lipid Profile)" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                        <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px', background: 'white' }}>
+                          <option value="Routine">Routine Priority</option>
+                          <option value="STAT / Urgent">STAT / Urgent</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button type="submit" style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', marginTop: '6px' }}>
+                      Complete Consultation & Bill Patient
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {teleActiveTab === 'ehr' && (
+                <div className="tele-ehr-container">
+                  <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '12px' }}>
+                    <h3>Electronic Health Record (EHR)</h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>Blood Group: <strong>{currentPatientObj.bloodType || 'O+'}</strong> • Age: <strong>{age}</strong> ({currentPatientObj.dob})</p>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="ehr-badge-card">
+                      <strong>Allergies:</strong>
+                      <span className="ehr-pill alert">{currentPatientObj.allergies || 'None'}</span>
+                    </div>
+
+                    <div className="ehr-badge-card">
+                      <strong>Chronic Conditions:</strong>
+                      <span className="ehr-pill warning">{currentPatientObj.chronicConditions || 'None'}</span>
+                    </div>
+
+                    <div style={{ marginTop: '10px' }}>
+                      <strong>Clinical Consultation History</strong>
+                      <div className="tele-ehr-history-list">
+                        {currentPatientObj.clinicalHistory?.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic', padding: '8px 0' }}>No clinical history on file.</div>
+                        ) : (
+                          currentPatientObj.clinicalHistory?.map((hist, idx) => (
+                            <div key={idx} className="tele-history-item">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>
+                                <span>Date: {hist.date}</span>
+                                <span>Provider: {hist.doctor}</span>
+                              </div>
+                              <div style={{ fontSize: '12px', fontWeight: '600', color: '#1e293b', marginTop: '3px' }}>Reason: {hist.reason}</div>
+                              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>Diagnosis: {hist.diagnosis}</div>
+                              {hist.vitals && (
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', background: '#f8fafc', padding: '4px', borderRadius: '4px' }}>
+                                  BP: {hist.vitals.bp} | HR: {hist.vitals.hr} | Temp: {hist.vitals.temp} | SpO2: {hist.vitals.spo2}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (role === 'doctor' && isVideoCallActive && activeCallAppt) {
+    return renderTelemedicineWorkspace();
+  }
 
   return (
     <div className="dashboard-container">

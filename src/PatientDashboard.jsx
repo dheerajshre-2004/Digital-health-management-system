@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './PatientDashboard.css';
 
 export default function PatientDashboard({ onLogout }) {
@@ -62,10 +62,35 @@ export default function PatientDashboard({ onLogout }) {
   const [labSubTab, setLabSubTab] = useState('orders');
 
   // Telemedicine States
-  const [teleconsultations, setTeleconsultations] = useState([
-    { id: "TELE-502", doctor: "Dr. Gregory House", department: "Cardiology", date: "Today", time: "01:50 PM", status: "Ready", reason: "Follow-up on sinus arrhythmia symptoms." }
-  ]);
+  const [teleconsultations, setTeleconsultations] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const teleAppts = saved.filter(a => a.type === 'Telemedicine');
+    const mapped = teleAppts.map(a => ({
+      id: a.id,
+      doctor: a.doctorName,
+      department: a.department,
+      date: a.date,
+      time: a.time,
+      status: a.status === 'Scheduled' ? 'Ready' : a.status,
+      reason: a.reason
+    }));
+    const hasDefault = mapped.some(m => m.id === 'TELE-502');
+    if (!hasDefault) {
+      const defaultStatus = saved.find(a => a.id === 'TELE-502')?.status || 'Ready';
+      mapped.push({
+        id: "TELE-502",
+        doctor: "Dr. Gregory House",
+        department: "Cardiology",
+        date: "Today",
+        time: "01:50 PM",
+        status: defaultStatus === 'Scheduled' ? 'Ready' : defaultStatus,
+        reason: "Follow-up on sinus arrhythmia symptoms."
+      });
+    }
+    return mapped;
+  });
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
+  const [activeCallId, setActiveCallId] = useState("TELE-502");
   const [callChatMessages, setCallChatMessages] = useState([
     { sender: "doctor", text: "Hello John, I've reviewed your ECG and recent lab values. How have you been feeling since our last visit?", time: "01:50 PM" }
   ]);
@@ -76,6 +101,30 @@ export default function PatientDashboard({ onLogout }) {
   const [newTeleDate, setNewTeleDate] = useState('');
   const [newTeleTime, setNewTeleTime] = useState('');
   const [newTeleReason, setNewTeleReason] = useState('');
+
+  useEffect(() => {
+    if (!isVideoCallActive) return;
+    const chatKey = `dhms_tele_chat_${activeCallId}`;
+    if (!localStorage.getItem(chatKey)) {
+      const initialMsgs = [
+        { sender: "doctor", text: "Hello John, I've reviewed your ECG and recent lab values. How have you been feeling since our last visit?", time: "01:50 PM" }
+      ];
+      localStorage.setItem(chatKey, JSON.stringify(initialMsgs));
+    }
+    const interval = setInterval(() => {
+      const msgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+      setCallChatMessages(msgs);
+
+      const savedAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const currentAppt = savedAppts.find(a => a.id === activeCallId);
+      if (currentAppt && currentAppt.status === 'Completed') {
+        setIsVideoCallActive(false);
+        setTeleconsultations(prev => prev.map(t => t.id === activeCallId ? { ...t, status: 'Completed' } : t));
+        alert("The telemedicine consultation has been ended by the doctor. Please schedule a new appointment to reconnect.");
+      }
+    }, 800);
+    return () => clearInterval(interval);
+  }, [isVideoCallActive, activeCallId]);
 
   // Physical Appointment Request States
   const [showRequestApptModal, setShowRequestApptModal] = useState(false);
@@ -834,12 +883,19 @@ export default function PatientDashboard({ onLogout }) {
     e.preventDefault();
     if (!newChatMessage.trim()) return;
 
+    const chatKey = `dhms_tele_chat_${activeCallId}`;
+    const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+
     const patientMsg = { 
       sender: "patient", 
       text: newChatMessage, 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     };
-    setCallChatMessages(prev => [...prev, patientMsg]);
+    
+    const updatedMsgs = [...currentMsgs, patientMsg];
+    localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
+    setCallChatMessages(updatedMsgs);
+    
     const inputMsg = newChatMessage;
     setNewChatMessage('');
 
@@ -856,11 +912,14 @@ export default function PatientDashboard({ onLogout }) {
         responseText = "Good day, John. How can I assist you with your health logs today?";
       }
 
-      setCallChatMessages(prev => [...prev, {
+      const latestMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+      const updatedWithReply = [...latestMsgs, {
         sender: "doctor",
         text: responseText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
+      }];
+      localStorage.setItem(chatKey, JSON.stringify(updatedWithReply));
+      setCallChatMessages(updatedWithReply);
     }, 1200);
   };
 
@@ -1308,7 +1367,14 @@ export default function PatientDashboard({ onLogout }) {
             <div className="video-controls-overlay">
               <button className="video-btn select"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
               <button className="video-btn select"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></button>
-              <button className="video-btn danger" onClick={() => setIsVideoCallActive(false)} title="End Call">
+              <button className="video-btn danger" onClick={() => {
+                setIsVideoCallActive(false);
+                const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+                const updated = saved.map(a => a.id === activeCallId ? { ...a, status: 'Completed' } : a);
+                localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+                setTeleconsultations(prev => prev.map(t => t.id === activeCallId ? { ...t, status: 'Completed' } : t));
+                alert("Consultation ended. You must schedule a new appointment to reconnect.");
+              }} title="End Call">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>
               </button>
             </div>
@@ -1382,7 +1448,10 @@ export default function PatientDashboard({ onLogout }) {
                   </div>
                   <div className="pd-tele-actions">
                     {tele.status === "Ready" ? (
-                      <button className="pd-btn-teal" onClick={() => setIsVideoCallActive(true)}>
+                      <button className="pd-btn-teal" onClick={() => {
+                        setActiveCallId(tele.id);
+                        setIsVideoCallActive(true);
+                      }}>
                         Join Consultation
                       </button>
                     ) : (

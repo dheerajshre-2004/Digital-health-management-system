@@ -265,3 +265,422 @@
   border-color: #3b82f6;
 }
 
+/* Telemedicine Suite Workspace styling */
+.tele-workspace-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-family: inherit;
+}
+
+.tele-workspace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.tele-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tele-header-left h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.tele-live-badge {
+  background-color: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  animation: telePulse 1.8s infinite;
+}
+
+.tele-end-btn-top {
+  background-color: #334155;
+  color: #94a3b8;
+  border: 1px solid #475569;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tele-end-btn-top:hover {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.tele-workspace-main {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tele-video-column {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 16px;
+  background-color: #0f172a;
+  border-right: 1px solid #1e293b;
+  overflow-y: auto;
+}
+
+.tele-video-grid {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+  flex: 1;
+  min-height: 480px;
+}
+
+.tele-video-frame {
+  background-color: #1e293b;
+  border-radius: 12px;
+  border: 2px solid #334155;
+  position: relative;
+  overflow: hidden;
+}
+
+.tele-video-frame.remote {
+  border-color: #3b82f6;
+}
+
+.tele-video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+  text-align: center;
+}
+
+.tele-video-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+}
+
+.tele-video-avatar.doctor {
+  background-color: #10b981;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+}
+
+.tele-video-placeholder h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: #f8fafc;
+}
+
+.tele-video-placeholder p {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.pulse-circle {
+  width: 12px;
+  height: 12px;
+  background-color: #10b981;
+  border-radius: 50%;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+  animation: telePulse 1.5s infinite;
+}
+
+.tele-video-label {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background-color: rgba(15, 23, 42, 0.75);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.tele-video-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: #1e293b;
+  border-radius: 12px;
+  border: 1px solid #334155;
+}
+
+.tele-ctrl-btn {
+  background-color: #334155;
+  color: #94a3b8;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tele-ctrl-btn:hover {
+  background-color: #475569;
+  color: #f8fafc;
+}
+
+.tele-ctrl-btn.active {
+  background-color: #0284c7;
+  color: white;
+}
+
+.tele-ctrl-btn.end-call {
+  background-color: #ef4444;
+  color: white;
+  margin-left: auto;
+}
+
+.tele-ctrl-btn.end-call:hover {
+  background-color: #dc2626;
+}
+
+.tele-console-column {
+  display: flex;
+  flex-direction: column;
+  background-color: #1e293b;
+  overflow: hidden;
+}
+
+.tele-console-tabs {
+  display: flex;
+  border-bottom: 1px solid #334155;
+  background-color: #0f172a;
+}
+
+.tele-console-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 14px;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tele-console-tabs button:hover {
+  color: #f8fafc;
+  background-color: #1e293b;
+}
+
+.tele-console-tabs button.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+  background-color: #1e293b;
+}
+
+.tele-console-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  color: #334155;
+  background-color: #ffffff;
+}
+
+/* Chat container inside tele workspace */
+.tele-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.tele-chat-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tele-chat-bubble-row {
+  display: flex;
+  width: 100%;
+}
+
+.tele-chat-bubble-row.patient {
+  justify-content: flex-start;
+}
+
+.tele-chat-bubble-row.doctor {
+  justify-content: flex-end;
+}
+
+.tele-chat-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.tele-chat-bubble p {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.tele-chat-bubble-row.patient .tele-chat-bubble {
+  background-color: #f1f5f9;
+  color: #1e293b;
+  border-bottom-left-radius: 2px;
+}
+
+.tele-chat-bubble-row.doctor .tele-chat-bubble {
+  background-color: #3b82f6;
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.tele-chat-time {
+  font-size: 10px;
+  color: #94a3b8;
+  display: block;
+  text-align: right;
+}
+
+.tele-chat-bubble-row.doctor .tele-chat-time {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tele-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.tele-chat-input-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+  font-size: 13px;
+}
+
+.tele-chat-input-row input:focus {
+  border-color: #3b82f6;
+}
+
+.tele-chat-input-row button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tele-chat-input-row button:hover {
+  background-color: #2563eb;
+}
+
+/* Vitals and Checkup Note inside tele workspace */
+.tele-note-container h3 {
+  margin: 0 0 16px 0;
+  color: #1e293b;
+  font-size: 16px;
+}
+
+/* EHR history and badges in tele console */
+.tele-ehr-container h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 16px;
+}
+
+.ehr-badge-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.ehr-badge-card strong {
+  font-size: 13px;
+  color: #475569;
+}
+
+.ehr-pill {
+  font-size: 12px;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.ehr-pill.alert {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.ehr-pill.warning {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.tele-ehr-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.tele-history-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+@keyframes telePulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
