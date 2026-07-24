@@ -173,7 +173,7 @@
 }
 
 .lab-view-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -407,6 +407,15 @@
 
 .lab-data-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.lab-data-table.compact-table th,
+.lab-data-table.compact-table td {
+  padding: 12px 12px;
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 
 .patient-cell {

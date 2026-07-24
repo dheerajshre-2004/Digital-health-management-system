@@ -561,7 +561,7 @@ export default function LaboratoryDashboard({ onLogout }) {
                 <p>Record daily check-in / check-out times and log shift attendance for lab technicians and specialists.</p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginTop: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '24px', marginTop: '20px' }}>
                 {/* Form Card */}
                 <div className="lab-card">
                   <h2 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Mark Daily Attendance</h2>
@@ -635,13 +635,13 @@ export default function LaboratoryDashboard({ onLogout }) {
                 {/* History Log Table */}
                 <div className="lab-card">
                   <h2 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Laboratory Attendance History</h2>
-                  <table className="lab-table">
+                  <table className="lab-data-table compact-table">
                     <thead>
                       <tr>
-                        <th>Date</th>
+                        <th className="nowrap">Date</th>
                         <th>Staff Member</th>
-                        <th>Check In / Out</th>
-                        <th>Status</th>
+                        <th className="nowrap">Check In / Out</th>
+                        <th className="nowrap">Status</th>
                         <th>Remarks</th>
                       </tr>
                     </thead>
@@ -650,13 +650,13 @@ export default function LaboratoryDashboard({ onLogout }) {
                         .filter(a => a.module === 'Laboratory')
                         .map(att => (
                           <tr key={att.id}>
-                            <td><strong>{att.date}</strong></td>
+                            <td className="nowrap"><strong>{att.date}</strong></td>
                             <td>
                               <strong>{att.staffName}</strong>
                               <div style={{ fontSize: '11px', color: '#64748b' }}>{att.role}</div>
                             </td>
-                            <td>{att.checkIn} - {att.checkOut}</td>
-                            <td>
+                            <td className="nowrap">{att.checkIn} - {att.checkOut}</td>
+                            <td className="nowrap">
                               <span className="badge" style={{
                                 padding: '4px 10px',
                                 borderRadius: '999px',
