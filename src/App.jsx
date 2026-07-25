@@ -5,6 +5,7 @@ import PatientDashboard from './PatientDashboard';
 import ReceptionistDashboard from './ReceptionistDashboard';
 import LaboratoryDashboard from './LaboratoryDashboard';
 import PharmacistDashboard from './PharmacistDashboard';
+import CashCounterDashboard from './CashCounterDashboard';
 
 function App() {
   const [activeTab, setActiveTab] = useState('signin');
@@ -140,6 +141,9 @@ function App() {
     if (userRole === 'pharmacist') {
       return <PharmacistDashboard onLogout={handleLogout} />;
     }
+    if (userRole === 'cash_counter') {
+      return <CashCounterDashboard onLogout={handleLogout} />;
+    }
     return <Dashboard onLogout={handleLogout} role={userRole} />;
   }
 
@@ -200,6 +204,7 @@ function App() {
                   <option value="laboratory">Laboratory</option>
                   <option value="pharmacist">Pharmacist</option>
                   <option value="receptionist">Receptionist</option>
+                  <option value="cash_counter">Cash Counter</option>
                   <option value="admin">Administrator</option>
                 </select>
                 <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -254,6 +259,8 @@ function App() {
                   <option value="doctor">Doctor Portal</option>
                   <option value="laboratory">Laboratory Portal</option>
                   <option value="pharmacist">Pharmacist Portal</option>
+                  <option value="receptionist">Receptionist Portal</option>
+                  <option value="cash_counter">Cash Counter Portal</option>
                   <option value="admin">Admin Portal</option>
                 </select>
                 <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

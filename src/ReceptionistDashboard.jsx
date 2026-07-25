@@ -50,6 +50,20 @@ export default function ReceptionistDashboard({ onLogout }) {
   const [patientPage, setPatientPage] = useState(1);
   const itemsPerPage = 5;
 
+  // Patient File Modal and History States
+  const [selectedPatientFile, setSelectedPatientFile] = useState(null);
+  const [selectedReportView, setSelectedReportView] = useState(null);
+  const [activeModalTab, setActiveModalTab] = useState('appointments');
+  const [billingModalAppt, setBillingModalAppt] = useState(null);
+  const [billingModalFee, setBillingModalFee] = useState('120.00');
+  const [billingModalType, setBillingModalType] = useState('Appointment Fee');
+  const [prescriptions, setPrescriptions] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+  });
+  const [labRequests, setLabRequests] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+  });
+
   // Pagination States for Appointments
   const [apptPage, setApptPage] = useState(1);
   const [apptSubTab, setApptSubTab] = useState('on-place'); // 'on-place' or 'online'
@@ -197,6 +211,97 @@ export default function ReceptionistDashboard({ onLogout }) {
     localStorage.setItem('dhms_appointments', JSON.stringify(updated));
   };
 
+  const handleGenerateReport = (patientId) => {
+    // Reload all data to get latest
+    const allPatients = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const allPrescriptions = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+    const allLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+    const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+
+    const patient = allPatients.find(p => p.id === patientId);
+    if (!patient) return;
+
+    const patientAppts = allAppts.filter(a => a.patientId === patientId);
+    const patientPrescriptions = allPrescriptions.filter(p => p.patientId === patientId);
+    const patientLabs = allLabs.filter(l => l.patientId === patientId);
+    const patientBilling = allBilling.filter(b => b.patientId === patientId);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Construct rich text content summarizing the patient's records
+    const reportSummary = `Patient Health Summary Report for ${patient.firstName} ${patient.lastName} (ID: ${patient.id})
+Generated Date: ${todayStr}
+Author: Front Desk System / Receptionist
+
+==================================================
+1. CLINICAL PROFILE
+==================================================
+Date of Birth: ${patient.dob}
+Gender: ${patient.gender}
+Phone: ${patient.phone}
+Email: ${patient.email}
+Blood Type: ${patient.bloodType || 'N/A'}
+Allergies: ${patient.allergies || 'None Recorded'}
+Chronic Conditions: ${patient.chronicConditions || 'None Recorded'}
+
+==================================================
+2. APPOINTMENT HISTORY (${patientAppts.length} Records)
+==================================================
+${patientAppts.length === 0 ? 'No appointments recorded.' : patientAppts.map((a, idx) => `${idx + 1}. [${a.date} ${a.time}] Appt: ${a.id} | Doctor: ${a.doctorName} | Status: ${a.status} | Reason: ${a.reason}`).join('\n')}
+
+==================================================
+3. PRESCRIPTIONS (${patientPrescriptions.length} Records)
+==================================================
+${patientPrescriptions.length === 0 ? 'No prescriptions recorded.' : patientPrescriptions.map((pr, idx) => `${idx + 1}. [${pr.date || todayStr}] Rx ID: ${pr.id} | Meds: ${pr.medications || pr.medicationName} | Doctor: ${pr.doctorName || pr.physicianName || 'N/A'}`).join('\n')}
+
+==================================================
+4. LAB DIAGNOSTICS (${patientLabs.length} Records)
+==================================================
+${patientLabs.length === 0 ? 'No laboratory tests ordered.' : patientLabs.map((l, idx) => `${idx + 1}. [${l.date || todayStr}] Lab ID: ${l.id} | Test: ${l.testName} | Status: ${l.status} | Results: ${l.results || 'Pending'}`).join('\n')}
+
+==================================================
+5. FINANCIAL BILLING (${patientBilling.length} Records)
+==================================================
+${patientBilling.length === 0 ? 'No invoices recorded.' : patientBilling.map((b, idx) => `${idx + 1}. [${b.date}] Invoice: ${b.id} | Type: ${b.type} | Amount: ${b.amount} | Status: ${b.status}`).join('\n')}
+
+==================================================
+End of Generated Health Summary Report
+==================================================`;
+
+    const newReport = {
+      id: `EHR-${Math.floor(100 + Math.random() * 900)}`,
+      name: `FrontDesk Health Summary`,
+      type: 'Summary Report',
+      size: `${(reportSummary.length / 1024).toFixed(1)} KB`,
+      date: todayStr,
+      author: 'Front Desk Administrator',
+      details: {
+        summary: `Comprehensive summary report detailing appointment logs, active prescriptions, lab requests, and billing invoices for patient ${patient.firstName} ${patient.lastName}.`,
+        fullContent: reportSummary
+      }
+    };
+
+    // Update reports in patients list
+    const updatedPatients = allPatients.map(p => {
+      if (p.id === patientId) {
+        return {
+          ...p,
+          reports: [newReport, ...(p.reports || [])]
+        };
+      }
+      return p;
+    });
+
+    localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+    setPatients(updatedPatients);
+    
+    // Also update selected patient file modal data
+    const updatedPatient = updatedPatients.find(p => p.id === patientId);
+    setSelectedPatientFile(updatedPatient);
+    alert(`Health Summary Report (${newReport.id}) generated successfully!`);
+  };
+
   const renderRegisterPatient = () => (
     <div className="rd-view-container">
       <div className="rd-header-banner">
@@ -274,9 +379,9 @@ export default function ReceptionistDashboard({ onLogout }) {
   const renderPatientRecords = () => {
     const filteredPatients = patients.filter(p => {
       const query = patientSearch.toLowerCase();
+      const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
       return p.id.toLowerCase().includes(query) ||
-             p.firstName.toLowerCase().includes(query) ||
-             p.lastName.toLowerCase().includes(query) ||
+             fullName.includes(query) ||
              p.phone.includes(query) ||
              (p.email && p.email.toLowerCase().includes(query));
     });
@@ -319,49 +424,85 @@ export default function ReceptionistDashboard({ onLogout }) {
                 <th>Gender</th>
                 <th>Phone</th>
                 <th>Email</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {paginatedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '32px 0' }}>No patient records found</td>
+                  <td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '32px 0' }}>No patient records found</td>
                 </tr>
               ) : (
                 paginatedPatients.map(p => (
                   <tr key={p.id}>
-                    <td><strong style={{ color: '#2563eb' }}>{p.id}</strong></td>
+                    <td><strong style={{ color: '#1e293b' }}>{p.id}</strong></td>
                     <td><strong>{p.firstName} {p.lastName}</strong></td>
                     <td>{p.dob}</td>
                     <td style={{ textTransform: 'capitalize' }}>{p.gender}</td>
                     <td>{p.phone}</td>
                     <td>{p.email}</td>
+                    <td>
+                      <button 
+                        onClick={() => {
+                          setSelectedPatientFile(p);
+                          // Refresh lists when opening
+                          setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
+                          setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+                          setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+                          const savedBilling = localStorage.getItem('dhms_billing');
+                          if (savedBilling) setBillingList(JSON.parse(savedBilling));
+                        }} 
+                        style={{ 
+                          backgroundColor: '#eff6ff', 
+                          color: '#1d4ed8', 
+                          border: '1px solid #bfdbfe', 
+                          borderRadius: '6px', 
+                          padding: '6px 12px', 
+                          cursor: 'pointer', 
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#dbeafe';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                        }}
+                        title="View Patient File & Reports"
+                      >
+                        View File
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
 
-          {totalPages > 1 && (
+          {filteredPatients.length > 0 && (
             <div className="rd-pagination">
               <span className="rd-page-info">
                 Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredPatients.length)} of {filteredPatients.length} records
               </span>
-              <div className="rd-pagination-buttons">
-                <button 
-                  disabled={patientPage === 1} 
-                  onClick={() => setPatientPage(prev => Math.max(prev - 1, 1))}
-                  className="rd-page-btn"
-                >
-                  Prev
-                </button>
-                <button 
-                  disabled={patientPage === totalPages} 
-                  onClick={() => setPatientPage(prev => Math.min(prev + 1, totalPages))}
-                  className="rd-page-btn"
-                >
-                  Next
-                </button>
-              </div>
+              {totalPages > 1 && (
+                <div className="rd-pagination-buttons">
+                  <button 
+                    disabled={patientPage === 1} 
+                    onClick={() => setPatientPage(prev => Math.max(prev - 1, 1))}
+                    className="rd-page-btn"
+                  >
+                    Prev
+                  </button>
+                  <button 
+                    disabled={patientPage === totalPages} 
+                    onClick={() => setPatientPage(prev => Math.min(prev + 1, totalPages))}
+                    className="rd-page-btn"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -502,8 +643,35 @@ export default function ReceptionistDashboard({ onLogout }) {
                         <strong>Reason:</strong> {appt.reason}
                       </p>
                     )}
-                    {(appt.status === 'Pending Confirmation' || appt.status === 'Confirmed' || appt.status === 'Upcoming') && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
+                      {billingList.some(b => b.appointmentId === appt.id) ? (
+                        <span style={{ fontSize: '11.5px', color: '#16a34a', background: '#dcfce7', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                          Sent to Counter
+                        </span>
+                      ) : (
+                        <button 
+                          className="rd-btn-small" 
+                          onClick={() => {
+                            setBillingModalAppt(appt);
+                            setBillingModalFee('120.00');
+                            setBillingModalType('Appointment Fee');
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            background: '#f8fafc',
+                            color: '#475569',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Pay in Counter
+                        </button>
+                      )}
+                      
+                      {(appt.status === 'Pending Confirmation' || appt.status === 'Confirmed' || appt.status === 'Upcoming') && (
                         <button 
                           className="rd-btn-small" 
                           onClick={() => handleConfirmAppointment(appt.id)}
@@ -520,8 +688,8 @@ export default function ReceptionistDashboard({ onLogout }) {
                         >
                           {appt.status === 'Pending Confirmation' ? 'Confirm Request' : 'Check In'}
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -1031,6 +1199,353 @@ export default function ReceptionistDashboard({ onLogout }) {
           {activeTab === 'attendance' && renderAttendance()}
         </main>
       </div>
+
+      {/* Patient File & Reports Modal */}
+      {selectedPatientFile && (
+        <div className="rd-modal-overlay">
+          <div className="rd-modal-content large">
+            <div className="rd-modal-header">
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>
+                  Patient File: {selectedPatientFile.firstName} {selectedPatientFile.lastName}
+                </h2>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Unique ID: {selectedPatientFile.id}</span>
+              </div>
+              <button 
+                className="rd-btn-close" 
+                onClick={() => {
+                  setSelectedPatientFile(null);
+                  setSelectedReportView(null);
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="rd-modal-body">
+              <div className="rd-modal-grid">
+                {/* Left: General Patient Details */}
+                <div className="rd-modal-left">
+                  <h3 className="section-title">Personal Information</h3>
+                  <div className="info-card">
+                    <div className="info-row"><strong>First Name:</strong> <span>{selectedPatientFile.firstName}</span></div>
+                    <div className="info-row"><strong>Last Name:</strong> <span>{selectedPatientFile.lastName}</span></div>
+                    <div className="info-row"><strong>Date of Birth:</strong> <span>{selectedPatientFile.dob}</span></div>
+                    <div className="info-row"><strong>Gender:</strong> <span style={{ textTransform: 'capitalize' }}>{selectedPatientFile.gender}</span></div>
+                    <div className="info-row"><strong>Phone:</strong> <span>{selectedPatientFile.phone}</span></div>
+                    <div className="info-row"><strong>Email:</strong> <span>{selectedPatientFile.email}</span></div>
+                    <div className="info-row"><strong>Blood Type:</strong> <span>{selectedPatientFile.bloodType || 'N/A'}</span></div>
+                    <div className="info-row"><strong>Allergies:</strong> <span>{selectedPatientFile.allergies || 'None Recorded'}</span></div>
+                    <div className="info-row"><strong>Chronic Conditions:</strong> <span>{selectedPatientFile.chronicConditions || 'None Recorded'}</span></div>
+                  </div>
+
+                  <button 
+                    className="rd-btn-primary w-full mt-4" 
+                    onClick={() => handleGenerateReport(selectedPatientFile.id)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="12" y1="18" x2="12" y2="12"></line>
+                      <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    Generate Health Summary Report
+                  </button>
+                </div>
+
+                {/* Right: Reports & Diagnostic Documents */}
+                <div className="rd-modal-right">
+                  <h3 className="section-title">Clinical Files & Reports</h3>
+                  <div className="reports-list">
+                    {(!selectedPatientFile.reports || selectedPatientFile.reports.length === 0) ? (
+                      <div className="no-reports-alert">
+                        No clinical reports generated yet. Click "Generate Health Summary Report" to compile history.
+                      </div>
+                    ) : (
+                      selectedPatientFile.reports.map((report) => (
+                        <div 
+                          key={report.id} 
+                          className="report-item" 
+                          onClick={() => setSelectedReportView(report)}
+                        >
+                          <div className="report-item-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                              <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                          </div>
+                          <div className="report-item-info">
+                            <strong>{report.name}</strong>
+                            <span>{report.type} • {report.date}</span>
+                          </div>
+                          <div className="report-item-size">{report.size}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Tabs/Sections for History */}
+              <div className="rd-modal-tabs-section mt-6" style={{ marginTop: '24px' }}>
+                <div className="rd-modal-tabs">
+                  <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'appointments' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('appointments')}
+                  >
+                    Appointments ({appointments.filter(a => a.patientId === selectedPatientFile.id).length})
+                  </button>
+                  <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'prescriptions' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('prescriptions')}
+                  >
+                    Prescriptions ({prescriptions.filter(p => p.patientId === selectedPatientFile.id).length})
+                  </button>
+                  <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'labs' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('labs')}
+                  >
+                    Lab Diagnostics ({labRequests.filter(l => l.patientId === selectedPatientFile.id).length})
+                  </button>
+                  <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'billing' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('billing')}
+                  >
+                    Invoices & Billing ({billingList.filter(b => b.patientId === selectedPatientFile.id).length})
+                  </button>
+                </div>
+
+                <div className="rd-modal-tab-panel mt-4" style={{ marginTop: '16px' }}>
+                  {activeModalTab === 'appointments' && (
+                    <table className="rd-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Appt ID</th>
+                          <th>Physician</th>
+                          <th>Date / Time</th>
+                          <th>Reason</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {appointments.filter(a => a.patientId === selectedPatientFile.id).length === 0 ? (
+                          <tr><td colSpan="5" className="empty-row">No appointment history</td></tr>
+                        ) : (
+                          appointments.filter(a => a.patientId === selectedPatientFile.id).map(a => (
+                            <tr key={a.id}>
+                              <td><strong>{a.id}</strong></td>
+                              <td>{a.doctorName}</td>
+                              <td>{a.date} ({a.time})</td>
+                              <td>{a.reason}</td>
+                              <td>
+                                <span className={`rd-status-badge ${a.status.toLowerCase().replace(' ', '-')}`}>{a.status}</span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {activeModalTab === 'prescriptions' && (
+                    <table className="rd-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Prescription ID</th>
+                          <th>Medication Details</th>
+                          <th>Physician</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prescriptions.filter(p => p.patientId === selectedPatientFile.id).length === 0 ? (
+                          <tr><td colSpan="4" className="empty-row">No prescription history</td></tr>
+                        ) : (
+                          prescriptions.filter(p => p.patientId === selectedPatientFile.id).map(p => (
+                            <tr key={p.id}>
+                              <td><strong>{p.id}</strong></td>
+                              <td>{p.medications || p.medicationName || 'N/A'}</td>
+                              <td>{p.doctorName || p.physicianName || 'N/A'}</td>
+                              <td>{p.date || 'N/A'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {activeModalTab === 'labs' && (
+                    <table className="rd-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Lab Request ID</th>
+                          <th>Test Name</th>
+                          <th>Physician</th>
+                          <th>Status</th>
+                          <th>Results</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {labRequests.filter(l => l.patientId === selectedPatientFile.id).length === 0 ? (
+                          <tr><td colSpan="5" className="empty-row">No laboratory records</td></tr>
+                        ) : (
+                          labRequests.filter(l => l.patientId === selectedPatientFile.id).map(l => (
+                            <tr key={l.id}>
+                              <td><strong>{l.id}</strong></td>
+                              <td>{l.testName}</td>
+                              <td>{l.doctorName}</td>
+                              <td>
+                                <span className={`rd-status-badge ${l.status.toLowerCase().replace(' ', '-')}`}>{l.status}</span>
+                              </td>
+                              <td>{l.results || 'Pending'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {activeModalTab === 'billing' && (
+                    <table className="rd-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice ID</th>
+                          <th>Billing Type</th>
+                          <th>Date</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billingList.filter(b => b.patientId === selectedPatientFile.id).length === 0 ? (
+                          <tr><td colSpan="5" className="empty-row">No invoice history</td></tr>
+                        ) : (
+                          billingList.filter(b => b.patientId === selectedPatientFile.id).map(b => (
+                            <tr key={b.id}>
+                              <td><strong>{b.id}</strong></td>
+                              <td>{b.type}</td>
+                              <td>{b.date}</td>
+                              <td style={{ fontWeight: 'bold' }}>{b.amount}</td>
+                              <td>
+                                <span className={`rd-status-badge ${b.status.toLowerCase().replace(' ', '-')}`}>{b.status}</span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Viewer Overlay Sub-Modal */}
+      {selectedReportView && (
+        <div className="rd-report-view-overlay">
+          <div className="rd-report-view-content">
+            <div className="rd-report-view-header">
+              <div>
+                <h3 style={{ margin: 0 }}>{selectedReportView.name} ({selectedReportView.id})</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Author: {selectedReportView.author} • Date: {selectedReportView.date}</span>
+              </div>
+              <button className="rd-btn-close" onClick={() => setSelectedReportView(null)}>&times;</button>
+            </div>
+            <div className="rd-report-view-body">
+              <p style={{ fontStyle: 'italic', color: '#475569', fontSize: '13px', marginBottom: '16px' }}>{selectedReportView.details?.summary}</p>
+              {selectedReportView.details?.fullContent ? (
+                <pre style={{ backgroundColor: '#0f172a', color: '#f8fafc', padding: '16px', borderRadius: '6px', fontSize: '13px', overflowX: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'Courier New, Courier, monospace', lineHeight: '1.5' }}>
+                  {selectedReportView.details.fullContent}
+                </pre>
+              ) : (
+                <div style={{ backgroundColor: '#f1f5f9', padding: '16px', borderRadius: '6px', fontSize: '13px' }}>
+                  <strong>Summary/Remarks:</strong> {selectedReportView.details?.summary || 'No detailed content available.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pay at Counter / Invoice Generation Modal */}
+      {billingModalAppt && (
+        <div className="rd-modal-overlay">
+          <div className="rd-modal-content" style={{ maxWidth: '420px' }}>
+            <div className="rd-modal-header">
+              <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>Collect Payment at Desk</h3>
+              <button className="rd-btn-close" onClick={() => setBillingModalAppt(null)}>&times;</button>
+            </div>
+            <div className="rd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="rd-form-group">
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Patient Name</label>
+                <input type="text" readOnly value={billingModalAppt.patientName} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
+              </div>
+              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Patient ID</label>
+                <input type="text" readOnly value={billingModalAppt.patientId} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
+              </div>
+              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Appointment Date</label>
+                <input type="text" readOnly value={billingModalAppt.date} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
+              </div>
+              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Billing / Service Type</label>
+                <select 
+                  value={billingModalType} 
+                  onChange={e => setBillingModalType(e.target.value)} 
+                  style={{ border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px', fontSize: '14px', outline: 'none', backgroundColor: 'white' }}
+                >
+                  <option value="Appointment Fee">Appointment Fee</option>
+                  <option value="Consultation Fee">Consultation Fee</option>
+                  <option value="Lab Diagnostics">Lab Diagnostics</option>
+                  <option value="Prescription Co-pay">Prescription Co-pay</option>
+                  <option value="Hospital Ward Charge">Hospital Ward Charge</option>
+                </select>
+              </div>
+              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Appointment Fee / Amount ($)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={billingModalFee} 
+                  onChange={e => setBillingModalFee(e.target.value)} 
+                  placeholder="120.00" 
+                  style={{ border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px', fontSize: '14px', outline: 'none' }}
+                />
+              </div>
+              
+              <button 
+                className="rd-btn-primary w-full"
+                onClick={() => {
+                  const cleanAmount = `$${parseFloat(billingModalFee || 0).toFixed(2)}`;
+                  const newInvoice = {
+                    id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+                    patientId: billingModalAppt.patientId,
+                    patientName: billingModalAppt.patientName,
+                    date: billingModalAppt.date,
+                    amount: cleanAmount,
+                    status: 'Unpaid',
+                    type: billingModalType,
+                    appointmentId: billingModalAppt.id
+                  };
+                  const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+                  const updated = [newInvoice, ...allBilling];
+                  localStorage.setItem('dhms_billing', JSON.stringify(updated));
+                  setBillingList(updated);
+                  setBillingModalAppt(null);
+                  alert(`Invoice generated and sent to Central Cash Desk successfully!`);
+                }}
+                style={{ marginTop: '12px' }}
+              >
+                Send Invoice to Cash Counter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
