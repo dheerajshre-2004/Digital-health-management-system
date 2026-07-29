@@ -22,7 +22,9 @@ export default function CashCounterDashboard({ onLogout }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 4;
+  const [unpaidCurrentPage, setUnpaidCurrentPage] = useState(1);
+  const unpaidItemsPerPage = 4;
 
   // Payment Collection Modal State
   const [paymentModalData, setPaymentModalData] = useState(null);
@@ -287,6 +289,10 @@ export default function CashCounterDashboard({ onLogout }) {
 
   const renderUnpaidInvoices = () => {
     const unpaidList = billingList.filter(b => b.status === 'Unpaid');
+    const unpaidTotalPages = Math.ceil(unpaidList.length / unpaidItemsPerPage) || 1;
+    const unpaidStartIndex = (unpaidCurrentPage - 1) * unpaidItemsPerPage;
+    const paginatedUnpaid = unpaidList.slice(unpaidStartIndex, unpaidStartIndex + unpaidItemsPerPage);
+
     return (
       <div className="cc-view-container">
         <div className="cc-header-banner">
@@ -310,10 +316,10 @@ export default function CashCounterDashboard({ onLogout }) {
               </tr>
             </thead>
             <tbody>
-              {unpaidList.length === 0 ? (
+              {paginatedUnpaid.length === 0 ? (
                 <tr><td colSpan="7" style={{ textAlign: 'center', padding: '48px', color: '#64748b' }}>No outstanding patient bills found!</td></tr>
               ) : (
-                unpaidList.map(inv => (
+                paginatedUnpaid.map(inv => (
                   <tr key={inv.id}>
                     <td><strong>{inv.id}</strong></td>
                     <td>
@@ -332,6 +338,41 @@ export default function CashCounterDashboard({ onLogout }) {
               )}
             </tbody>
           </table>
+
+          {unpaidList.length > 0 && (
+            <div className="cc-pagination">
+              <span className="cc-page-info">
+                Showing {unpaidStartIndex + 1} to {Math.min(unpaidStartIndex + unpaidItemsPerPage, unpaidList.length)} of {unpaidList.length} invoices
+              </span>
+              {unpaidTotalPages > 1 && (
+                <div className="cc-pagination-buttons">
+                  <button 
+                    disabled={unpaidCurrentPage === 1} 
+                    onClick={() => setUnpaidCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="cc-page-btn"
+                  >
+                    Prev
+                  </button>
+                  {Array.from({ length: unpaidTotalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setUnpaidCurrentPage(page)}
+                      className={`cc-page-btn ${unpaidCurrentPage === page ? 'active' : ''}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button 
+                    disabled={unpaidCurrentPage === unpaidTotalPages} 
+                    onClick={() => setUnpaidCurrentPage(prev => Math.min(prev + 1, unpaidTotalPages))}
+                    className="cc-page-btn"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -432,6 +473,15 @@ export default function CashCounterDashboard({ onLogout }) {
                   >
                     Prev
                   </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`cc-page-btn ${currentPage === page ? 'active' : ''}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
                   <button 
                     disabled={currentPage === totalPages} 
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
@@ -602,7 +652,7 @@ export default function CashCounterDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
               Desk Overview
             </li>
-            <li className={activeTab === 'unpaid' ? 'active' : ''} onClick={() => setActiveTab('unpaid')}>
+            <li className={activeTab === 'unpaid' ? 'active' : ''} onClick={() => { setActiveTab('unpaid'); setUnpaidCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
               Collect Payments
             </li>
