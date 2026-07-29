@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
+import CashCounterDashboard from './CashCounterDashboard';
 
 const DUMMY_DEPARTMENTS = [
   { id: 1, name: 'Cardiology', head: 'Dr. Gregory House', code: 'CARD' },
@@ -122,10 +123,10 @@ export default function Dashboard({ onLogout, role }) {
     const saved = localStorage.getItem('dhms_billing');
     if (saved) return JSON.parse(saved);
     const defaults = [
-      { id: "INV-5091", patientId: "PT-80234", patientName: "Alice Johnson", date: "2026-07-16", amount: "$150.00", status: "Paid", type: "Consultation Fee" },
-      { id: "INV-1102", patientId: "PT-11922", patientName: "Bob Smith", date: "2026-07-16", amount: "$350.00", status: "Unpaid", type: "Lab Diagnostics" },
-      { id: "INV-6540", patientId: "PT-55310", patientName: "Carol Davis", date: "2026-07-16", amount: "$75.00", status: "Paid", type: "Prescription Co-pay" },
-      { id: "INV-2908", patientId: "PT-22345", patientName: "David Wilson", date: "2026-07-15", amount: "$120.00", status: "Unpaid", type: "Consultation Fee" }
+      { id: "INV-5091", patientId: "PT-80234", patientName: "Alice Johnson", date: "2026-07-16", amount: "₹150.00", status: "Paid", type: "Consultation Fee" },
+      { id: "INV-1102", patientId: "PT-11922", patientName: "Bob Smith", date: "2026-07-16", amount: "₹350.00", status: "Unpaid", type: "Lab Diagnostics" },
+      { id: "INV-6540", patientId: "PT-55310", patientName: "Carol Davis", date: "2026-07-16", amount: "₹75.00", status: "Paid", type: "Prescription Co-pay" },
+      { id: "INV-2908", patientId: "PT-22345", patientName: "David Wilson", date: "2026-07-15", amount: "₹120.00", status: "Unpaid", type: "Consultation Fee" }
     ];
     localStorage.setItem('dhms_billing', JSON.stringify(defaults));
     return defaults;
@@ -266,7 +267,7 @@ export default function Dashboard({ onLogout, role }) {
       patientId: activeCallAppt.patientId,
       patientName: activeCallAppt.patientName,
       date: todayStr,
-      amount: '$150.00',
+      amount: '₹150.00',
       status: 'Unpaid',
       type: 'Telemedicine consultation Fee'
     };
@@ -546,7 +547,7 @@ export default function Dashboard({ onLogout, role }) {
       patientId: apptToComplete.patientId,
       patientName: apptToComplete.patientName,
       date: todayStr,
-      amount: '$150.00',
+      amount: '₹150.00',
       status: 'Unpaid',
       type: 'Consultation Fee'
     };
@@ -788,6 +789,7 @@ export default function Dashboard({ onLogout, role }) {
           { id: 'laboratory', label: 'Laboratory Desk' },
           { id: 'pharmacy', label: 'Pharmacy & Stock' },
           { id: 'billing', label: 'Financials & Billing' },
+          { id: 'cashcounter', label: 'Cash Counter Desk' },
           { id: 'attendance', label: 'Attendance & Absentees' }
         ];
       case 'doctor':
@@ -824,7 +826,7 @@ export default function Dashboard({ onLogout, role }) {
 
   const renderRoleOverview = () => {
     if (role === 'admin') {
-      const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace('$', '').trim()) || 0;
+      const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace(/[^0-9.]/g, '').trim()) || 0;
       const totalRev = billingList.filter(i => i.status === 'Paid').reduce((sum, i) => sum + cleanAmount(i.amount), 0);
       const meds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
       const lowStockCount = meds.filter(m => m.stock <= (m.lowStockThreshold || 15)).length;
@@ -874,7 +876,7 @@ export default function Dashboard({ onLogout, role }) {
 
             <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }} onClick={() => setActiveView('billing')}>
               <h3>Hospital Revenue</h3>
-              <div className="stat-value">${totalRev.toFixed(2)}</div>
+              <div className="stat-value">₹{totalRev.toFixed(2)}</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Collected Billing Ledger</div>
             </div>
 
@@ -892,7 +894,7 @@ export default function Dashboard({ onLogout, role }) {
           {/* Connected Operations Desks Matrix */}
           <div style={{ marginTop: '30px' }}>
             <h3 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Connected Operational Desks</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
               
               {/* Card 1: Reception Desk Quick Access */}
               <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -944,6 +946,19 @@ export default function Dashboard({ onLogout, role }) {
                 <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
                   <div>Paid Invoices: <strong style={{ color: '#10b981' }}>{billingList.filter(b => b.status === 'Paid').length}</strong></div>
                   <div>Unpaid Invoices: <strong style={{ color: '#ef4444' }}>{billingList.filter(b => b.status === 'Unpaid').length}</strong></div>
+                </div>
+              </div>
+
+              {/* Card 5: Cash Counter Desk Quick Access */}
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#6366f1' }}>Cash Counter Desk</h4>
+                  <button onClick={() => setActiveView('cashcounter')} style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4f46e5', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
+                </div>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Manage cashier duty, collect outstanding patient payments and print receipt invoices.</p>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>Pending Cash: <strong style={{ color: '#ef4444' }}>{billingList.filter(b => b.status === 'Unpaid').length}</strong></div>
+                  <div>Total Invoiced: <strong style={{ color: '#10b981' }}>{billingList.length}</strong></div>
                 </div>
               </div>
 
@@ -1340,7 +1355,7 @@ export default function Dashboard({ onLogout, role }) {
                       <td><strong>{lab.testName}</strong></td>
                       <td>{lab.doctorName}</td>
                       <td>{lab.date}</td>
-                      <td><strong>${lab.cost}</strong></td>
+                      <td><strong>₹{lab.cost}</strong></td>
                       <td>
                         <span className="status-badge" style={{
                           backgroundColor: lab.status === 'Completed & Billed' ? '#dcfce7' : '#fee2e2',
@@ -1416,7 +1431,7 @@ export default function Dashboard({ onLogout, role }) {
                           {m.stock} units
                         </span>
                       </td>
-                      <td>${parseFloat(m.price).toFixed(2)}</td>
+                      <td>₹{parseFloat(m.price).toFixed(2)}</td>
                       <td>
                         {m.isEmergency ? (
                           <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>Emergency</span>
@@ -1459,7 +1474,7 @@ export default function Dashboard({ onLogout, role }) {
                       <td><strong>{rx.medication}</strong></td>
                       <td>{rx.doctorName}</td>
                       <td>{rx.date}</td>
-                      <td><strong>${rx.cost}</strong></td>
+                      <td><strong>₹{rx.cost}</strong></td>
                       <td>
                         <span className="status-badge" style={{
                           backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
@@ -1512,7 +1527,7 @@ export default function Dashboard({ onLogout, role }) {
         );
 
       case 'billing':
-        const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace('$', '').trim()) || 0;
+        const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace(/[^0-9.]/g, '').trim()) || 0;
         const paidRev = billingList.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
         const unpaidRev = billingList.filter(inv => inv.status === 'Unpaid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
 
@@ -1528,11 +1543,11 @@ export default function Dashboard({ onLogout, role }) {
             <div className="stats-grid" style={{ marginBottom: '20px' }}>
               <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
                 <h3>Collected Revenue</h3>
-                <div className="stat-value">${paidRev.toFixed(2)}</div>
+                <div className="stat-value">₹{paidRev.toFixed(2)}</div>
               </div>
               <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
                 <h3>Outstanding Unpaid</h3>
-                <div className="stat-value">${unpaidRev.toFixed(2)}</div>
+                <div className="stat-value">₹{unpaidRev.toFixed(2)}</div>
               </div>
               <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
                 <h3>Total Invoices</h3>
@@ -1616,6 +1631,9 @@ export default function Dashboard({ onLogout, role }) {
             </table>
           </div>
         );
+
+      case 'cashcounter':
+        return <CashCounterDashboard embedMode={true} adminMode={true} />;
 
       case 'patients':
         if (role === 'doctor') {
@@ -1810,7 +1828,7 @@ export default function Dashboard({ onLogout, role }) {
                     <td>{rx.patientName}</td>
                     <td><strong>{rx.medication}</strong></td>
                     <td>{rx.date}</td>
-                    <td>${rx.cost}</td>
+                    <td>₹{rx.cost}</td>
                     <td>
                       <span className="status-badge" style={{
                         backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
@@ -1849,7 +1867,7 @@ export default function Dashboard({ onLogout, role }) {
                     <td>{lab.patientName}</td>
                     <td><strong>{lab.testName}</strong></td>
                     <td>{lab.date}</td>
-                    <td>${lab.cost}</td>
+                    <td>₹{lab.cost}</td>
                     <td>
                       <span className="status-badge" style={{
                         backgroundColor: lab.status === 'Completed & Billed' ? '#dcfce7' : '#fee2e2',
@@ -1913,6 +1931,7 @@ export default function Dashboard({ onLogout, role }) {
                     <option value="Receptionist">Receptionist Desk</option>
                     <option value="Laboratory">Laboratory Desk</option>
                     <option value="Pharmacist">Pharmacist Desk</option>
+                    <option value="Cashier">Cash Counter Desk</option>
                   </select>
                 </div>
 

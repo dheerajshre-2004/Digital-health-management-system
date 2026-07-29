@@ -184,13 +184,13 @@ export default function PatientDashboard({ onLogout }) {
       patientId: selectedAdmissionForPay.patientId,
       patientName: selectedAdmissionForPay.patientName,
       date: today,
-      amount: `$${totalBill.toFixed(2)}`,
+      amount: `₹${totalBill.toFixed(2)}`,
       status: 'Paid',
       type: 'Admitted Pharmacy Bill'
     };
     localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
 
-    alert(`Payment of $${totalBill.toFixed(2)} successful! You have been discharged.`);
+    alert(`Payment of ₹${totalBill.toFixed(2)} successful! You have been discharged.`);
     setShowCheckoutModal(false);
     setSelectedAdmissionForPay(null);
     setCardNumber('');
@@ -871,7 +871,7 @@ export default function PatientDashboard({ onLogout }) {
       status: "Pending",
       date: new Date().toISOString().split('T')[0],
       doctorName: "Self Requested",
-      cost: `$${orderCost}`,
+      cost: `₹${orderCost}`,
       timeline: [
         { title: "Order Created", date: new Date().toLocaleString(), done: true },
         { title: "Sample Collection", date: "Pending", done: false },
@@ -1126,12 +1126,12 @@ export default function PatientDashboard({ onLogout }) {
 
   const renderLaboratoryCenter = () => {
     const labFacilities = [
-      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "$45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
-      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "$120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
-      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "$85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
-      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "$110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
-      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "$95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
-      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "$45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
     ];
 
     return (
@@ -1656,7 +1656,7 @@ export default function PatientDashboard({ onLogout }) {
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                 <span style={{ fontSize: '12px', color: '#64748b' }}>{med.date}</span>
-                                <strong style={{ fontSize: '14px', color: '#1e3a8a' }}>${parseFloat(med.cost).toFixed(2)}</strong>
+                                <strong style={{ fontSize: '14px', color: '#1e3a8a' }}>₹{parseFloat(med.cost).toFixed(2)}</strong>
                               </div>
                             </div>
                           ))}
@@ -1668,7 +1668,7 @@ export default function PatientDashboard({ onLogout }) {
                       <div>
                         <span style={{ fontSize: '13px', color: '#64748b' }}>Total Pharmacy Cost:</span>
                         <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#1e3a8a' }}>
-                          ${billTotal.toFixed(2)}
+                          ₹{billTotal.toFixed(2)}
                         </h3>
                       </div>
                       
@@ -1847,7 +1847,7 @@ export default function PatientDashboard({ onLogout }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
                   <span style={{ fontWeight: '600' }}>Total Pharmacy Bill:</span>
                   <strong style={{ color: '#10b981', fontSize: '16px' }}>
-                    ${(selectedAdmissionForPay.medications || []).filter(m => m.status === 'Dispensed').reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0).toFixed(2)}
+                    ₹{(selectedAdmissionForPay.medications || []).filter(m => m.status === 'Dispensed').reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0).toFixed(2)}
                   </strong>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './CashCounterDashboard.css';
 
-export default function CashCounterDashboard({ onLogout }) {
+export default function CashCounterDashboard({ onLogout, embedMode = false, adminMode = false }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Datasets from localStorage
@@ -126,7 +126,7 @@ export default function CashCounterDashboard({ onLogout }) {
 
   // Financial Stats calculations
   const getFinancialStats = () => {
-    const cleanVal = (val) => parseFloat((val || '').replace('$', '').trim()) || 0;
+    const cleanVal = (val) => parseFloat((val || '').replace(/[^0-9.]/g, '').replace(/[^0-9.]/g, '').trim()) || 0;
     
     const totalCount = billingList.length;
     const unpaidList = billingList.filter(b => b.status === 'Unpaid');
@@ -139,8 +139,8 @@ export default function CashCounterDashboard({ onLogout }) {
       totalCount,
       unpaidCount: unpaidList.length,
       paidCount: paidList.length,
-      totalUnpaidAmount: `$${totalUnpaidAmount.toFixed(2)}`,
-      totalPaidAmount: `$${totalPaidAmount.toFixed(2)}`
+      totalUnpaidAmount: `₹${totalUnpaidAmount.toFixed(2)}`,
+      totalPaidAmount: `₹${totalPaidAmount.toFixed(2)}`
     };
   };
 
@@ -150,11 +150,11 @@ export default function CashCounterDashboard({ onLogout }) {
   const filteredBilling = billingList.filter(inv => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = inv.id.toLowerCase().includes(query) ||
-                          inv.patientId.toLowerCase().includes(query) ||
-                          inv.patientName.toLowerCase().includes(query) ||
+                          (!adminMode && inv.patientId.toLowerCase().includes(query)) ||
+                          (!adminMode && inv.patientName.toLowerCase().includes(query)) ||
                           inv.type.toLowerCase().includes(query);
                           
-    const matchesStatus = statusFilter === 'All' || inv.status === statusFilter;
+    const matchesStatus = adminMode ? inv.status === 'Paid' : (statusFilter === 'All' || inv.status === statusFilter);
     const matchesType = typeFilter === 'All' || inv.type === typeFilter;
 
     return matchesSearch && matchesStatus && matchesType;
@@ -164,128 +164,179 @@ export default function CashCounterDashboard({ onLogout }) {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedBilling = filteredBilling.slice(startIndex, startIndex + itemsPerPage);
 
-  const renderOverview = () => (
-    <div className="cc-view-container">
-      <div className="cc-header-banner">
-        <div>
-          <h2>Billing Overview</h2>
-          <p>Real-time cash flow, pending patient collections, and payment history.</p>
-        </div>
-      </div>
+  const renderOverview = () => {
+    const paidList = billingList.filter(b => b.status === 'Paid');
+    const cleanVal = (val) => parseFloat((val || '').replace(/[^0-9.]/g, '').replace(/[^0-9.]/g, '').trim()) || 0;
+    const cashPaid = paidList.filter(b => b.paymentMethod === 'Physical Cash Payment').reduce((sum, b) => sum + cleanVal(b.amount), 0);
+    const cardUpiPaid = paidList.filter(b => b.paymentMethod !== 'Physical Cash Payment').reduce((sum, b) => sum + cleanVal(b.amount), 0);
 
-      <div className="cc-stats-grid">
-        <div className="cc-stat-card">
-          <div className="cc-stat-header">
-            <span>Total Invoiced</span>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+    return (
+      <div className="cc-view-container">
+        <div className="cc-header-banner">
+          <div>
+            <h2>Billing Overview</h2>
+            <p>{adminMode ? 'Hospital financial performance, cashier logs and collection breakdown.' : 'Real-time cash flow, pending patient collections, and payment history.'}</p>
           </div>
-          <h3>{stats.totalPaidAmount}</h3>
-          <p>{stats.paidCount} Paid Transactions</p>
         </div>
 
-        <div className="cc-stat-card warn">
-          <div className="cc-stat-header">
-            <span>Outstanding Payments</span>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <div className="cc-stats-grid">
+          <div className="cc-stat-card">
+            <div className="cc-stat-header">
+              <span>Total Invoiced</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+            </div>
+            <h3>{stats.totalPaidAmount}</h3>
+            <p>{stats.paidCount} Paid Transactions</p>
           </div>
-          <h3>{stats.totalUnpaidAmount}</h3>
-          <p>{stats.unpaidCount} Bills Pending Cash Desk</p>
-        </div>
 
-        <div className="cc-stat-card info">
-          <div className="cc-stat-header">
-            <span>Total System Invoices</span>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <div className="cc-stat-card warn">
+            <div className="cc-stat-header">
+              <span>Outstanding Payments</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            </div>
+            <h3>{stats.totalUnpaidAmount}</h3>
+            <p>{stats.unpaidCount} Bills Pending Cash Desk</p>
           </div>
-          <h3>{stats.totalCount}</h3>
-          <p>Online & Offline Invoices</p>
-        </div>
-      </div>
 
-      <div className="cc-grid-layout mt-6" style={{ marginTop: '24px' }}>
-        {/* Quick Pending Payments list */}
-        <div className="cc-card">
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Active Pending Collections</h3>
-          <div className="cc-table-wrapper">
-            <table className="cc-table">
-              <thead>
-                <tr>
-                  <th>Patient</th>
-                  <th>Amount</th>
-                  <th>Reason / Type</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {billingList.filter(b => b.status === 'Unpaid').slice(0, 5).length === 0 ? (
-                  <tr><td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No pending invoices. All bills are fully paid!</td></tr>
-                ) : (
-                  billingList.filter(b => b.status === 'Unpaid').slice(0, 5).map(inv => (
-                    <tr key={inv.id}>
-                      <td>
-                        <strong>{inv.patientName}</strong>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {inv.patientId}</div>
-                      </td>
-                      <td style={{ fontWeight: '700', color: '#b91c1c' }}>{inv.amount}</td>
-                      <td>
-                        <span style={{ fontSize: '11.5px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{inv.type}</span>
-                      </td>
-                      <td>
-                        <button className="cc-btn-small" onClick={() => setPaymentModalData(inv)}>Collect</button>
-                      </td>
+          <div className="cc-stat-card info">
+            <div className="cc-stat-header">
+              <span>Total System Invoices</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </div>
+            <h3>{stats.totalCount}</h3>
+            <p>Online & Offline Invoices</p>
+          </div>
+        </div>
+
+        <div className="cc-grid-layout mt-6" style={{ marginTop: '24px' }}>
+          {adminMode ? (
+            <div className="cc-card">
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Payment Channels Distribution</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '10px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#64748b', fontWeight: '500' }}>Physical Cash Collections</span>
+                  <strong style={{ color: '#1e293b', fontSize: '16px' }}>₹{cashPaid.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#64748b', fontWeight: '500' }}>Digital Payments (Card/UPI)</span>
+                  <strong style={{ color: '#1e293b', fontSize: '16px' }}>₹{cardUpiPaid.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', paddingTop: '4px' }}>
+                  <span style={{ color: '#1e293b' }}>Total Collected Revenue</span>
+                  <strong style={{ color: '#10b981', fontSize: '18px' }}>₹{(cashPaid + cardUpiPaid).toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Quick Pending Payments list */
+            <div className="cc-card">
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Active Pending Collections</h3>
+              <div className="cc-table-wrapper">
+                <table className="cc-table">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Amount</th>
+                      <th>Reason / Type</th>
+                      <th>Action</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody>
+                    {billingList.filter(b => b.status === 'Unpaid').slice(0, 5).length === 0 ? (
+                      <tr><td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No pending invoices. All bills are fully paid!</td></tr>
+                    ) : (
+                      billingList.filter(b => b.status === 'Unpaid').slice(0, 5).map(inv => (
+                        <tr key={inv.id}>
+                          <td>
+                            <strong>{inv.patientName}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {inv.patientId}</div>
+                          </td>
+                          <td style={{ fontWeight: '700', color: '#b91c1c' }}>{inv.amount}</td>
+                          <td>
+                            <span style={{ fontSize: '11.5px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{inv.type}</span>
+                          </td>
+                          <td>
+                            <button className="cc-btn-small" onClick={() => setPaymentModalData(inv)}>Collect</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-        {/* Recent Transactions List */}
-        <div className="cc-card">
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Recent Cash Desk Activities</h3>
-          <div className="cc-table-wrapper">
-            <table className="cc-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Patient</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Payment Mode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {billingList.slice(0, 5).length === 0 ? (
-                  <tr><td colSpan="5" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No invoices logged in the system yet.</td></tr>
-                ) : (
-                  billingList.slice(0, 5).map(inv => (
-                    <tr key={inv.id}>
-                      <td>{inv.date}</td>
-                      <td><strong>{inv.patientName}</strong></td>
-                      <td style={{ fontWeight: '600' }}>{inv.amount}</td>
-                      <td>
-                        <span className={`cc-status-badge ${inv.status.toLowerCase()}`}>{inv.status}</span>
-                      </td>
-                      <td>
-                        {inv.status === 'Paid' ? (
-                          <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                            {inv.paymentMethod || 'Online'}
-                          </span>
+          {/* Recent Transactions List */}
+          <div className="cc-card">
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>{adminMode ? 'Recent Finalized Transactions' : 'Recent Cash Desk Activities'}</h3>
+            <div className="cc-table-wrapper" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+              <table className="cc-table">
+                <thead>
+                  {adminMode ? (
+                    <tr>
+                      <th>Invoice ID</th>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Payment Mode</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th>Date</th>
+                      <th>Patient</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Payment Mode</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {billingList.slice(0, 15).length === 0 ? (
+                    <tr><td colSpan={adminMode ? "4" : "5"} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>No invoices logged in the system yet.</td></tr>
+                  ) : (
+                    billingList.slice(0, 15).map(inv => (
+                      <tr key={inv.id}>
+                        {adminMode ? (
+                          <>
+                            <td><strong>{inv.id}</strong></td>
+                            <td>{inv.date}</td>
+                            <td style={{ fontWeight: '600' }}>{inv.amount}</td>
+                            <td>
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                {inv.paymentMethod || 'Online'}
+                              </span>
+                            </td>
+                          </>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>-</span>
+                          <>
+                            <td>{inv.date}</td>
+                            <td><strong>{inv.patientName}</strong></td>
+                            <td style={{ fontWeight: '600' }}>{inv.amount}</td>
+                            <td>
+                              <span className={`cc-status-badge ${inv.status.toLowerCase()}`}>{inv.status}</span>
+                            </td>
+                            <td>
+                              {inv.status === 'Paid' ? (
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                  {inv.paymentMethod || 'Online'}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>-</span>
+                              )}
+                            </td>
+                          </>
                         )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderUnpaidInvoices = () => {
     const unpaidList = billingList.filter(b => b.status === 'Unpaid');
@@ -383,8 +434,8 @@ export default function CashCounterDashboard({ onLogout }) {
       <div className="cc-view-container">
         <div className="cc-header-banner">
           <div>
-            <h2>All Billing Transactions</h2>
-            <p>Search, filter, and audit all invoice lists generated across the hospital.</p>
+            <h2>{adminMode ? 'Completed Transactions Ledger' : 'All Billing Transactions'}</h2>
+            <p>{adminMode ? 'Audit trail of all finalized payments collected by the cashier.' : 'Search, filter, and audit all invoice lists generated across the hospital.'}</p>
           </div>
         </div>
 
@@ -392,72 +443,102 @@ export default function CashCounterDashboard({ onLogout }) {
           <div className="cc-filters-row">
             <input 
               type="text" 
-              placeholder="Search by ID, name or type..." 
+              placeholder={adminMode ? 'Search by Invoice ID or type...' : 'Search by ID, name or type...'} 
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="cc-filter-input"
             />
             
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} className="cc-filter-select">
-                <option value="All">All Statuses</option>
-                <option value="Paid">Paid</option>
-                <option value="Unpaid">Unpaid</option>
-              </select>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {!adminMode && (
+                <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} className="cc-filter-select">
+                  <option value="All">All Statuses</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Unpaid">Unpaid</option>
+                </select>
+              )}
 
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }} className="cc-filter-select">
-                <option value="All">All Invoice Types</option>
+                <option value="All">All Types</option>
                 <option value="Consultation Fee">Consultation Fee</option>
-                <option value="Lab Diagnostics">Lab Diagnostics</option>
-                <option value="Prescription Co-pay">Prescription Co-pay</option>
-                <option value="Hospital Ward Charge">Hospital Ward Charge</option>
-                <option value="Appointment Fee">Appointment Fee</option>
+                <option value="Diagnostic Lab Report">Diagnostic Lab Report</option>
+                <option value="Pharmacy Medicines Dispensed">Pharmacy Medicines Dispensed</option>
               </select>
             </div>
           </div>
 
-          <table className="cc-table">
-            <thead>
-              <tr>
-                <th>Invoice ID</th>
-                <th>Patient ID</th>
-                <th>Patient Name</th>
-                <th>Billing Date</th>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Payment Mode</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedBilling.length === 0 ? (
-                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '32px 0', color: '#64748b' }}>No billing transactions found matching filters</td></tr>
-              ) : (
-                paginatedBilling.map(inv => (
-                  <tr key={inv.id}>
-                    <td><strong>{inv.id}</strong></td>
-                    <td>{inv.patientId}</td>
-                    <td><strong>{inv.patientName}</strong></td>
-                    <td>{inv.date}</td>
-                    <td>{inv.type}</td>
-                    <td style={{ fontWeight: '600' }}>{inv.amount}</td>
-                    <td>
-                      <span className={`cc-status-badge ${inv.status.toLowerCase()}`}>{inv.status}</span>
-                    </td>
-                    <td>
-                      {inv.status === 'Paid' ? (
-                        <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                          {inv.paymentMethod || 'Online'}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>-</span>
-                      )}
-                    </td>
+          <div className="cc-table-wrapper">
+            <table className="cc-table">
+              <thead>
+                {adminMode ? (
+                  <tr>
+                    <th>Invoice ID</th>
+                    <th>Billing Date</th>
+                    <th>Charge Type</th>
+                    <th>Total Amount</th>
+                    <th>Payment Method</th>
+                    <th>Transaction Notes</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  <tr>
+                    <th>Invoice ID</th>
+                    <th>Billing Date</th>
+                    <th>Patient Details</th>
+                    <th>Charge Type</th>
+                    <th>Total Amount</th>
+                    <th>Status</th>
+                    <th>Payment details</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {paginatedBilling.length === 0 ? (
+                  <tr><td colSpan={adminMode ? "6" : "7"} style={{ textAlign: 'center', padding: '48px', color: '#64748b' }}>No matching invoices found.</td></tr>
+                ) : (
+                  paginatedBilling.map(inv => (
+                    <tr key={inv.id}>
+                      <td><strong>{inv.id}</strong></td>
+                      <td>{inv.date}</td>
+                      {!adminMode && (
+                        <td>
+                          <strong>{inv.patientName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {inv.patientId}</div>
+                        </td>
+                      )}
+                      <td><span style={{ fontSize: '11.5px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{inv.type}</span></td>
+                      <td style={{ fontWeight: '700' }}>{inv.amount}</td>
+                      {adminMode ? (
+                        <>
+                          <td>
+                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                              {inv.paymentMethod}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '12px', color: '#64748b' }}>{inv.paymentRemarks || '-'}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <span className={`cc-status-badge ${inv.status.toLowerCase()}`}>{inv.status}</span>
+                          </td>
+                          <td>
+                            {inv.status === 'Paid' ? (
+                              <div style={{ fontSize: '11px', color: '#475569' }}>
+                                <div>Mode: <strong>{inv.paymentMethod}</strong></div>
+                                <div style={{ color: '#64748b', fontSize: '10px' }}>Ref: {inv.paymentRemarks || 'None'}</div>
+                              </div>
+                            ) : (
+                              <button className="cc-btn-small outline" onClick={() => setPaymentModalData(inv)}>Collect Now</button>
+                            )}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {filteredBilling.length > 0 && (
             <div className="cc-pagination">
@@ -499,74 +580,78 @@ export default function CashCounterDashboard({ onLogout }) {
   };
 
   const renderAttendance = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const loggedToday = attendanceRecords.some(a => a.date === todayStr && a.module === 'Cashier');
     const cashierAttRecords = attendanceRecords.filter(att => att.module === 'Cashier');
+
     return (
       <div className="cc-view-container">
         <div className="cc-header-banner">
           <div>
-            <h2>Billing Desk Shift Log</h2>
-            <p>Log shift check-in/out times, breaks, and daily cash drawer validation remarks.</p>
+            <h2>{adminMode ? 'Cashier Duty Logs' : 'Cashier Shift Attendance Logging'}</h2>
+            <p>{adminMode ? 'Audit and track shift attendance logs of cash desk specialists.' : 'Log shift check-ins and check-outs for duty verification.'}</p>
           </div>
         </div>
 
-        <div className="cc-grid-layout">
-          {/* Marking Form */}
-          <div className="cc-card">
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Mark Shift Attendance</h3>
-            <form className="cc-form" onSubmit={handleMarkAttendance}>
-              <div className="cc-form-row">
-                <div className="cc-form-group">
-                  <label>Staff Member ID</label>
-                  <input type="text" readOnly value={cashierAttendanceForm.staffId} />
-                </div>
-                <div className="cc-form-group">
-                  <label>Shift Date</label>
-                  <input type="date" required value={cashierAttendanceForm.date} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, date: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="cc-form-row">
-                <div className="cc-form-group">
-                  <label>Staff Name</label>
-                  <input type="text" readOnly value={cashierAttendanceForm.staffName} />
-                </div>
-                <div className="cc-form-group">
-                  <label>Shift Attendance Status</label>
-                  <select value={cashierAttendanceForm.status} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, status: e.target.value})}>
-                    <option value="Present">Present</option>
-                    <option value="Late">Late Check-in</option>
-                    <option value="Absent">Absent</option>
-                    <option value="On Leave">Approved Leave</option>
-                  </select>
-                </div>
-              </div>
-
-              {cashierAttendanceForm.status !== 'Absent' && cashierAttendanceForm.status !== 'On Leave' && (
+        <div className="cc-grid-layout" style={adminMode ? { display: 'block', width: '100%' } : {}}>
+          {!adminMode && (
+            <div className="cc-card">
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#1e293b' }}>Mark Shift Attendance</h3>
+              <form className="cc-form" onSubmit={handleMarkAttendance}>
                 <div className="cc-form-row">
                   <div className="cc-form-group">
-                    <label>Shift Check In Time</label>
-                    <input type="text" value={cashierAttendanceForm.checkIn} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, checkIn: e.target.value})} />
+                    <label>Staff Member ID</label>
+                    <input type="text" readOnly value={cashierAttendanceForm.staffId} />
                   </div>
                   <div className="cc-form-group">
-                    <label>Shift Check Out Time</label>
-                    <input type="text" value={cashierAttendanceForm.checkOut} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, checkOut: e.target.value})} />
+                    <label>Shift Date</label>
+                    <input type="date" required value={cashierAttendanceForm.date} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, date: e.target.value})} />
                   </div>
                 </div>
-              )}
 
-              <div className="cc-form-group">
-                <label>Register Comments / Cash Drawer Starting</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Cash drawer seeded with $200.00" 
-                  value={cashierAttendanceForm.remarks} 
-                  onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, remarks: e.target.value})} 
-                />
-              </div>
+                <div className="cc-form-row">
+                  <div className="cc-form-group">
+                    <label>Staff Name</label>
+                    <input type="text" readOnly value={cashierAttendanceForm.staffName} />
+                  </div>
+                  <div className="cc-form-group">
+                    <label>Shift Attendance Status</label>
+                    <select value={cashierAttendanceForm.status} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, status: e.target.value})}>
+                      <option value="Present">Present</option>
+                      <option value="Late">Late Check-in</option>
+                      <option value="Absent">Absent</option>
+                      <option value="On Leave">Approved Leave</option>
+                    </select>
+                  </div>
+                </div>
 
-              <button type="submit" className="cc-btn-primary mt-4">Log Counter Shift</button>
-            </form>
-          </div>
+                {cashierAttendanceForm.status !== 'Absent' && cashierAttendanceForm.status !== 'On Leave' && (
+                  <div className="cc-form-row">
+                    <div className="cc-form-group">
+                      <label>Shift Check In Time</label>
+                      <input type="text" value={cashierAttendanceForm.checkIn} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, checkIn: e.target.value})} />
+                    </div>
+                    <div className="cc-form-group">
+                      <label>Shift Check Out Time</label>
+                      <input type="text" value={cashierAttendanceForm.checkOut} onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, checkOut: e.target.value})} />
+                    </div>
+                  </div>
+                )}
+
+                <div className="cc-form-group">
+                  <label>Register Comments / Cash Drawer Starting</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Cash drawer seeded with ₹200.00" 
+                    value={cashierAttendanceForm.remarks} 
+                    onChange={e => setCashierAttendanceForm({...cashierAttendanceForm, remarks: e.target.value})} 
+                  />
+                </div>
+
+                <button type="submit" className="cc-btn-primary mt-4">Log Counter Shift</button>
+              </form>
+            </div>
+          )}
 
           {/* Log History */}
           <div className="cc-card">
@@ -614,35 +699,38 @@ export default function CashCounterDashboard({ onLogout }) {
   };
 
   return (
-    <div className="cc-container">
+    <div className={`cc-container ${embedMode ? 'embedded' : ''}`}>
       {/* Topbar */}
-      <header className="cc-topbar no-print">
-        <div className="cc-logo-area">
-          <svg className="cc-logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line>
-          </svg>
-          <span className="cc-logo-text">DHMS</span>
-          <span className="cc-logo-divider">|</span>
-          <span className="cc-logo-sub">Central Cash Desk</span>
-        </div>
-        <div className="cc-topbar-right">
-          <div className="cc-profile-info">
-            <div className="cc-avatar">C</div>
-            <div className="cc-user-details">
-              <strong>Clara Oswald</strong>
-              <span>Billing Counter</span>
-            </div>
-            <div className="cc-role-badge">CASH DESK SPECIALIST</div>
-          </div>
-          <button className="cc-signout-btn" onClick={onLogout} title="Sign Out">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
+      {!embedMode && (
+        <header className="cc-topbar no-print">
+          <div className="cc-logo-area">
+            <svg className="cc-logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line>
             </svg>
-          </button>
-        </div>
-      </header>
+            <span className="cc-logo-text">DHMS</span>
+            <span className="cc-logo-divider">|</span>
+            <span className="cc-logo-sub">Central Cash Desk</span>
+          </div>
+          <div className="cc-topbar-right">
+            <div className="cc-profile-info">
+              <div className="cc-avatar">C</div>
+              <div className="cc-user-details">
+                <strong>Clara Oswald</strong>
+                <span>Billing Counter</span>
+              </div>
+              <div className="cc-role-badge">CASH DESK SPECIALIST</div>
+            </div>
+            <button className="cc-signout-btn" onClick={onLogout} title="Sign Out">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        </header>
+      )}
+
 
       <div className="cc-body">
         {/* Sidebar */}
@@ -652,17 +740,19 @@ export default function CashCounterDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
               Desk Overview
             </li>
-            <li className={activeTab === 'unpaid' ? 'active' : ''} onClick={() => { setActiveTab('unpaid'); setUnpaidCurrentPage(1); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-              Collect Payments
-            </li>
+            {!adminMode && (
+              <li className={activeTab === 'unpaid' ? 'active' : ''} onClick={() => { setActiveTab('unpaid'); setUnpaidCurrentPage(1); }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                Collect Payments
+              </li>
+            )}
             <li className={activeTab === 'transactions' ? 'active' : ''} onClick={() => { setActiveTab('transactions'); setCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
-              All Transactions
+              {adminMode ? 'Completed Transactions' : 'All Transactions'}
             </li>
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              Shift Attendance
+              {adminMode ? 'Cashier Shift Log' : 'Shift Attendance'}
             </li>
           </ul>
         </aside>

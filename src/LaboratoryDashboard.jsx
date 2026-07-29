@@ -81,12 +81,12 @@ export default function LaboratoryDashboard({ onLogout }) {
 
   // Laboratory Services / Packages Available
   const labFacilities = [
-    { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "$45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
-    { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "$120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
-    { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "$85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
-    { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "$110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
-    { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "$95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
-    { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "$45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+    { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+    { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+    { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+    { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+    { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
   ];
 
   const handleCompleteLabWithResults = (e) => {
@@ -161,7 +161,7 @@ export default function LaboratoryDashboard({ onLogout }) {
   };
 
   // Calculations for financial stats
-  const cleanCost = (c) => parseFloat((c || '').replace('$', '').trim()) || 0;
+  const cleanCost = (c) => parseFloat((c || '').replace(/[^0-9.]/g, '').trim()) || 0;
   const completedCount = labRequests.filter(l => l.status === 'Completed & Billed').length;
   const pendingCount = labRequests.filter(l => l.status === 'Pending').length;
   const labRevenue = labRequests
@@ -290,8 +290,8 @@ export default function LaboratoryDashboard({ onLogout }) {
                   </div>
                   <div className="lab-stat-details">
                     <h3>Total Billings Generated</h3>
-                    <div className="lab-stat-value">${labRevenue.toFixed(2)}</div>
-                    <span>Outstanding: ${outstandingRevenue.toFixed(2)}</span>
+                    <div className="lab-stat-value">₹{labRevenue.toFixed(2)}</div>
+                    <span>Outstanding: ₹{outstandingRevenue.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

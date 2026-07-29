@@ -615,3 +615,12 @@
     padding: 0 !important;
   }
 }
+
+/* Embedded overrides */
+.cc-container.embedded {
+  height: auto;
+  min-height: calc(100vh - 120px);
+  width: 100%;
+  background-color: transparent;
+}
+

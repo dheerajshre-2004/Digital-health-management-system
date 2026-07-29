@@ -117,6 +117,15 @@ function App() {
     if (!localStorage.getItem('dhms_admissions')) {
       localStorage.setItem('dhms_admissions', JSON.stringify([]));
     }
+
+    // Auto-migrate pre-existing dollar data in browser localStorage to rupees
+    const keysToMigrate = ['dhms_billing', 'dhms_patients', 'dhms_appointments', 'dhms_medications', 'dhms_prescriptions', 'dhms_lab_requests', 'dhms_admissions'];
+    keysToMigrate.forEach(key => {
+      const data = localStorage.getItem(key);
+      if (data && data.includes('$')) {
+        localStorage.setItem(key, data.replace(/\$/g, '₹'));
+      }
+    });
   }, []);
 
   const handleAuthSubmit = (e) => {
