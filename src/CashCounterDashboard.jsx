@@ -97,6 +97,69 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     if (!paymentModalData) return;
 
     const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    
+    if (paymentMethod === 'Insurance / TPA Claim') {
+      const policies = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+      const patientPolicy = policies.find(p => p.patientId === paymentModalData.patientId && p.status === 'Active');
+      
+      if (!patientPolicy) {
+        alert(`No active insurance policy found for Patient ${paymentModalData.patientName} (${paymentModalData.patientId})! Please register their policy first.`);
+        return;
+      }
+      
+      const cleanVal = (val) => parseFloat((val || '').replace(/[^0-9.]/g, '').trim()) || 0;
+      const totalAmount = cleanVal(paymentModalData.amount);
+      const coPayPercent = patientPolicy.coPay || 0;
+      const coPayAmount = totalAmount * (coPayPercent / 100);
+      const claimedAmount = totalAmount - coPayAmount;
+      
+      const newClaim = {
+        id: `CLM-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: paymentModalData.patientId,
+        patientName: paymentModalData.patientName,
+        invoiceId: paymentModalData.id,
+        provider: patientPolicy.provider,
+        policyNo: patientPolicy.policyNo,
+        amount: paymentModalData.amount,
+        coPayAmount: `₹${coPayAmount.toFixed(2)}`,
+        claimedAmount: `₹${claimedAmount.toFixed(2)}`,
+        diagnosis: paymentRemarks || `Billing Charge for ${paymentModalData.type}`,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        remarks: 'Claim submitted from cash counter. Pending agent review.'
+      };
+      
+      // Save claim
+      const claims = JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
+      localStorage.setItem('dhms_insurance_claims', JSON.stringify([newClaim, ...claims]));
+      
+      // Update invoice status to 'Claim Submitted'
+      const finalClaimInvoice = {
+        ...paymentModalData,
+        status: 'Claim Submitted',
+        paymentMethod: 'Insurance / TPA Claim',
+        paymentRemarks: paymentRemarks || `Submitted to ${patientPolicy.provider}`,
+        paymentDate: new Date().toISOString().split('T')[0]
+      };
+      
+      const updatedBilling = allBilling.map(inv => {
+        if (inv.id === paymentModalData.id) {
+          return finalClaimInvoice;
+        }
+        return inv;
+      });
+      
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+      setBillingList(updatedBilling);
+      
+      alert(`Claim successfully generated & submitted to ${patientPolicy.provider}. Audit ID: ${newClaim.id}`);
+      
+      setPaymentModalData(null);
+      setPaymentMethod('Physical Cash Payment');
+      setPaymentRemarks('');
+      return;
+    }
+
     const finalPaidInvoice = {
       ...paymentModalData,
       status: 'Paid',
@@ -796,6 +859,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}>
                     <option value="Online Payment (Card/UPI)">Online Payment (Card/UPI)</option>
                     <option value="Physical Cash Payment">Physical Cash Payment</option>
+                    <option value="Insurance / TPA Claim">Insurance / TPA Claim</option>
                   </select>
                 </div>
 

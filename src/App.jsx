@@ -6,6 +6,7 @@ import ReceptionistDashboard from './ReceptionistDashboard';
 import LaboratoryDashboard from './LaboratoryDashboard';
 import PharmacistDashboard from './PharmacistDashboard';
 import CashCounterDashboard from './CashCounterDashboard';
+import InsuranceDashboard from './InsuranceDashboard';
 
 function App() {
   const [activeTab, setActiveTab] = useState('signin');
@@ -119,8 +120,31 @@ function App() {
       localStorage.setItem('dhms_admissions', JSON.stringify([]));
     }
 
+    // Seed insurance policies if not present
+    if (!localStorage.getItem('dhms_insurance_policies')) {
+      const initialPolicies = [
+        { patientId: "PT-80234", patientName: "Alice Johnson", provider: "Max Life Insurance", policyNo: "MAX-8023401", coPay: 10, maxCoverage: 500000, utilized: 135, status: "Active" },
+        { patientId: "PT-11922", patientName: "Bob Smith", provider: "Star Health Insurance", policyNo: "STAR-1192202", coPay: 15, maxCoverage: 300000, utilized: 0, status: "Active" },
+        { patientId: "PT-55310", patientName: "Carol Davis", provider: "Care Health Insurance", policyNo: "CARE-5531003", coPay: 20, maxCoverage: 400000, utilized: 60, status: "Active" },
+        { patientId: "PT-22345", patientName: "David Wilson", provider: "HDFC Ergo", policyNo: "HDFC-2234504", coPay: 0, maxCoverage: 750000, utilized: 0, status: "Active" },
+        { patientId: "PT-66789", patientName: "Eva Brown", provider: "Star Health Insurance", policyNo: "STAR-6678905", coPay: 10, maxCoverage: 500000, utilized: 0, status: "Active" },
+        { patientId: "PT-99887", patientName: "Frank Miller", provider: "Max Life Insurance", policyNo: "MAX-9988706", coPay: 25, maxCoverage: 200000, utilized: 0, status: "Expired" }
+      ];
+      localStorage.setItem('dhms_insurance_policies', JSON.stringify(initialPolicies));
+    }
+
+    // Seed insurance claims if not present
+    if (!localStorage.getItem('dhms_insurance_claims')) {
+      const initialClaims = [
+        { id: "CLM-2001", patientId: "PT-80234", patientName: "Alice Johnson", invoiceId: "INV-5091", provider: "Max Life Insurance", policyNo: "MAX-8023401", amount: "₹150.00", coPayAmount: "₹15.00", claimedAmount: "₹135.00", diagnosis: "General Consultation & Follow-up", date: "2026-07-16", status: "Approved", remarks: "Approved standard consultation fee." },
+        { id: "CLM-2002", patientId: "PT-11922", patientName: "Bob Smith", invoiceId: "INV-1102", provider: "Star Health Insurance", policyNo: "STAR-1192202", amount: "₹350.00", coPayAmount: "₹52.50", claimedAmount: "₹297.50", diagnosis: "Thyroid & Lipid Profiling", date: "2026-07-16", status: "Pending", remarks: "Awaiting diagnostic report attachment verification." },
+        { id: "CLM-2003", patientId: "PT-55310", patientName: "Carol Davis", invoiceId: "INV-6540", provider: "Care Health Insurance", policyNo: "CARE-5531003", amount: "₹75.00", coPayAmount: "₹15.00", claimedAmount: "₹60.00", diagnosis: "Hypertension medication refill", date: "2026-07-16", status: "Approved", remarks: "Auto-approved prescription claim." }
+      ];
+      localStorage.setItem('dhms_insurance_claims', JSON.stringify(initialClaims));
+    }
+
     // Auto-migrate pre-existing dollar data in browser localStorage to rupees
-    const keysToMigrate = ['dhms_billing', 'dhms_patients', 'dhms_appointments', 'dhms_medications', 'dhms_prescriptions', 'dhms_lab_requests', 'dhms_admissions'];
+    const keysToMigrate = ['dhms_billing', 'dhms_patients', 'dhms_appointments', 'dhms_medications', 'dhms_prescriptions', 'dhms_lab_requests', 'dhms_admissions', 'dhms_insurance_claims', 'dhms_insurance_policies'];
     keysToMigrate.forEach(key => {
       const data = localStorage.getItem(key);
       if (data && data.includes('$')) {
@@ -167,6 +191,9 @@ function App() {
     }
     if (userRole === 'cash_counter') {
       return <CashCounterDashboard onLogout={handleLogout} />;
+    }
+    if (userRole === 'insurance_agent') {
+      return <InsuranceDashboard onLogout={handleLogout} />;
     }
     return <Dashboard onLogout={handleLogout} role={userRole} />;
   }
@@ -230,6 +257,7 @@ function App() {
                   <option value="receptionist">Receptionist</option>
                   <option value="cash_counter">Cash Counter</option>
                   <option value="admin">Administrator</option>
+                  <option value="insurance_agent">Insurance Agent / TPA</option>
                 </select>
                 <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -286,6 +314,7 @@ function App() {
                   <option value="receptionist">Receptionist Portal</option>
                   <option value="cash_counter">Cash Counter Portal</option>
                   <option value="admin">Admin Portal</option>
+                  <option value="insurance_agent">Insurance / TPA Portal</option>
                 </select>
                 <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>

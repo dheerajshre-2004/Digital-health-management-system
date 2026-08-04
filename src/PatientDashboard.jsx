@@ -1964,6 +1964,135 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     );
   };
 
+  const renderInsuranceTab = () => {
+    const policies = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+    const myPolicy = policies.find(p => p.patientId === (currentPatient?.id || "PT-80234"));
+    const claims = JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
+    const myClaims = claims.filter(c => c.patientId === (currentPatient?.id || "PT-80234"));
+
+    return (
+      <div className="pd-section-card" style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px' }}>
+        <div className="pd-section-header" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px', marginRight: '8px', color: '#0ea5e9' }}>
+            <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Insurance Policies & Third-Party Claims</h2>
+        </div>
+        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+          Track active insurance policies registered with your profile, view coverage details, co-pay ratios, and monitor processed or pending claims.
+        </p>
+
+        {/* Policy Card */}
+        {myPolicy ? (
+          <div style={{
+            background: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)',
+            color: 'white',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.25)',
+            marginBottom: '32px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Decal Background Ring */}
+            <div style={{ position: 'absolute', right: '-20px', bottom: '-20px', width: '150px', height: '150px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }}></div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '12px', opacity: 0.8, textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>Health Insurance Provider</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '800' }}>{myPolicy.provider}</h3>
+              </div>
+              <span style={{
+                background: myPolicy.status === 'Active' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                color: myPolicy.status === 'Active' ? '#4ade80' : '#fca5a5',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                border: '1px solid currentColor'
+              }}>
+                {myPolicy.status}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '16px' }}>
+              <div>
+                <span style={{ fontSize: '11px', opacity: 0.7 }}>Policy Number</span>
+                <div style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '14px', marginTop: '2px' }}>{myPolicy.policyNo}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', opacity: 0.7 }}>Patient Co-pay %</span>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '2px' }}>{myPolicy.coPay}% Portion</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', opacity: 0.7 }}>Coverage Status</span>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '2px' }}>
+                  ₹{(myPolicy.maxCoverage - (myPolicy.utilized || 0)).toLocaleString('en-IN')} / ₹{myPolicy.maxCoverage.toLocaleString('en-IN')} Left
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '32px' }}>
+            No registered health insurance policy found. Register a policy at the Cash Counter or contact billing support.
+          </div>
+        )}
+
+        {/* Claims Table */}
+        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>Recent Insurance Claims</h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>
+                <th style={{ padding: '12px 8px' }}>Claim ID</th>
+                <th style={{ padding: '12px 8px' }}>Invoice Ref</th>
+                <th style={{ padding: '12px 8px' }}>Treatment Description</th>
+                <th style={{ padding: '12px 8px' }}>Total Bill</th>
+                <th style={{ padding: '12px 8px' }}>Ins. Claimed</th>
+                <th style={{ padding: '12px 8px' }}>My Co-pay</th>
+                <th style={{ padding: '12px 8px' }}>Filing Date</th>
+                <th style={{ padding: '12px 8px' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {myClaims.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No insurance claims generated yet.
+                  </td>
+                </tr>
+              ) : (
+                myClaims.map(claim => (
+                  <tr key={claim.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                    <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{claim.id}</td>
+                    <td style={{ padding: '12px 8px', color: '#64748b' }}>{claim.invoiceId}</td>
+                    <td style={{ padding: '12px 8px' }}>{claim.diagnosis}</td>
+                    <td style={{ padding: '12px 8px' }}>{claim.amount}</td>
+                    <td style={{ padding: '12px 8px', color: '#0ea5e9', fontWeight: 'bold' }}>{claim.claimedAmount}</td>
+                    <td style={{ padding: '12px 8px', color: '#f59e0b' }}>{claim.coPayAmount}</td>
+                    <td style={{ padding: '12px 8px' }}>{claim.date}</td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        background: claim.status?.toLowerCase() === 'approved' ? '#dcfce7' : claim.status?.toLowerCase() === 'pending' || claim.status?.toLowerCase() === 'submitted' ? '#fef3c7' : '#fee2e2',
+                        color: claim.status?.toLowerCase() === 'approved' ? '#15803d' : claim.status?.toLowerCase() === 'pending' || claim.status?.toLowerCase() === 'submitted' ? '#b45309' : '#b91c1c'
+                      }}>
+                        {claim.status === 'Submitted' ? 'Pending' : claim.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   const renderAdmissionsBilling = () => {
     // Calculate Running Pharmacy Bill for an admission
     const calculatePharmacyBill = (adm) => {
@@ -2177,6 +2306,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="10" x2="22" y2="10"></line></svg>
               Admissions & Billing
             </li>
+            <li className={activeTab === 'insurance' ? 'active' : ''} onClick={() => setActiveTab('insurance')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              Insurance & Claims
+            </li>
           </ul>
         </aside>
 
@@ -2189,6 +2322,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           {activeTab === 'laboratory' && renderLaboratoryCenter()}
           {activeTab === 'telemedicine' && renderTelemedicineClinic()}
           {activeTab === 'admissions_billing' && renderAdmissionsBilling()}
+          {activeTab === 'insurance' && renderInsuranceTab()}
         </main>
       </div>
 
