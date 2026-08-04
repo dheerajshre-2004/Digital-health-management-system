@@ -1,11 +1,110 @@
 import React, { useState, useEffect } from 'react';
 import './PatientDashboard.css';
 
-export default function PatientDashboard({ onLogout }) {
+export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState('All');
   const [selectedVisit, setSelectedVisit] = useState(null);
+
+  // Dynamic Patient Record State
+  const [currentPatient, setCurrentPatient] = useState(() => {
+    const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const id = loggedInPatient?.id || "PT-80234";
+    return list.find(p => p.id === id) || loggedInPatient || list[0];
+  });
+
+  useEffect(() => {
+    const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const id = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    const found = list.find(p => p.id === id);
+    if (found) {
+      setCurrentPatient(found);
+    }
+  }, [activeTab, loggedInPatient]);
+
+  // Appointments & Consultations State
+  const [appointments, setAppointments] = useState(() => {
+    // Sync initially with localStorage. Seed a default cardiology checkup if none exists
+    const list = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const patientId = currentPatient?.id || "PT-80234";
+    const myAppts = list.filter(a => a.patientId === patientId);
+    if (myAppts.length === 0) {
+      const seedAppt = {
+        id: "TELE-502",
+        patientId: patientId,
+        patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
+        doctorId: "dr_gregory_house",
+        doctorName: "Dr. Gregory House",
+        department: "Cardiology",
+        date: "2026-08-04",
+        time: "01:50 PM",
+        reason: "Follow-up on sinus arrhythmia symptoms.",
+        status: "Scheduled",
+        type: "Telemedicine",
+        source: "Online"
+      };
+      const updatedList = [seedAppt, ...list];
+      localStorage.setItem('dhms_appointments', JSON.stringify(updatedList));
+      return updatedList;
+    }
+    return list;
+  });
+
+  const [reschedulingAppt, setReschedulingAppt] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+
+  const handleCancelConsultation = (apptId) => {
+    if (window.confirm("Are you sure you want to cancel this consultation?")) {
+      const updated = appointments.map(a => {
+        if (a.id === apptId) {
+          return { ...a, status: 'Cancelled' };
+        }
+        return a;
+      });
+      localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+      setAppointments(updated);
+      alert("Consultation cancelled successfully.");
+    }
+  };
+
+  const handleRescheduleSubmit = (e) => {
+    e.preventDefault();
+    if (!rescheduleDate || !rescheduleTime) return;
+
+    const updated = appointments.map(a => {
+      if (a.id === reschedulingAppt.id) {
+        return { ...a, date: rescheduleDate, time: rescheduleTime, status: 'Rescheduled' };
+      }
+      return a;
+    });
+
+    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+    setAppointments(updated);
+    setReschedulingAppt(null);
+    setRescheduleDate('');
+    setRescheduleTime('');
+    alert("Appointment rescheduled successfully!");
+  };
+
+  // Medication Adherence tracking
+  const [adherenceLogs, setAdherenceLogs] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_adherence_logs') || '{}');
+  });
+
+  const handleTakeDose = (rxId) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const patientId = currentPatient?.id || "PT-80234";
+    const logKey = `${patientId}_${rxId}_${todayStr}`;
+    
+    const updated = {
+      ...adherenceLogs,
+      [logKey]: true
+    };
+    localStorage.setItem('dhms_adherence_logs', JSON.stringify(updated));
+    setAdherenceLogs(updated);
+  };
 
   // EHR States
   const [ehrRecords, setEhrRecords] = useState([
@@ -199,6 +298,33 @@ export default function PatientDashboard({ onLogout }) {
   };
 
   const visitHistoryData = [
+    ...(currentPatient?.clinicalHistory || []).map((h, index) => ({
+      id: h.id || `V-${1000 + index}`,
+      date: h.date,
+      time: h.time || "09:00 AM",
+      doctor: h.doctor,
+      department: h.department || "General OPD",
+      reason: h.reason || "Consultation",
+      diagnosis: h.diagnosis,
+      notes: h.diagnosis, // Map diagnosis to notes fallback
+      symptoms: h.symptoms,
+      physicalExam: h.physicalExam,
+      plan: h.plan,
+      isAdmitted: h.isAdmitted,
+      admissionWard: h.admissionWard,
+      isReferred: h.isReferred,
+      referral: h.referral,
+      vitals: {
+        bp: h.vitals?.bp || "N/A",
+        hr: h.vitals?.hr ? `${h.vitals.hr} BPM` : "N/A",
+        temp: h.vitals?.temp ? `${h.vitals.temp} °F` : "N/A",
+        spo2: h.vitals?.spo2 ? `${h.vitals.spo2}%` : "N/A",
+        weight: h.vitals?.weight || "-"
+      },
+      prescriptions: h.prescriptions || [],
+      labs: h.labs || [],
+      status: "Completed"
+    })),
     {
       id: "V-9082",
       date: "2026-07-10",
@@ -253,7 +379,7 @@ export default function PatientDashboard({ onLogout }) {
     <>
       <div className="pd-welcome-banner">
         <div>
-          <h1>Welcome back, <span className="highlight">John Doe</span></h1>
+          <h1>Welcome back, <span className="highlight">{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe"}</span></h1>
           <p>Your comprehensive health profile is securely encrypted and maintained.</p>
         </div>
         <button className="pd-btn-primary" onClick={() => setShowRequestApptModal(true)}>
@@ -263,66 +389,114 @@ export default function PatientDashboard({ onLogout }) {
       </div>
 
       {/* Vitals Grid */}
-      <div className="pd-vitals-grid">
-        <div className="pd-vital-card">
-          <div className="pd-vital-header">
-            <span>Heart Rate</span>
-            <div className="pd-vital-icon red">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            </div>
-          </div>
-          <div className="pd-vital-value">72 <span>BPM</span></div>
-          <div className="pd-vital-status success">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Normal Resting
-          </div>
-          <div className="pd-progress-bar"><div className="pd-progress red" style={{width: '60%'}}></div></div>
-        </div>
+      {(() => {
+        const latestVitals = currentPatient?.clinicalHistory?.[0]?.vitals || { bp: "120/80", hr: "72", temp: "98.6", spo2: "98" };
+        
+        // Vitals helper indicators
+        const getBPStatus = (bpVal) => {
+          if (!bpVal) return { label: 'Optimal', class: 'success' };
+          const parts = bpVal.split('/');
+          if (parts.length === 2) {
+            const sys = parseInt(parts[0]);
+            const dia = parseInt(parts[1]);
+            if (sys >= 140 || dia >= 90) return { label: 'Hypertension', class: 'danger' };
+            if (sys < 90 || dia < 60) return { label: 'Low BP', class: 'warning' };
+          }
+          return { label: 'Optimal', class: 'success' };
+        };
 
-        <div className="pd-vital-card">
-          <div className="pd-vital-header">
-            <span>Blood Pressure</span>
-            <div className="pd-vital-icon green">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-            </div>
-          </div>
-          <div className="pd-vital-value">120/80 <span>mmHg</span></div>
-          <div className="pd-vital-status success">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Optimal
-          </div>
-          <div className="pd-progress-bar"><div className="pd-progress green" style={{width: '40%'}}></div></div>
-        </div>
+        const getHRStatus = (hrVal) => {
+          const hr = parseInt(hrVal);
+          if (isNaN(hr)) return { label: 'Normal', class: 'success' };
+          if (hr > 100) return { label: 'Tachycardia', class: 'danger' };
+          if (hr < 60) return { label: 'Bradycardia', class: 'warning' };
+          return { label: 'Normal Resting', class: 'success' };
+        };
 
-        <div className="pd-vital-card">
-          <div className="pd-vital-header">
-            <span>Sleep duration</span>
-            <div className="pd-vital-icon purple">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-            </div>
-          </div>
-          <div className="pd-vital-value">7.5 <span>hrs</span></div>
-          <div className="pd-vital-status success">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Healthy REM
-          </div>
-          <div className="pd-progress-bar"><div className="pd-progress purple" style={{width: '80%'}}></div></div>
-        </div>
+        const getTempStatus = (tempVal) => {
+          const temp = parseFloat(tempVal);
+          if (isNaN(temp)) return { label: 'Normal', class: 'success' };
+          if (temp > 100.4) return { label: 'Fever (Pyrexia)', class: 'danger' };
+          if (temp < 96.0) return { label: 'Hypothermia', class: 'warning' };
+          return { label: 'Normal Temp', class: 'success' };
+        };
 
-        <div className="pd-vital-card">
-          <div className="pd-vital-header">
-            <span>Daily Steps</span>
-            <div className="pd-vital-icon orange">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+        const getSpO2Status = (spo2Val) => {
+          const spo2 = parseInt(spo2Val);
+          if (isNaN(spo2)) return { label: 'Optimal', class: 'success' };
+          if (spo2 < 95) return { label: 'Hypoxia (Low O₂)', class: 'danger' };
+          return { label: 'Optimal', class: 'success' };
+        };
+
+        const bpSt = getBPStatus(latestVitals.bp);
+        const hrSt = getHRStatus(latestVitals.hr);
+        const tempSt = getTempStatus(latestVitals.temp);
+        const spo2St = getSpO2Status(latestVitals.spo2);
+
+        return (
+          <div className="pd-vitals-grid">
+            <div className="pd-vital-card">
+              <div className="pd-vital-header">
+                <span>Heart Rate</span>
+                <div className="pd-vital-icon red">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </div>
+              </div>
+              <div className="pd-vital-value">{latestVitals.hr?.replace(/[a-zA-Z\s]/g, '') || "72"} <span>BPM</span></div>
+              <div className={`pd-vital-status ${hrSt.class}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {hrSt.label}
+              </div>
+              <div className="pd-progress-bar"><div className={`pd-progress ${hrSt.class === 'danger' ? 'red' : hrSt.class === 'warning' ? 'orange' : 'green'}`} style={{width: '60%'}}></div></div>
+            </div>
+
+            <div className="pd-vital-card">
+              <div className="pd-vital-header">
+                <span>Blood Pressure</span>
+                <div className="pd-vital-icon green">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </div>
+              </div>
+              <div className="pd-vital-value">{latestVitals.bp?.replace(/\smmHg/g, '') || "120/80"} <span>mmHg</span></div>
+              <div className={`pd-vital-status ${bpSt.class}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {bpSt.label}
+              </div>
+              <div className="pd-progress-bar"><div className={`pd-progress ${bpSt.class === 'danger' ? 'red' : bpSt.class === 'warning' ? 'orange' : 'green'}`} style={{width: '40%'}}></div></div>
+            </div>
+
+            <div className="pd-vital-card">
+              <div className="pd-vital-header">
+                <span>Temperature</span>
+                <div className="pd-vital-icon purple">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                </div>
+              </div>
+              <div className="pd-vital-value">{latestVitals.temp?.replace(/[a-zA-Z\s°]/g, '') || "98.6"} <span>°F</span></div>
+              <div className={`pd-vital-status ${tempSt.class}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {tempSt.label}
+              </div>
+              <div className="pd-progress-bar"><div className={`pd-progress ${tempSt.class === 'danger' ? 'red' : tempSt.class === 'warning' ? 'orange' : 'purple'}`} style={{width: '50%'}}></div></div>
+            </div>
+
+            <div className="pd-vital-card">
+              <div className="pd-vital-header">
+                <span>Blood Oxygen (SpO₂)</span>
+                <div className="pd-vital-icon orange">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+                </div>
+              </div>
+              <div className="pd-vital-value">{latestVitals.spo2?.replace(/[%]/g, '') || "98"} <span>%</span></div>
+              <div className={`pd-vital-status ${spo2St.class}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {spo2St.label}
+              </div>
+              <div className="pd-progress-bar"><div className={`pd-progress ${spo2St.class === 'danger' ? 'red' : 'orange'}`} style={{width: '80%'}}></div></div>
             </div>
           </div>
-          <div className="pd-vital-value">8,500 <span>/ 12k</span></div>
-          <div className="pd-vital-status warning">
-            Active Target Reach
-          </div>
-          <div className="pd-progress-bar"><div className="pd-progress orange" style={{width: '70%'}}></div></div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="pd-content-grid">
         <div className="pd-left-column">
@@ -333,23 +507,61 @@ export default function PatientDashboard({ onLogout }) {
               <h3>Upcoming Consultations</h3>
             </div>
             
-            <div className="pd-consultation-item">
-              <div className="pd-consult-info">
-                <h4>Dr. Gregory House</h4>
-                <p>Routine cardiology health checkup</p>
-              </div>
-              <div className="pd-consult-meta">
-                <div className="pd-date">6/20/2026 at 01:50 PM</div>
-                <div className="pd-badge in-session">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                  In Session
+            {(() => {
+              const myAppts = appointments.filter(a => 
+                a.patientId === (currentPatient?.id || "PT-80234") && 
+                a.status !== 'Completed' && 
+                a.status !== 'Cancelled'
+              );
+
+              if (myAppts.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic' }}>
+                    No upcoming consultations scheduled.
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {myAppts.map(appt => (
+                    <div key={appt.id} className="pd-consultation-item" style={{ margin: 0 }}>
+                      <div className="pd-consult-info">
+                        <h4>{appt.doctorName}</h4>
+                        <p>{appt.reason || `${appt.department} Consultation`}</p>
+                      </div>
+                      <div className="pd-consult-meta">
+                        <div className="pd-date">{appt.date} at {appt.time}</div>
+                        <div className="pd-badge in-session" style={{ backgroundColor: appt.status === 'Pending Confirmation' ? '#fef3c7' : '#dcfce7', color: appt.status === 'Pending Confirmation' ? '#d97706' : '#15803d' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                          {appt.status}
+                        </div>
+                      </div>
+                      <div className="pd-consult-actions">
+                        <button 
+                          className="pd-btn-outline" 
+                          onClick={() => {
+                            setReschedulingAppt(appt);
+                            setRescheduleDate(appt.date);
+                            setRescheduleTime(appt.time);
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> 
+                          Reschedule
+                        </button>
+                        <button 
+                          className="pd-btn-outline danger"
+                          onClick={() => handleCancelConsultation(appt.id)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> 
+                          Cancel Consultation
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div className="pd-consult-actions">
-                <button className="pd-btn-outline"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Reschedule</button>
-                <button className="pd-btn-outline danger"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> Cancel Consultation</button>
-              </div>
-            </div>
+              );
+            })()}
           </div>
 
           {/* Active Prescriptions */}
@@ -358,46 +570,151 @@ export default function PatientDashboard({ onLogout }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               <h3>Active Prescriptions Tracker</h3>
             </div>
-            <div className="pd-empty-state">
-              <p>Tracker will populate upon new prescriptions</p>
-            </div>
+            {(() => {
+              const myPrescriptions = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]')
+                .filter(r => r.patientId === (currentPatient?.id || "PT-80234"));
+              
+              if (myPrescriptions.length === 0) {
+                return (
+                  <div className="pd-empty-state">
+                    <p>No active prescriptions on file. Outpatient prescriptions advised by your provider will show up here.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  {myPrescriptions.map(rx => (
+                    <div key={rx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', alignItems: 'center' }}>
+                      <div>
+                        <h5 style={{ margin: '0 0 2px 0', fontSize: '13px', color: '#1e293b' }}>{rx.medication}</h5>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>Provider: <strong>{rx.doctorName}</strong> • Prescribed: {rx.date}</p>
+                        {rx.instructions && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#4f46e5', fontWeight: '500' }}>Instructions: {rx.instructions}</p>}
+                      </div>
+                      <span className={`status-badge ${rx.status.toLowerCase().replace(/\s/g, '')}`} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2', color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c' }}>
+                        {rx.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
         <div className="pd-right-column">
           {/* Daily Medication Prompts */}
-          <div className="pd-section-card pd-medication-card">
-            <div className="pd-section-header">
+          <div className="pd-section-card pd-medication-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pd-section-header" style={{ marginBottom: '8px' }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
               <h3>Daily Medication Adherence Prompts</h3>
             </div>
 
-            <div className="pd-med-prompt">
-              <div className="pd-med-chart">
-                <svg viewBox="0 0 36 36" className="circular-chart red">
-                  <path className="circle-bg"
-                    d="M18 2.0845
-                      a 15.9155 15.9155 0 0 1 0 31.831
-                      a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path className="circle"
-                    strokeDasharray="24, 100"
-                    d="M18 2.0845
-                      a 15.9155 15.9155 0 0 1 0 31.831
-                      a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <text x="18" y="20.35" className="percentage">24%</text>
-                </svg>
-              </div>
-              <div className="pd-med-details">
-                <h4>Lisinopril</h4>
-                <p>10mg once daily in the morning</p>
-              </div>
-              <button className="pd-btn-teal">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                Take Daily Dose
-              </button>
-            </div>
+            {(() => {
+              const myPrescriptions = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]')
+                .filter(r => r.patientId === (currentPatient?.id || "PT-80234"));
+
+              // Fallback default prompt if patient doesn't have any prescriptions
+              const activePrompts = myPrescriptions.length > 0 ? myPrescriptions : [
+                {
+                  id: "DEFAULT-LISI",
+                  medication: "Lisinopril 10mg",
+                  instructions: "once daily in the morning",
+                  doctorName: "Dr. Gregory House"
+                }
+              ];
+
+              const todayStr = new Date().toISOString().split('T')[0];
+              const patientId = currentPatient?.id || "PT-80234";
+
+              const getCompliance = (rxId) => {
+                let takenCount = 0;
+                const today = new Date();
+                for (let i = 0; i < 7; i++) {
+                  const d = new Date(today);
+                  d.setDate(today.getDate() - i);
+                  const dStr = d.toISOString().split('T')[0];
+                  const logKey = `${patientId}_${rxId}_${dStr}`;
+                  if (adherenceLogs[logKey]) {
+                    takenCount++;
+                  }
+                }
+                const todayTaken = adherenceLogs[`${patientId}_${rxId}_${todayStr}`];
+                const baseline = todayTaken ? 4 : 3;
+                const total = Math.max(takenCount, baseline);
+                return Math.min(Math.round((total / 7) * 100), 100);
+              };
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {activePrompts.map(rx => {
+                    const rxKey = rx.id || rx.medication;
+                    const takenToday = adherenceLogs[`${patientId}_${rxKey}_${todayStr}`] === true;
+                    const compliance = getCompliance(rxKey);
+                    const circleColor = compliance >= 80 ? 'green' : compliance >= 50 ? 'purple' : 'red';
+
+                    return (
+                      <div key={rxKey} className="pd-med-prompt" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', margin: 0, gap: '16px' }}>
+                        <div className="pd-med-chart" style={{ flexShrink: 0 }}>
+                          <svg viewBox="0 0 36 36" className={`circular-chart ${circleColor}`} style={{ width: '42px', height: '42px' }}>
+                            <path className="circle-bg"
+                              d="M18 2.0845
+                                a 15.9155 15.9155 0 0 1 0 31.831
+                                a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path className="circle"
+                              strokeDasharray={`${compliance}, 100`}
+                              d="M18 2.0845
+                                a 15.9155 15.9155 0 0 1 0 31.831
+                                a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <text x="18" y="20.35" className="percentage" style={{ fontSize: '9px', fontWeight: 'bold' }}>{compliance}%</text>
+                          </svg>
+                        </div>
+                        <div className="pd-med-details" style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 2px 0', fontSize: '14px', color: '#1e293b' }}>{rx.medication.split(' (')[0]}</h4>
+                          <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{rx.instructions || rx.medication || "Take as directed"}</p>
+                        </div>
+                        <button 
+                          className={takenToday ? "pd-btn-outline success" : "pd-btn-teal"} 
+                          onClick={() => !takenToday && handleTakeDose(rxKey)}
+                          disabled={takenToday}
+                          style={{ 
+                            padding: '8px 12px', 
+                            fontSize: '12px', 
+                            fontWeight: '600', 
+                            borderRadius: '6px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            cursor: takenToday ? 'default' : 'pointer',
+                            opacity: takenToday ? 0.8 : 1,
+                            backgroundColor: takenToday ? '#dcfce7' : '',
+                            color: takenToday ? '#15803d' : '',
+                            borderColor: takenToday ? '#bbf7d0' : '',
+                            flexDirection: 'column'
+                          }}
+                        >
+                          {takenToday ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{ width: '14px', height: '14px' }}>
+                                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                              </svg>
+                              Taken
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px' }}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                              Take Dose
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -507,27 +824,27 @@ export default function PatientDashboard({ onLogout }) {
           <div className="pd-info-grid">
             <div className="pd-info-item">
               <label>Full Name</label>
-              <p>John Doe</p>
+              <p>{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe"}</p>
             </div>
             <div className="pd-info-item">
               <label>Date of Birth</label>
-              <p>12/04/1985</p>
+              <p>{currentPatient?.dob || "12/04/1985"}</p>
             </div>
             <div className="pd-info-item">
               <label>Gender</label>
-              <p>Male</p>
+              <p style={{ textTransform: 'capitalize' }}>{currentPatient?.gender || "Male"}</p>
             </div>
             <div className="pd-info-item">
               <label>Blood Type</label>
-              <p>O+</p>
+              <p>{currentPatient?.bloodType || "O+"}</p>
             </div>
             <div className="pd-info-item">
               <label>Phone Number</label>
-              <p>+1 (555) 123-4567</p>
+              <p>{currentPatient?.phone || "+1 (555) 123-4567"}</p>
             </div>
             <div className="pd-info-item">
               <label>Email Address</label>
-              <p>patient@dhms.com</p>
+              <p>{currentPatient?.email || "patient@dhms.com"}</p>
             </div>
           </div>
         </div>
@@ -541,14 +858,17 @@ export default function PatientDashboard({ onLogout }) {
             <div className="pd-info-item full-width">
               <label>Known Allergies</label>
               <div className="pd-tags">
-                <span className="pd-tag red">Penicillin</span>
-                <span className="pd-tag orange">Peanuts</span>
+                {(currentPatient?.allergies || "None").split(',').map((alg, idx) => (
+                  <span key={idx} className="pd-tag red">{alg.trim()}</span>
+                ))}
               </div>
             </div>
             <div className="pd-info-item full-width">
               <label>Chronic Conditions</label>
               <div className="pd-tags">
-                <span className="pd-tag blue">Hypertension</span>
+                {(currentPatient?.chronicConditions || "None").split(',').map((cond, idx) => (
+                  <span key={idx} className="pd-tag blue">{cond.trim()}</span>
+                ))}
               </div>
             </div>
           </div>
@@ -663,9 +983,12 @@ export default function PatientDashboard({ onLogout }) {
                   <div className="pd-visit-detail-item">
                     <strong>Prescribed Medications:</strong>
                     <div className="pd-prescription-mini-tags">
-                      {visit.prescriptions.map((p, idx) => (
-                        <span key={idx} className="pd-presc-tag">{p.name} ({p.dosage})</span>
-                      ))}
+                      {visit.prescriptions.length === 0 ? <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>None prescribed</span> : visit.prescriptions.map((p, idx) => {
+                        if (typeof p === 'string') {
+                          return <span key={idx} className="pd-presc-tag">{p}</span>;
+                        }
+                        return <span key={idx} className="pd-presc-tag">{p.name} ({p.dosage})</span>;
+                      })}
                     </div>
                   </div>
                 </div>
@@ -688,12 +1011,12 @@ export default function PatientDashboard({ onLogout }) {
         {/* Modal for Visit Details */}
         {selectedVisit && (
           <div className="pd-modal-overlay" onClick={() => setSelectedVisit(null)}>
-            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
               <div className="pd-modal-header">
                 <h2>Visit Log Details: {selectedVisit.id}</h2>
                 <button className="pd-modal-close" onClick={() => setSelectedVisit(null)}>&times;</button>
               </div>
-              <div className="pd-modal-body">
+              <div className="pd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="pd-modal-meta-grid">
                   <div><strong>Doctor:</strong> <p>{selectedVisit.doctor}</p></div>
                   <div><strong>Department:</strong> <p>{selectedVisit.department}</p></div>
@@ -703,10 +1026,13 @@ export default function PatientDashboard({ onLogout }) {
 
                 <div className="pd-modal-section">
                   <h3>Recorded Vitals</h3>
-                  <div className="pd-modal-vitals-grid">
+                  <div className="pd-modal-vitals-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
                     <div className="pd-modal-vital-item"><strong>BP:</strong> <span>{selectedVisit.vitals.bp}</span></div>
                     <div className="pd-modal-vital-item"><strong>Heart Rate:</strong> <span>{selectedVisit.vitals.hr}</span></div>
                     <div className="pd-modal-vital-item"><strong>Temperature:</strong> <span>{selectedVisit.vitals.temp}</span></div>
+                    {selectedVisit.vitals.spo2 && (
+                      <div className="pd-modal-vital-item"><strong>SpO₂:</strong> <span>{selectedVisit.vitals.spo2}</span></div>
+                    )}
                     <div className="pd-modal-vital-item"><strong>Weight:</strong> <span>{selectedVisit.vitals.weight}</span></div>
                   </div>
                 </div>
@@ -717,38 +1043,104 @@ export default function PatientDashboard({ onLogout }) {
                 </div>
 
                 <div className="pd-modal-section">
-                  <h3>Diagnosis</h3>
-                  <p className="pd-modal-text highlight-box">{selectedVisit.diagnosis}</p>
+                  <h3>Clinical Assessment & Diagnosis</h3>
+                  <p className="pd-modal-text highlight-box" style={{ background: '#f5f3ff', borderLeft: '4px solid #7c3aed', padding: '10px', borderRadius: '4px', margin: 0, fontWeight: '600' }}>{selectedVisit.diagnosis}</p>
                 </div>
 
-                <div className="pd-modal-section">
-                  <h3>Clinical Notes</h3>
-                  <p className="pd-modal-text">{selectedVisit.notes}</p>
-                </div>
+                {selectedVisit.symptoms && (
+                  <div className="pd-modal-section">
+                    <h3>Chief Complaint & Symptoms (HPI)</h3>
+                    <p className="pd-modal-text">{selectedVisit.symptoms}</p>
+                  </div>
+                )}
+
+                {selectedVisit.physicalExam && (
+                  <div className="pd-modal-section">
+                    <h3>Physical Examination Findings</h3>
+                    <p className="pd-modal-text">{selectedVisit.physicalExam}</p>
+                  </div>
+                )}
+
+                {selectedVisit.plan && (
+                  <div className="pd-modal-section">
+                    <h3>Treatment Plan & Recommendations</h3>
+                    <p className="pd-modal-text">{selectedVisit.plan}</p>
+                  </div>
+                )}
+
+                {selectedVisit.notes && !selectedVisit.symptoms && (
+                  <div className="pd-modal-section">
+                    <h3>Clinical Notes</h3>
+                    <p className="pd-modal-text">{selectedVisit.notes}</p>
+                  </div>
+                )}
 
                 <div className="pd-modal-section">
                   <h3>Prescriptions</h3>
-                  <table className="pd-modal-table">
-                    <thead>
-                      <tr>
-                        <th>Medication</th>
-                        <th>Dosage</th>
-                        <th>Frequency</th>
-                        <th>Duration</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedVisit.prescriptions.map((p, idx) => (
-                        <tr key={idx}>
-                          <td><strong>{p.name}</strong></td>
-                          <td>{p.dosage}</td>
-                          <td>{p.frequency}</td>
-                          <td>{p.duration}</td>
+                  {selectedVisit.prescriptions.length === 0 ? (
+                    <p style={{ color: '#64748b', fontStyle: 'italic', margin: 0 }}>No medications prescribed during this visit.</p>
+                  ) : (
+                    <table className="pd-modal-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '6px' }}>
+                      <thead>
+                        <tr>
+                          <th>Medication Details</th>
+                          <th>Frequency</th>
+                          <th>Duration</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {selectedVisit.prescriptions.map((p, idx) => {
+                          if (typeof p === 'string') {
+                            const parts = p.split(' - ');
+                            const nameDose = parts[0] || '';
+                            const rest = parts[1] || '';
+                            return (
+                              <tr key={idx}>
+                                <td><strong>{nameDose}</strong></td>
+                                <td colSpan="2">{rest}</td>
+                              </tr>
+                            );
+                          }
+                          return (
+                            <tr key={idx}>
+                              <td><strong>{p.name}</strong> - {p.dosage}</td>
+                              <td>{p.frequency}</td>
+                              <td>{p.duration}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
+
+                {selectedVisit.labs && selectedVisit.labs.length > 0 && (
+                  <div className="pd-modal-section">
+                    <h3>Laboratory Diagnostics Ordered</h3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                      {selectedVisit.labs.map((l, idx) => (
+                        <span key={idx} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '500', color: '#475569' }}>
+                          🔬 {typeof l === 'string' ? l : l.testName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedVisit.isAdmitted && (
+                  <div className="pd-modal-section" style={{ backgroundColor: '#fff1f2', padding: '12px', borderRadius: '8px', border: '1px solid #fecdd3' }}>
+                    <h4 style={{ color: '#9f1239', margin: '0 0 4px 0', fontSize: '13px', fontWeight: 'bold' }}>🏥 Inpatient Admission Advised</h4>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#4c0519' }}>Patient recommended for inpatient care in <strong>{selectedVisit.admissionWard}</strong>.</p>
+                  </div>
+                )}
+
+                {selectedVisit.isReferred && selectedVisit.referral && (
+                  <div className="pd-modal-section" style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                    <h4 style={{ color: '#1e40af', margin: '0 0 4px 0', fontSize: '13px', fontWeight: 'bold' }}>🔄 Specialist Referral Issued</h4>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#1e3a8a' }}><strong>Referral Department:</strong> {selectedVisit.referral.department} • <strong>Consultant:</strong> {selectedVisit.referral.doctor}</p>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#1e3a8a' }}><strong>Reason:</strong> {selectedVisit.referral.reason}</p>
+                  </div>
+                )}
               </div>
               <div className="pd-modal-footer">
                 <button className="pd-btn-primary" onClick={() => alert(`Printing invoice and record for ${selectedVisit.id}...`)}>
@@ -800,8 +1192,8 @@ export default function PatientDashboard({ onLogout }) {
     e.preventDefault();
     const newAppt = {
       id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
-      patientId: "PT-99999",
-      patientName: "John Doe",
+      patientId: currentPatient?.id || "PT-80234",
+      patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
       doctorId: newApptDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
       doctorName: newApptDoctor,
       department: newApptDept,
@@ -814,7 +1206,9 @@ export default function PatientDashboard({ onLogout }) {
     };
 
     const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    localStorage.setItem('dhms_appointments', JSON.stringify([newAppt, ...currentAppts]));
+    const updated = [newAppt, ...currentAppts];
+    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+    setAppointments(updated);
 
     setShowRequestApptModal(false);
     setNewApptReason('');
@@ -836,8 +1230,8 @@ export default function PatientDashboard({ onLogout }) {
 
     const newAppt = {
       id: newConsult.id,
-      patientId: "PT-99999",
-      patientName: "John Doe",
+      patientId: currentPatient?.id || "PT-80234",
+      patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
       doctorId: newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
       doctorName: newTeleDoctor,
       department: newTeleDept,
@@ -849,7 +1243,9 @@ export default function PatientDashboard({ onLogout }) {
       source: "Online"
     };
     const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    localStorage.setItem('dhms_appointments', JSON.stringify([newAppt, ...currentAppts]));
+    const updated = [newAppt, ...currentAppts];
+    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+    setAppointments(updated);
 
     setShowScheduleTeleModal(false);
     setNewTeleReason('');
@@ -1577,6 +1973,8 @@ export default function PatientDashboard({ onLogout }) {
         .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
     };
 
+    const myAdmissions = admissions.filter(a => a.patientId === (currentPatient?.id || "PT-80234"));
+
     return (
       <div className="pd-section-card" style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px' }}>
         <div className="pd-section-header" style={{ marginBottom: '16px' }}>
@@ -1591,13 +1989,13 @@ export default function PatientDashboard({ onLogout }) {
           Monitor your active hospital admissions, view medications administered by doctors, track your running pharmacy bill, and process payment.
         </p>
 
-        {admissions.length === 0 ? (
+        {myAdmissions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px' }}>
             No hospital admission records found for your account.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {admissions.map(adm => {
+            {myAdmissions.map(adm => {
               const billTotal = calculatePharmacyBill(adm);
               return (
                 <div key={adm.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -1730,10 +2128,10 @@ export default function PatientDashboard({ onLogout }) {
         </div>
         <div className="pd-topbar-right">
           <div className="pd-profile-info">
-            <div className="pd-avatar">J</div>
+            <div className="pd-avatar">{(currentPatient?.firstName?.[0] || "J").toUpperCase()}</div>
             <div className="pd-user-details">
-              <strong>John Doe</strong>
-              <span>patient@dhms.com</span>
+              <strong>{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe"}</strong>
+              <span>{currentPatient?.email || "patient@dhms.com"}</span>
             </div>
             <div className="pd-role-badge">PATIENT</div>
           </div>
@@ -1906,6 +2304,107 @@ export default function PatientDashboard({ onLogout }) {
               >
                 Pay & Complete Discharge
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {reschedulingAppt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '450px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#6366f1',
+              color: 'white'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Reschedule Consultation</h3>
+              <button 
+                onClick={() => setReschedulingAppt(null)}
+                style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <form onSubmit={handleRescheduleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Preferred Date</label>
+                <input 
+                  type="date" 
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Preferred Time Slot</label>
+                <input 
+                  type="time" 
+                  value={rescheduleTime}
+                  onChange={(e) => setRescheduleTime(e.target.value)}
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button 
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Save Changes
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setReschedulingAppt(null)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: 'white',
+                    color: '#64748b',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           </div>
         </div>

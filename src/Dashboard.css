@@ -684,3 +684,193 @@
   50% { transform: scale(1.05); opacity: 0.8; }
   100% { transform: scale(1); opacity: 1; }
 }
+
+/* Upgraded Clinical Workspace */
+.clinical-workspace-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.clinical-section {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.section-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 700;
+  border-bottom: 2px solid #cbd5e1;
+  padding-bottom: 6px;
+}
+
+.vitals-input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.vital-input-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vital-input-col label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.clinical-input {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  outline: none;
+  background: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.clinical-input:focus, .clinical-textarea:focus, .clinical-select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.vital-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  padding: 3px 6px;
+  border-radius: 4px;
+  text-align: center;
+  margin-top: 4px;
+  animation: fadeIn 0.2s ease;
+}
+
+.input-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.clinical-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 70px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.prescription-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.clinical-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.btn-action-outline {
+  padding: 8px 14px;
+  border: 1px solid #6366f1;
+  background: white;
+  color: #6366f1;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.btn-action-outline:hover {
+  background: #6366f1;
+  color: white;
+}
+
+.item-basket {
+  margin-top: 14px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  padding: 10px;
+}
+
+.item-basket h5 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.basket-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.basket-table th, .basket-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.basket-table th {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.btn-remove-item {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.btn-remove-item:hover {
+  color: #b91c1c;
+}
+
+.lab-priority-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.lab-priority-pill.routine {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.lab-priority-pill.stat,
+.lab-priority-pill.urgent {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

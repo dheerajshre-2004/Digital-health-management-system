@@ -178,12 +178,428 @@ export default function Dashboard({ onLogout, role }) {
     setNewCallMessage('');
   };
 
+  const renderClinicalForm = (isTele) => {
+    // Standard lab test catalog
+    const standardTests = [
+      { name: 'Complete Blood Count (CBC)', cost: '45.00' },
+      { name: 'Lipid Panel', cost: '120.00' },
+      { name: 'Thyroid Panel', cost: '85.00' },
+      { name: 'Liver Function Test (LFT)', cost: '110.00' },
+      { name: 'Kidney Function Test (KFT)', cost: '95.00' },
+      { name: 'HbA1c', cost: '60.00' },
+      { name: 'Urine Routine & Microscopy', cost: '30.00' },
+      { name: 'Electrocardiogram (ECG)', cost: '150.00' },
+      { name: 'Chest X-Ray', cost: '200.00' }
+    ];
+
+    const pharmacyMeds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+
+    const addPrescribedMed = () => {
+      if (!rxDrugName.trim()) return;
+      const matched = pharmacyMeds.find(m => m.name.toLowerCase() === rxDrugName.toLowerCase());
+      const medCost = matched ? matched.price : parseFloat(rxCost) || 25.00;
+      
+      const newMed = {
+        id: `RXM-${Math.floor(100 + Math.random() * 900)}`,
+        name: rxDrugName,
+        dose: rxDose,
+        frequency: rxFrequency,
+        duration: rxDuration,
+        instructions: rxInstructions,
+        cost: medCost
+      };
+      setPrescribedMeds([...prescribedMeds, newMed]);
+      setRxDrugName('');
+      setRxCost('25.00');
+    };
+
+    const removePrescribedMed = (id) => {
+      setPrescribedMeds(prescribedMeds.filter(m => m.id !== id));
+    };
+
+    const addPrescribedLab = () => {
+      if (!labTestName.trim()) return;
+      const matched = standardTests.find(t => t.name.toLowerCase() === labTestName.toLowerCase());
+      const testCost = matched ? matched.cost : parseFloat(labCost) || 85.00;
+
+      const newLab = {
+        id: `LABT-${Math.floor(100 + Math.random() * 900)}`,
+        testName: labTestName,
+        priority: labPriority,
+        cost: testCost
+      };
+      setPrescribedLabs([...prescribedLabs, newLab]);
+      setLabTestName('');
+      setLabCost('85.00');
+    };
+
+    const removePrescribedLab = (id) => {
+      setPrescribedLabs(prescribedLabs.filter(l => l.id !== id));
+    };
+
+    // Vitals indicator helpers
+    const getBPAlert = (bpVal) => {
+      if (!bpVal) return null;
+      const parts = bpVal.split('/');
+      if (parts.length === 2) {
+        const sys = parseInt(parts[0]);
+        const dia = parseInt(parts[1]);
+        if (sys >= 140 || dia >= 90) return { label: 'High BP (Hypertension)', color: '#ef4444' };
+        if (sys < 90 || dia < 60) return { label: 'Low BP', color: '#3b82f6' };
+      }
+      return { label: 'Normal BP', color: '#10b981' };
+    };
+
+    const getHRAlert = (hrVal) => {
+      const hr = parseInt(hrVal);
+      if (isNaN(hr)) return null;
+      if (hr > 100) return { label: 'Tachycardia', color: '#ef4444' };
+      if (hr < 60) return { label: 'Bradycardia', color: '#3b82f6' };
+      return { label: 'Normal HR', color: '#10b981' };
+    };
+
+    const getTempAlert = (tempVal) => {
+      const temp = parseFloat(tempVal);
+      if (isNaN(temp)) return null;
+      if (temp > 100.4) return { label: 'Fever (Pyrexia)', color: '#ef4444' };
+      if (temp < 96.0) return { label: 'Hypothermia', color: '#3b82f6' };
+      return { label: 'Normal Temp', color: '#10b981' };
+    };
+
+    const getSpO2Alert = (spo2Val) => {
+      const spo2 = parseInt(spo2Val);
+      if (isNaN(spo2)) return null;
+      if (spo2 < 95) return { label: 'Hypoxia (Low O₂)', color: '#ef4444' };
+      return { label: 'Normal SpO₂', color: '#10b981' };
+    };
+
+    const bpAlert = getBPAlert(vitalBP);
+    const hrAlert = getHRAlert(vitalHR);
+    const tempAlert = getTempAlert(vitalTemp);
+    const spo2Alert = getSpO2Alert(vitalSpO2);
+
+    return (
+      <div className="clinical-workspace-form">
+        {/* Vitals Section */}
+        <div className="clinical-section">
+          <h4 className="section-title"> Objective Parameters & Vitals</h4>
+          <div className="vitals-input-grid">
+            <div className="vital-input-col">
+              <label>Blood Pressure</label>
+              <input type="text" className="clinical-input" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="120/80" />
+              {bpAlert && <span className="vital-badge" style={{ backgroundColor: bpAlert.color }}>{bpAlert.label}</span>}
+            </div>
+            <div className="vital-input-col">
+              <label>Heart Rate (bpm)</label>
+              <input type="text" className="clinical-input" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="72" />
+              {hrAlert && <span className="vital-badge" style={{ backgroundColor: hrAlert.color }}>{hrAlert.label}</span>}
+            </div>
+            <div className="vital-input-col">
+              <label>Temperature (°F)</label>
+              <input type="text" className="clinical-input" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="98.6" />
+              {tempAlert && <span className="vital-badge" style={{ backgroundColor: tempAlert.color }}>{tempAlert.label}</span>}
+            </div>
+            <div className="vital-input-col">
+              <label>SpO₂ Oxygen (%)</label>
+              <input type="text" className="clinical-input" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="98" />
+              {spo2Alert && <span className="vital-badge" style={{ backgroundColor: spo2Alert.color }}>{spo2Alert.label}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Structured Clinical Notes */}
+        <div className="clinical-section">
+          <h4 className="section-title"> Clinical Assessment Notes</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <label className="input-field-label">Chief Complaint & History of Present Illness (HPI)</label>
+              <textarea value={symptomsNote} onChange={(e) => setSymptomsNote(e.target.value)} placeholder="Describe patient symptoms, duration, history..." className="clinical-textarea" />
+            </div>
+            <div>
+              <label className="input-field-label">Physical Examination Findings</label>
+              <textarea value={examNote} onChange={(e) => setExamNote(e.target.value)} placeholder="Log signs, cardiovascular/pulmonary sounds, abdominal exam..." className="clinical-textarea" />
+            </div>
+            <div>
+              <label className="input-field-label">Clinical Assessment & Diagnosis (Required)</label>
+              <textarea required value={diagnosisNote} onChange={(e) => setDiagnosisNote(e.target.value)} placeholder="Enter definitive or differential diagnosis..." className="clinical-textarea" style={{ borderColor: '#6366f1' }} />
+            </div>
+            <div>
+              <label className="input-field-label">Treatment Plan & Recommendations</label>
+              <textarea value={planNote} onChange={(e) => setPlanNote(e.target.value)} placeholder="Log dietary changes, resting instructions, lifestyle advice..." className="clinical-textarea" />
+            </div>
+          </div>
+        </div>
+
+        {/* Prescription Builder */}
+        <div className="clinical-section">
+          <h4 className="section-title"> Prescription Builder</h4>
+          <div className="prescription-input-row">
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
+              <label>Select Drug</label>
+              <input 
+                type="text" 
+                className="clinical-input"
+                list="pharmacy-meds-datalist" 
+                placeholder="Search or enter drug name" 
+                value={rxDrugName} 
+                onChange={(e) => {
+                  setRxDrugName(e.target.value);
+                  const matched = pharmacyMeds.find(m => m.name.toLowerCase() === e.target.value.toLowerCase());
+                  if (matched) {
+                    setRxCost(matched.price.toString());
+                  }
+                }}
+              />
+              <datalist id="pharmacy-meds-datalist">
+                {pharmacyMeds.map(m => (
+                  <option key={m.id} value={m.name}>{m.genericName} - Stock: {m.stock}</option>
+                ))}
+              </datalist>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Dose</label>
+              <input type="text" className="clinical-input" placeholder="e.g. 500mg" value={rxDose} onChange={(e) => setRxDose(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="prescription-input-row" style={{ marginTop: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Frequency</label>
+              <select className="clinical-select" value={rxFrequency} onChange={(e) => setRxFrequency(e.target.value)}>
+                <option value="Once Daily (QD)">Once Daily (QD)</option>
+                <option value="Twice Daily (BID)">Twice Daily (BID)</option>
+                <option value="Three Times Daily (TID)">Three Times Daily (TID)</option>
+                <option value="Four Times Daily (QID)">Four Times Daily (QID)</option>
+                <option value="As Needed (PRN)">As Needed (PRN)</option>
+                <option value="Bedtime (HS)">Bedtime (HS)</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Duration</label>
+              <input type="text" className="clinical-input" placeholder="e.g. 7 Days" value={rxDuration} onChange={(e) => setRxDuration(e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
+              <label>Instructions</label>
+              <input type="text" className="clinical-input" placeholder="Take with food, etc." value={rxInstructions} onChange={(e) => setRxInstructions(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Price (₹)</label>
+              <input type="text" className="clinical-input" value={rxCost} onChange={(e) => setRxCost(e.target.value)} />
+            </div>
+            <button type="button" onClick={addPrescribedMed} className="btn-action-outline">Add Med</button>
+          </div>
+
+          {/* Prescribed Meds List */}
+          {prescribedMeds.length > 0 && (
+            <div className="item-basket">
+              <h5>Current Prescription Basket ({prescribedMeds.length})</h5>
+              <table className="basket-table">
+                <thead>
+                  <tr>
+                    <th>Medication</th>
+                    <th>Frequency</th>
+                    <th>Duration</th>
+                    <th>Cost</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prescribedMeds.map(m => (
+                    <tr key={m.id}>
+                      <td><strong>{m.name}</strong> - {m.dose} <br/><small style={{ color: '#64748b' }}>{m.instructions}</small></td>
+                      <td>{m.frequency}</td>
+                      <td>{m.duration}</td>
+                      <td>₹{parseFloat(m.cost).toFixed(2)}</td>
+                      <td><button type="button" onClick={() => removePrescribedMed(m.id)} className="btn-remove-item">✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Labs Section */}
+        <div className="clinical-section">
+          <h4 className="section-title">Diagnostic Lab Orders</h4>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 2 }}>
+              <label>Lab Test Name</label>
+              <input 
+                type="text" 
+                className="clinical-input"
+                list="standard-labs-datalist" 
+                placeholder="Search or enter test name" 
+                value={labTestName} 
+                onChange={(e) => {
+                  setLabTestName(e.target.value);
+                  const matched = standardTests.find(t => t.name.toLowerCase() === e.target.value.toLowerCase());
+                  if (matched) {
+                    setLabCost(matched.cost);
+                  }
+                }}
+              />
+              <datalist id="standard-labs-datalist">
+                {standardTests.map((t, idx) => (
+                  <option key={idx} value={t.name}>₹{t.cost}</option>
+                ))}
+              </datalist>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Priority</label>
+              <select className="clinical-select" value={labPriority} onChange={(e) => setLabPriority(e.target.value)}>
+                <option value="Routine">Routine</option>
+                <option value="STAT / Urgent">STAT / Urgent</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <label>Cost (₹)</label>
+              <input type="text" className="clinical-input" value={labCost} onChange={(e) => setLabCost(e.target.value)} />
+            </div>
+            <button type="button" onClick={addPrescribedLab} className="btn-action-outline">Add Test</button>
+          </div>
+
+          {/* Prescribed Labs List */}
+          {prescribedLabs.length > 0 && (
+            <div className="item-basket">
+              <h5>Current Diagnostics ordered ({prescribedLabs.length})</h5>
+              <table className="basket-table">
+                <thead>
+                  <tr>
+                    <th>Test Name</th>
+                    <th>Priority</th>
+                    <th>Cost</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prescribedLabs.map((l, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{l.testName}</strong></td>
+                      <td><span className={`lab-priority-pill ${l.priority.toLowerCase().replace(/\s/g, '')}`}>{l.priority}</span></td>
+                      <td>₹{parseFloat(l.cost).toFixed(2)}</td>
+                      <td><button type="button" onClick={() => removePrescribedLab(l.id || idx)} className="btn-remove-item">✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Admission & Referral Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: isTele ? '1fr' : '1fr 1fr', gap: '16px' }}>
+          {/* Admission details */}
+          <div className="clinical-section">
+            <h4 className="section-title">Inpatient Admission Recommendations</h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <input type="checkbox" id="admit-patient-chk" checked={isAdmitted} onChange={(e) => setIsAdmitted(e.target.checked)} />
+              <label htmlFor="admit-patient-chk" style={{ fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Recommend Hospital Admission</label>
+            </div>
+            {isAdmitted && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeIn 0.2s' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#475569' }}>Select Ward / Unit</label>
+                  <select className="clinical-select" value={admissionWard} onChange={(e) => setAdmissionWard(e.target.value)}>
+                    <option value="General Ward A">General Ward A</option>
+                    <option value="General Ward B">General Ward B</option>
+                    <option value="ICU (Intensive Care)">ICU (Intensive Care)</option>
+                    <option value="Pediatrics Ward">Pediatrics Ward</option>
+                    <option value="Semi-Private Ward C">Semi-Private Ward C</option>
+                    <option value="Private Suite 101">Private Suite 101</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#475569' }}>Admission Clinical Indication Notes</label>
+                  <textarea value={admissionNotes} onChange={(e) => setAdmissionNotes(e.target.value)} placeholder="E.g., Severe respiratory distress requiring oxygen therapy..." className="clinical-textarea" style={{ minHeight: '60px' }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Referral details */}
+          <div className="clinical-section">
+            <h4 className="section-title"> Specialist Referrals</h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <input type="checkbox" id="refer-patient-chk" checked={isReferred} onChange={(e) => setIsReferred(e.target.checked)} />
+              <label htmlFor="refer-patient-chk" style={{ fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Refer to Specialist</label>
+            </div>
+            {isReferred && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeIn 0.2s' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#475569' }}>Department</label>
+                    <select 
+                      className="clinical-select"
+                      value={referralDept} 
+                      onChange={(e) => {
+                        setReferralDept(e.target.value);
+                        // Auto select first doctor in that department
+                        const matchingDoc = doctorsRoster.find(d => d.department === e.target.value);
+                        if (matchingDoc) setReferralDoc(matchingDoc.name);
+                      }} 
+                    >
+                      {departmentsList.map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#475569' }}>Consultant</label>
+                    <select className="clinical-select" value={referralDoc} onChange={(e) => setReferralDoc(e.target.value)}>
+                      {doctorsRoster.filter(d => d.department === referralDept).map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                      {doctorsRoster.filter(d => d.department === referralDept).length === 0 && (
+                        <option value="Duty Doctor">On-Duty Specialist</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#475569' }}>Referral Reason</label>
+                  <textarea value={referralReason} onChange={(e) => setReferralReason(e.target.value)} placeholder="Clinical reason for specialist consultation..." className="clinical-textarea" style={{ minHeight: '60px' }} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const handleTeleCheckupSubmit = (e) => {
     e.preventDefault();
     if (!activeCallAppt) return;
     
     const todayStr = new Date().toISOString().split('T')[0];
     const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+
+    // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
+    let finalMeds = [...prescribedMeds];
+    if (rxDrugName.trim()) {
+      finalMeds.push({
+        id: `MED-${Math.floor(100 + Math.random() * 900)}`,
+        name: rxDrugName,
+        dose: rxDose,
+        frequency: rxFrequency,
+        duration: rxDuration,
+        instructions: rxInstructions,
+        cost: rxCost
+      });
+    }
+
+    let finalLabs = [...prescribedLabs];
+    if (labTestName.trim()) {
+      finalLabs.push({
+        testName: labTestName,
+        priority: labPriority,
+        cost: labCost
+      });
+    }
 
     // 1. Update appointment status
     const updatedAppts = appointments.map(appt => {
@@ -209,8 +625,15 @@ export default function Dashboard({ onLogout, role }) {
           diagnosis: diagnosisNote || 'Telemedicine consultation completed.',
           reason: activeCallAppt.reason,
           vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 },
-          prescriptions: rxDrugName.trim() ? [`${rxDrugName} ${rxDose} - ${rxFrequency} (${rxDuration})`] : [],
-          labs: labTestName.trim() ? [`${labTestName} [${labPriority}]`] : []
+          symptoms: symptomsNote || 'None reported',
+          physicalExam: examNote || 'Normal findings',
+          plan: planNote || 'Follow up as needed',
+          prescriptions: finalMeds.map(m => `${m.name} ${m.dose} - ${m.frequency} (${m.duration})`),
+          labs: finalLabs.map(l => `${l.testName} [${l.priority}]`),
+          isAdmitted: isAdmitted,
+          admissionWard: isAdmitted ? admissionWard : null,
+          isReferred: isReferred,
+          referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
         };
         return {
           ...p,
@@ -223,41 +646,67 @@ export default function Dashboard({ onLogout, role }) {
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
     // 3. Create prescription if filled
-    if (rxDrugName.trim()) {
+    if (finalMeds.length > 0) {
       const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
-      const newRx = {
+      const newRxs = finalMeds.map(med => ({
         id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
         patientId: activeCallAppt.patientId,
         patientName: activeCallAppt.patientName,
-        medication: `${rxDrugName} ${rxDose} (${rxFrequency}, ${rxDuration})`,
+        medication: `${med.name} ${med.dose} (${med.frequency}, ${med.duration})`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `${parseFloat(rxCost).toFixed(2)}`,
-        status: 'Pending',
-        instructions: rxInstructions,
-        type: 'Outpatient'
-      };
-      const finalRx = [newRx, ...rxList];
+        cost: `${parseFloat(med.cost || 25.00).toFixed(2)}`,
+        status: isAdmitted ? 'Advised' : 'Pending',
+        instructions: med.instructions,
+        type: isAdmitted ? 'Inpatient' : 'Outpatient'
+      }));
+      const finalRx = [...newRxs, ...rxList];
       localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
       setPrescriptions(finalRx);
     }
 
     // 4. Create lab request if filled
-    if (labTestName.trim()) {
+    if (finalLabs.length > 0) {
       const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
-      const newLab = {
+      const newLabs = finalLabs.map(lab => ({
         id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
         patientId: activeCallAppt.patientId,
         patientName: activeCallAppt.patientName,
-        testName: `${labTestName} (${labPriority} Priority)`,
+        testName: `${lab.testName} (${lab.priority} Priority)`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `${parseFloat(labCost).toFixed(2)}`,
+        cost: `${parseFloat(lab.cost || 85.00).toFixed(2)}`,
         status: 'Pending'
-      };
-      const finalLab = [newLab, ...labList];
+      }));
+      const finalLab = [...newLabs, ...labList];
       localStorage.setItem('dhms_lab_requests', JSON.stringify(finalLab));
       setLabRequests(finalLab);
+    }
+
+    // Save Admission details if admitted
+    if (isAdmitted) {
+      const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+      const newAdm = {
+        id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: activeCallAppt.patientId,
+        patientName: activeCallAppt.patientName,
+        doctorName: currentDoc.name,
+        admissionDate: todayStr,
+        dischargeDate: null,
+        ward: admissionWard,
+        notes: admissionNotes || 'Admitted from consultation.',
+        status: 'Admitted',
+        medications: finalMeds.map(med => ({
+          name: `${med.name} ${med.dose}`,
+          instructions: med.instructions,
+          cost: parseFloat(med.cost) || 0.00,
+          status: 'Advised',
+          date: todayStr
+        })),
+        pharmacyBillPaid: false
+      };
+      const finalAdms = [newAdm, ...adms];
+      localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
     }
 
     // 5. Create billing invoice
@@ -283,6 +732,12 @@ export default function Dashboard({ onLogout, role }) {
     setVitalSpO2('98');
     setRxDrugName('');
     setLabTestName('');
+    setSymptomsNote('');
+    setExamNote('');
+    setPlanNote('');
+    setPrescribedMeds([]);
+    setPrescribedLabs([]);
+    setIsReferred(false);
     setIsVideoCallActive(false);
     setActiveCallAppt(null);
     if (window.Swal) {
@@ -328,7 +783,16 @@ export default function Dashboard({ onLogout, role }) {
   const [vitalTemp, setVitalTemp] = useState('98.6');
   const [vitalSpO2, setVitalSpO2] = useState('98');
 
-  // Detailed Rx builder
+  // Detailed clinical structured notes
+  const [symptomsNote, setSymptomsNote] = useState('');
+  const [examNote, setExamNote] = useState('');
+  const [planNote, setPlanNote] = useState('');
+
+  // Collections for multiple items
+  const [prescribedMeds, setPrescribedMeds] = useState([]);
+  const [prescribedLabs, setPrescribedLabs] = useState([]);
+
+  // Detailed Rx builder temporary item states
   const [rxDrugName, setRxDrugName] = useState('');
   const [rxDose, setRxDose] = useState('500mg');
   const [rxFrequency, setRxFrequency] = useState('Once Daily (QD)');
@@ -336,7 +800,7 @@ export default function Dashboard({ onLogout, role }) {
   const [rxCost, setRxCost] = useState('25.00');
   const [rxInstructions, setRxInstructions] = useState('Take with meals');
 
-  // Lab order builder
+  // Lab order builder temporary item states
   const [labTestName, setLabTestName] = useState('');
   const [labPriority, setLabPriority] = useState('Routine');
   const [labCost, setLabCost] = useState('85.00');
@@ -350,6 +814,12 @@ export default function Dashboard({ onLogout, role }) {
   const [isAdmitted, setIsAdmitted] = useState(false);
   const [admissionNotes, setAdmissionNotes] = useState('');
   const [admissionWard, setAdmissionWard] = useState('General Ward A');
+
+  // Referral States
+  const [isReferred, setIsReferred] = useState(false);
+  const [referralDept, setReferralDept] = useState('Cardiology');
+  const [referralDoc, setReferralDoc] = useState('Dr. Gregory House');
+  const [referralReason, setReferralReason] = useState('');
 
   // Add custom report to EHR
   const [reportTitle, setReportTitle] = useState('');
@@ -423,6 +893,17 @@ export default function Dashboard({ onLogout, role }) {
     setIsAdmitted(false);
     setAdmissionNotes('');
     setAdmissionWard('General Ward A');
+    
+    // Reset detailed states
+    setSymptomsNote('');
+    setExamNote('');
+    setPlanNote('');
+    setPrescribedMeds([]);
+    setPrescribedLabs([]);
+    setIsReferred(false);
+    setReferralDept('Cardiology');
+    setReferralDoc('Dr. Gregory House');
+    setReferralReason('');
   };
 
   const handleSendCallMessage = (e) => {
@@ -444,6 +925,29 @@ export default function Dashboard({ onLogout, role }) {
 
     const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
     const todayStr = new Date().toISOString().split('T')[0];
+
+    // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
+    let finalMeds = [...prescribedMeds];
+    if (rxDrugName.trim()) {
+      finalMeds.push({
+        id: `MED-${Math.floor(100 + Math.random() * 900)}`,
+        name: rxDrugName,
+        dose: rxDose,
+        frequency: rxFrequency,
+        duration: rxDuration,
+        instructions: rxInstructions,
+        cost: rxCost
+      });
+    }
+
+    let finalLabs = [...prescribedLabs];
+    if (labTestName.trim()) {
+      finalLabs.push({
+        testName: labTestName,
+        priority: labPriority,
+        cost: labCost
+      });
+    }
 
     const updatedAppts = appointments.map(appt => {
       if (appt.id === apptToComplete.id) {
@@ -467,8 +971,15 @@ export default function Dashboard({ onLogout, role }) {
           diagnosis: diagnosisNote || 'Routine checkup completed.',
           reason: apptToComplete.reason,
           vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 },
-          prescriptions: rxDrugName.trim() ? [`${rxDrugName} ${rxDose} - ${rxFrequency} (${rxDuration})`] : [],
-          labs: labTestName.trim() ? [`${labTestName} [${labPriority}]`] : []
+          symptoms: symptomsNote || 'None reported',
+          physicalExam: examNote || 'Normal findings',
+          plan: planNote || 'Follow up as needed',
+          prescriptions: finalMeds.map(m => `${m.name} ${m.dose} - ${m.frequency} (${m.duration})`),
+          labs: finalLabs.map(l => `${l.testName} [${l.priority}]`),
+          isAdmitted: isAdmitted,
+          admissionWard: isAdmitted ? admissionWard : null,
+          isReferred: isReferred,
+          referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
         };
         return {
           ...p,
@@ -480,25 +991,27 @@ export default function Dashboard({ onLogout, role }) {
     setPatients(updatedPatients);
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
-    if (rxDrugName.trim()) {
+    // Save prescriptions to dhms_prescriptions
+    if (finalMeds.length > 0) {
       const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
-      const newRx = {
+      const newRxs = finalMeds.map(med => ({
         id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
         patientId: apptToComplete.patientId,
         patientName: apptToComplete.patientName,
-        medication: `${rxDrugName} ${rxDose} (${rxFrequency}, ${rxDuration})`,
+        medication: `${med.name} ${med.dose} (${med.frequency}, ${med.duration})`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `${parseFloat(rxCost).toFixed(2)}`,
+        cost: `${parseFloat(med.cost || 25.00).toFixed(2)}`,
         status: isAdmitted ? 'Advised' : 'Pending',
-        instructions: rxInstructions,
+        instructions: med.instructions,
         type: isAdmitted ? 'Inpatient' : 'Outpatient'
-      };
-      const finalRx = [newRx, ...rxList];
+      }));
+      const finalRx = [...newRxs, ...rxList];
       localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
       setPrescriptions(finalRx);
     }
 
+    // Save Admission details if admitted
     if (isAdmitted) {
       const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
       const newAdm = {
@@ -511,36 +1024,38 @@ export default function Dashboard({ onLogout, role }) {
         ward: admissionWard,
         notes: admissionNotes || 'Admitted from consultation.',
         status: 'Admitted',
-        medications: rxDrugName.trim() ? [{
-          name: `${rxDrugName} ${rxDose}`,
-          instructions: rxInstructions,
-          cost: parseFloat(rxCost) || 0.00,
+        medications: finalMeds.map(med => ({
+          name: `${med.name} ${med.dose}`,
+          instructions: med.instructions,
+          cost: parseFloat(med.cost) || 0.00,
           status: 'Advised',
           date: todayStr
-        }] : [],
+        })),
         pharmacyBillPaid: false
       };
       const finalAdms = [newAdm, ...adms];
       localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
     }
 
-    if (labTestName.trim()) {
+    // Save laboratory requests
+    if (finalLabs.length > 0) {
       const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
-      const newLab = {
+      const newLabs = finalLabs.map(lab => ({
         id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
         patientId: apptToComplete.patientId,
         patientName: apptToComplete.patientName,
-        testName: `${labTestName} (${labPriority} Priority)`,
+        testName: `${lab.testName} (${lab.priority} Priority)`,
         doctorName: currentDoc.name,
         date: todayStr,
-        cost: `${parseFloat(labCost).toFixed(2)}`,
+        cost: `${parseFloat(lab.cost || 85.00).toFixed(2)}`,
         status: 'Pending'
-      };
-      const finalLab = [newLab, ...labList];
+      }));
+      const finalLab = [...newLabs, ...labList];
       localStorage.setItem('dhms_lab_requests', JSON.stringify(finalLab));
       setLabRequests(finalLab);
     }
 
+    // Create billing invoice for consultation
     const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
     const newConsultationInvoice = {
       id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -2258,53 +2773,12 @@ export default function Dashboard({ onLogout, role }) {
               )}
 
               {teleActiveTab === 'note' && (
-                <div className="tele-note-container">
-                  <h3>Clinical Checkup & Log</h3>
+                <div className="tele-note-container" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '8px' }}>
+                  <h3 style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>Clinical Checkup & Log</h3>
                   <form onSubmit={handleTeleCheckupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Blood Pressure</label>
-                        <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="120/80" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Heart Rate (bpm)</label>
-                        <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="72" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Temp (°F)</label>
-                        <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="98.6" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>SpO2 (%)</label>
-                        <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="98" style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Clinical Diagnosis & Findings</label>
-                      <textarea required value={diagnosisNote} onChange={(e) => setDiagnosisNote(e.target.value)} placeholder="Log patient symptoms, examination details, and diagnosis note..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', minHeight: '80px', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                      <strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>Prescribe Outpatient Medication</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px' }}>
-                        <input type="text" placeholder="Drug Name (e.g. Amoxicillin)" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                        <input type="text" placeholder="Dose (e.g. 500mg)" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                      </div>
-                    </div>
-
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                      <strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>Order Laboratory Diagnostic Test</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px' }}>
-                        <input type="text" placeholder="Test Name (e.g. Lipid Profile)" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                        <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px', background: 'white' }}>
-                          <option value="Routine">Routine Priority</option>
-                          <option value="STAT / Urgent">STAT / Urgent</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <button type="submit" style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', marginTop: '6px' }}>
+                    {renderClinicalForm(true)}
+                    
+                    <button type="submit" style={{ padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginTop: '12px', boxShadow: '0 4px 6px -1px rgba(16,185,129,0.2)' }}>
                       Complete Consultation & Bill Patient
                     </button>
                   </form>
@@ -2428,39 +2902,18 @@ export default function Dashboard({ onLogout, role }) {
       {/* Doctor Checkup Modal */}
       {selectedApptForCheckup && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Consultation & Checkup Log - {selectedApptForCheckup.patientName}</h3>
-            <form onSubmit={handleCheckupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <input type="text" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="BP (e.g. 120/80)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                <input type="text" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="HR (bpm)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                <input type="text" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="Temp (°F)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                <input type="text" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="SpO2 (%)" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-              </div>
-              <textarea required value={diagnosisNote} onChange={(e) => setDiagnosisNote(e.target.value)} placeholder="Clinical findings & diagnosis..." style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', minHeight: '80px', fontFamily: 'inherit' }} />
-              
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                <strong style={{ fontSize: '13px' }}>Prescribe Medication</strong>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px', marginTop: '6px' }}>
-                  <input type="text" placeholder="Drug Name" value={rxDrugName} onChange={(e) => setRxDrugName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                  <input type="text" placeholder="Dose" value={rxDose} onChange={(e) => setRxDose(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                </div>
-              </div>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '800px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>🩺 Clinical Consultation & Checkup Log</h3>
+              <span style={{ fontSize: '14px', background: '#eff6ff', color: '#1d4ed8', padding: '4px 8px', borderRadius: '6px', fontWeight: '600' }}>Patient: {selectedApptForCheckup.patientName}</span>
+            </div>
+            
+            <form onSubmit={handleCheckupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {renderClinicalForm(false)}
 
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                <strong style={{ fontSize: '13px' }}>Order Lab Diagnostic</strong>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '6px', marginTop: '6px' }}>
-                  <input type="text" placeholder="Test Name" value={labTestName} onChange={(e) => setLabTestName(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                  <select value={labPriority} onChange={(e) => setLabPriority(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
-                    <option value="Routine">Routine</option>
-                    <option value="STAT / Urgent">STAT / Urgent</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setSelectedApptForCheckup(null)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Complete Checkup</button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                <button type="button" onClick={() => setSelectedApptForCheckup(null)} className="btn-action-cancel" style={{ padding: '10px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel Checkup</button>
+                <button type="submit" className="btn-action-submit" style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>Complete Checkup & Bill</button>
               </div>
             </form>
           </div>

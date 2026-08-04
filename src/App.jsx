@@ -11,6 +11,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('patient');
+  const [loggedInPatient, setLoggedInPatient] = useState(null);
 
   useEffect(() => {
     // Seed initial patients if not present
@@ -130,16 +131,30 @@ function App() {
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
+    const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
+    const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const matched = patientsList.find(p => p.email?.toLowerCase() === emailVal.toLowerCase());
+    
+    if (matched) {
+      setLoggedInPatient(matched);
+    } else if (patientsList.length > 0) {
+      // Default fallback if not found
+      setLoggedInPatient(patientsList[0]);
+    } else {
+      setLoggedInPatient({ id: "PT-80234", firstName: "Alice", lastName: "Johnson", dob: "1990-05-14", gender: "female", phone: "+1 (555) 321-4567", email: "alice@example.com" });
+    }
+    
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setLoggedInPatient(null);
   };
 
   if (isAuthenticated) {
     if (userRole === 'patient') {
-      return <PatientDashboard onLogout={handleLogout} />;
+      return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
     }
     if (userRole === 'receptionist') {
       return <ReceptionistDashboard onLogout={handleLogout} />;
