@@ -30,16 +30,21 @@ function InsuranceDashboard({ onLogout }) {
   ]);
 
   useEffect(() => {
-    // Load claims from localStorage
-    const savedClaims = localStorage.getItem('dhms_insurance_claims');
-    if (savedClaims) {
-      setClaims(JSON.parse(savedClaims));
-    }
-    // Load policies from localStorage
-    const savedPolicies = localStorage.getItem('dhms_insurance_policies');
-    if (savedPolicies) {
-      setPolicies(JSON.parse(savedPolicies));
-    }
+    const loadFromStorage = () => {
+      // Load claims from localStorage
+      const savedClaims = localStorage.getItem('dhms_insurance_claims');
+      if (savedClaims) {
+        setClaims(JSON.parse(savedClaims));
+      }
+      // Load policies from localStorage
+      const savedPolicies = localStorage.getItem('dhms_insurance_policies');
+      if (savedPolicies) {
+        setPolicies(JSON.parse(savedPolicies));
+      }
+    };
+    loadFromStorage();
+    window.addEventListener('storage', loadFromStorage);
+    return () => window.removeEventListener('storage', loadFromStorage);
   }, []);
 
   const saveClaimsToStorage = (updatedClaims) => {

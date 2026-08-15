@@ -15,160 +15,132 @@ function App() {
   const [loggedInPatient, setLoggedInPatient] = useState(null);
 
   useEffect(() => {
-    // Seed initial patients if not present
+    // Seed initial empty state if not present
     if (!localStorage.getItem('dhms_patients')) {
-      const initialPatients = [
-        {id: "PT-80234", firstName: "Alice", lastName: "Johnson", dob: "1990-05-14", gender: "female", phone: "+1 (555) 321-4567", email: "alice@example.com"},
-        {id: "PT-11922", firstName: "Bob", lastName: "Smith", dob: "1985-09-22", gender: "male", phone: "+1 (555) 789-0123", email: "bob@example.com"},
-        {id: "PT-55310", firstName: "Carol", lastName: "Davis", dob: "1993-11-02", gender: "female", phone: "+1 (555) 456-7890", email: "carol@example.com"},
-        {id: "PT-22345", firstName: "David", lastName: "Wilson", dob: "1978-04-30", gender: "male", phone: "+1 (555) 901-2345", email: "david@example.com"},
-        {id: "PT-66789", firstName: "Eva", lastName: "Brown", dob: "1988-12-15", gender: "female", phone: "+1 (555) 234-5678", email: "eva@example.com"},
-        {id: "PT-99887", firstName: "Frank", lastName: "Miller", dob: "1995-07-08", gender: "male", phone: "+1 (555) 678-9012", email: "frank@example.com"}
-      ];
-      localStorage.setItem('dhms_patients', JSON.stringify(initialPatients));
+      localStorage.setItem('dhms_patients', JSON.stringify([]));
     }
 
-    // Seed initial appointments if not present
     if (!localStorage.getItem('dhms_appointments')) {
-      const initialAppointments = [
-        {id: "APT-001", patientId: "PT-80234", patientName: "Alice Johnson", doctorId: "dr_watson", doctorName: "Dr. John Watson", department: "Primary Care", date: "2026-07-16", time: "09:00", reason: "Follow-up checkup", status: "Checked In", type: "Physical", source: "Walk-in"},
-        {id: "APT-002", patientId: "PT-11922", patientName: "Bob Smith", doctorId: "dr_house", doctorName: "Dr. Gregory House", department: "Cardiology", date: "2026-07-16", time: "10:30", reason: "ECG review", status: "Upcoming", type: "Physical", source: "Walk-in"},
-        {id: "APT-003", patientId: "PT-55310", patientName: "Carol Davis", doctorId: "dr_grey", doctorName: "Dr. Meredith Grey", department: "General Surgery", date: "2026-07-16", time: "01:15", reason: "Post-op check", status: "Upcoming", type: "Physical", source: "Walk-in"}
-      ];
-      localStorage.setItem('dhms_appointments', JSON.stringify(initialAppointments));
+      localStorage.setItem('dhms_appointments', JSON.stringify([]));
     }
 
-    // Seed initial prescriptions if not present
     if (!localStorage.getItem('dhms_prescriptions')) {
-      const initialPrescriptions = [
-        { id: "RX-701", patientId: "PT-80234", patientName: "Alice Johnson", medication: "Amoxicillin 500mg", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "25.00", status: "Pending" },
-        { id: "RX-702", patientId: "PT-11922", patientName: "Bob Smith", medication: "Atorvastatin 20mg", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "45.00", status: "Pending" },
-        { id: "RX-703", patientId: "PT-55310", patientName: "Carol Davis", medication: "Lisinopril 10mg", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "15.00", status: "Dispensed & Billed" }
-      ];
-      localStorage.setItem('dhms_prescriptions', JSON.stringify(initialPrescriptions));
+      localStorage.setItem('dhms_prescriptions', JSON.stringify([]));
     }
 
-    // Seed initial lab requests if not present
     if (!localStorage.getItem('dhms_lab_requests')) {
-      const initialLabRequests = [
-        { id: "LAB-101", patientId: "PT-80234", patientName: "Alice Johnson", testName: "Lipid Panel", doctorName: "Dr. John Watson", date: "2026-07-16", cost: "120.00", status: "Pending" },
-        { id: "LAB-102", patientId: "PT-11922", patientName: "Bob Smith", testName: "Thyroid Panel", doctorName: "Dr. Gregory House", date: "2026-07-16", cost: "85.00", status: "Pending" },
-        { id: "LAB-103", patientId: "PT-22345", patientName: "David Wilson", testName: "Complete Blood Count (CBC)", doctorName: "Dr. Meredith Grey", date: "2026-07-15", cost: "45.00", status: "Completed & Billed" }
-      ];
-      localStorage.setItem('dhms_lab_requests', JSON.stringify(initialLabRequests));
+      localStorage.setItem('dhms_lab_requests', JSON.stringify([]));
     }
 
-    // Seed initial medications if not present
     if (!localStorage.getItem('dhms_medications')) {
-      const initialMedications = [
-        { id: "MED-001", name: "Amoxicillin 500mg", genericName: "Amoxicillin", category: "Antibiotics", stock: 120, price: 25.00, isEmergency: false, lowStockThreshold: 20 },
-        { id: "MED-002", name: "Atorvastatin 20mg", genericName: "Atorvastatin", category: "Cardiovascular", stock: 85, price: 45.00, isEmergency: false, lowStockThreshold: 15 },
-        { id: "MED-003", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 140, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
-        { id: "MED-004", name: "Epinephrine 1mg/mL Injection", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 8, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
-        { id: "MED-005", name: "Amiodarone 150mg/3mL Injection", genericName: "Amiodarone", category: "Antiarrhythmic", stock: 12, price: 80.00, isEmergency: true, lowStockThreshold: 10 },
-        { id: "MED-006", name: "Atropine 1mg/10mL Syringe", genericName: "Atropine", category: "Anticholinergic", stock: 15, price: 40.00, isEmergency: true, lowStockThreshold: 10 },
-        { id: "MED-007", name: "Naloxone 0.4mg/mL Injection", genericName: "Naloxone", category: "Opioid Antagonist", stock: 5, price: 50.00, isEmergency: true, lowStockThreshold: 8 },
-        { id: "MED-008", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 5.00, isEmergency: false, lowStockThreshold: 30 },
-        { id: "MED-009", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 8.00, isEmergency: false, lowStockThreshold: 25 }
-      ];
-      localStorage.setItem('dhms_medications', JSON.stringify(initialMedications));
+      localStorage.setItem('dhms_medications', JSON.stringify([]));
     }
 
-    // Seed initial pharmacy staff if not present
     if (!localStorage.getItem('dhms_pharmacy_staff')) {
-      const initialStaff = [
-        { id: "STF-P01", name: "Dr. Sarah Jenkins", role: "Chief Pharmacist", status: "Active", phone: "+1 (555) 123-9988", email: "sarah.j@dhms.com" },
-        { id: "STF-P02", name: "James Carter", role: "Pharmacy Technician", status: "Active", phone: "+1 (555) 123-9989", email: "james.c@dhms.com" },
-        { id: "STF-P03", name: "Emily Watson", role: "Clinical Pharmacist", status: "Active", phone: "+1 (555) 123-9990", email: "emily.w@dhms.com" }
-      ];
-      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(initialStaff));
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify([]));
     }
 
-    // Seed empty/default attendance if not present
     if (!localStorage.getItem('dhms_pharmacy_attendance')) {
-      const initialAttendance = [
-        { date: "2026-07-21", staffId: "STF-P01", name: "Dr. Sarah Jenkins", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present" },
-        { date: "2026-07-21", staffId: "STF-P02", name: "James Carter", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present" },
-        { date: "2026-07-21", staffId: "STF-P03", name: "Emily Watson", checkIn: "-", checkOut: "-", status: "Absent" }
-      ];
-      localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify(initialAttendance));
+      localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify([]));
     }
 
-    // Seed master hospital staff & doctor attendance dataset
     if (!localStorage.getItem('dhms_master_attendance')) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const initialMasterAttendance = [
-        { id: "ATT-101", date: todayStr, module: "Doctor", staffId: "dr_watson", staffName: "Dr. John Watson", role: "Primary Care Physician", checkIn: "08:30 AM", checkOut: "05:00 PM", status: "Present", remarks: "Morning OPD" },
-        { id: "ATT-102", date: todayStr, module: "Doctor", staffId: "dr_house", staffName: "Dr. Gregory House", role: "Chief of Cardiology", checkIn: "09:15 AM", checkOut: "05:30 PM", status: "Late", remarks: "Traffic delay" },
-        { id: "ATT-103", date: todayStr, module: "Doctor", staffId: "dr_adams", staffName: "Dr. John Adams", role: "Neurologist", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Medical Leave" },
-        { id: "ATT-104", date: todayStr, module: "Receptionist", staffId: "REC-101", staffName: "Sarah Connor", role: "Senior Receptionist", checkIn: "08:00 AM", checkOut: "04:30 PM", status: "Present", remarks: "Front Desk Duty" },
-        { id: "ATT-105", date: todayStr, module: "Receptionist", staffId: "REC-102", staffName: "Mark Taylor", role: "Front Desk Associate", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Unexcused Absence" },
-        { id: "ATT-106", date: todayStr, module: "Laboratory", staffId: "LAB-201", staffName: "Dr. Alex Vance", role: "Chief Lab Specialist", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present", remarks: "Biochemistry Unit" },
-        { id: "ATT-107", date: todayStr, module: "Laboratory", staffId: "LAB-202", staffName: "Linda Martinez", role: "Pathology Technician", checkIn: "-", checkOut: "-", status: "On Leave", remarks: "Approved Leave" },
-        { id: "ATT-108", date: todayStr, module: "Pharmacist", staffId: "STF-P01", staffName: "Dr. Sarah Jenkins", role: "Chief Pharmacist", checkIn: "08:45 AM", checkOut: "05:15 PM", status: "Present", remarks: "Main Counter" },
-        { id: "ATT-109", date: todayStr, module: "Pharmacist", staffId: "STF-P02", staffName: "James Carter", role: "Pharmacy Technician", checkIn: "08:58 AM", checkOut: "05:00 PM", status: "Present", remarks: "Stock Room" },
-        { id: "ATT-110", date: todayStr, module: "Pharmacist", staffId: "STF-P03", staffName: "Emily Watson", role: "Clinical Pharmacist", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Sick Leave" },
-        { id: "ATT-111", date: "2026-07-20", module: "Doctor", staffId: "dr_grey", staffName: "Dr. Meredith Grey", role: "General Surgeon", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Post-op Rest" },
-        { id: "ATT-112", date: "2026-07-20", module: "Receptionist", staffId: "REC-102", staffName: "Mark Taylor", role: "Front Desk Associate", checkIn: "09:30 AM", checkOut: "05:00 PM", status: "Late", remarks: "Transit Delay" },
-        { id: "ATT-113", date: "2026-07-20", module: "Laboratory", staffId: "LAB-202", staffName: "Linda Martinez", role: "Pathology Technician", checkIn: "-", checkOut: "-", status: "Absent", remarks: "Unplanned Absence" }
-      ];
-      localStorage.setItem('dhms_master_attendance', JSON.stringify(initialMasterAttendance));
+      localStorage.setItem('dhms_master_attendance', JSON.stringify([]));
     }
 
-    // Seed empty admissions if not present
     if (!localStorage.getItem('dhms_admissions')) {
       localStorage.setItem('dhms_admissions', JSON.stringify([]));
     }
 
-    // Seed insurance policies if not present
     if (!localStorage.getItem('dhms_insurance_policies')) {
-      const initialPolicies = [
-        { patientId: "PT-80234", patientName: "Alice Johnson", provider: "Max Life Insurance", policyNo: "MAX-8023401", coPay: 10, maxCoverage: 500000, utilized: 135, status: "Active" },
-        { patientId: "PT-11922", patientName: "Bob Smith", provider: "Star Health Insurance", policyNo: "STAR-1192202", coPay: 15, maxCoverage: 300000, utilized: 0, status: "Active" },
-        { patientId: "PT-55310", patientName: "Carol Davis", provider: "Care Health Insurance", policyNo: "CARE-5531003", coPay: 20, maxCoverage: 400000, utilized: 60, status: "Active" },
-        { patientId: "PT-22345", patientName: "David Wilson", provider: "HDFC Ergo", policyNo: "HDFC-2234504", coPay: 0, maxCoverage: 750000, utilized: 0, status: "Active" },
-        { patientId: "PT-66789", patientName: "Eva Brown", provider: "Star Health Insurance", policyNo: "STAR-6678905", coPay: 10, maxCoverage: 500000, utilized: 0, status: "Active" },
-        { patientId: "PT-99887", patientName: "Frank Miller", provider: "Max Life Insurance", policyNo: "MAX-9988706", coPay: 25, maxCoverage: 200000, utilized: 0, status: "Expired" }
-      ];
-      localStorage.setItem('dhms_insurance_policies', JSON.stringify(initialPolicies));
+      localStorage.setItem('dhms_insurance_policies', JSON.stringify([]));
     }
 
-    // Seed insurance claims if not present
     if (!localStorage.getItem('dhms_insurance_claims')) {
-      const initialClaims = [
-        { id: "CLM-2001", patientId: "PT-80234", patientName: "Alice Johnson", invoiceId: "INV-5091", provider: "Max Life Insurance", policyNo: "MAX-8023401", amount: "₹150.00", coPayAmount: "₹15.00", claimedAmount: "₹135.00", diagnosis: "General Consultation & Follow-up", date: "2026-07-16", status: "Approved", remarks: "Approved standard consultation fee." },
-        { id: "CLM-2002", patientId: "PT-11922", patientName: "Bob Smith", invoiceId: "INV-1102", provider: "Star Health Insurance", policyNo: "STAR-1192202", amount: "₹350.00", coPayAmount: "₹52.50", claimedAmount: "₹297.50", diagnosis: "Thyroid & Lipid Profiling", date: "2026-07-16", status: "Pending", remarks: "Awaiting diagnostic report attachment verification." },
-        { id: "CLM-2003", patientId: "PT-55310", patientName: "Carol Davis", invoiceId: "INV-6540", provider: "Care Health Insurance", policyNo: "CARE-5531003", amount: "₹75.00", coPayAmount: "₹15.00", claimedAmount: "₹60.00", diagnosis: "Hypertension medication refill", date: "2026-07-16", status: "Approved", remarks: "Auto-approved prescription claim." }
-      ];
-      localStorage.setItem('dhms_insurance_claims', JSON.stringify(initialClaims));
+      localStorage.setItem('dhms_insurance_claims', JSON.stringify([]));
     }
-
-    // Auto-migrate pre-existing dollar data in browser localStorage to rupees
-    const keysToMigrate = ['dhms_billing', 'dhms_patients', 'dhms_appointments', 'dhms_medications', 'dhms_prescriptions', 'dhms_lab_requests', 'dhms_admissions', 'dhms_insurance_claims', 'dhms_insurance_policies'];
-    keysToMigrate.forEach(key => {
-      const data = localStorage.getItem(key);
-      if (data && data.includes('$')) {
-        localStorage.setItem(key, data.replace(/\$/g, '₹'));
-      }
-    });
   }, []);
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
-    const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
-    const matched = patientsList.find(p => p.email?.toLowerCase() === emailVal.toLowerCase());
     
-    if (matched) {
-      setLoggedInPatient(matched);
-    } else if (patientsList.length > 0) {
-      // Default fallback if not found
-      setLoggedInPatient(patientsList[0]);
+    if (userRole === 'patient') {
+      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      const matched = patientsList.find(p => p.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        setLoggedInPatient(matched);
+        setIsAuthenticated(true);
+      } else {
+        alert('Patient account not found. Please register first.');
+      }
+    } else if (userRole === 'doctor') {
+      const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+      const matched = doctorsList.find(d => d.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        setIsAuthenticated(true);
+      } else {
+        alert('Doctor account not found. Please register first.');
+      }
     } else {
-      setLoggedInPatient({ id: "PT-80234", firstName: "Alice", lastName: "Johnson", dob: "1990-05-14", gender: "female", phone: "+1 (555) 321-4567", email: "alice@example.com" });
+      // Allow other staff roles to log in directly
+      setIsAuthenticated(true);
     }
+  };
+
+  const handleRegisterSubmit = (e) => {
+    e.preventDefault();
+    const nameVal = e.target.querySelector('input[placeholder="Enter your full name"]')?.value || '';
+    const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
     
-    setIsAuthenticated(true);
+    const nameParts = nameVal.trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Unknown';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    if (userRole === 'patient') {
+      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      if (patientsList.some(p => p.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
+      const newPatient = {
+        id: newId,
+        firstName,
+        lastName,
+        email: emailVal,
+        dob: '1990-01-01', // Default, can be updated in dashboard
+        gender: 'other',
+        phone: '',
+        reports: []
+      };
+      const updated = [newPatient, ...patientsList];
+      localStorage.setItem('dhms_patients', JSON.stringify(updated));
+      setLoggedInPatient(newPatient);
+      setIsAuthenticated(true);
+      alert(`Patient account created successfully! Your ID is ${newId}`);
+    } else if (userRole === 'doctor') {
+      const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+      if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `dr_${firstName.toLowerCase()}_${Math.floor(100 + Math.random() * 900)}`;
+      const newDoc = {
+        id: newId,
+        name: `Dr. ${firstName} ${lastName}`,
+        department: 'Primary Care',
+        status: 'Available',
+        email: emailVal,
+        phone: ''
+      };
+      const updated = [newDoc, ...doctorsList];
+      localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+      setIsAuthenticated(true);
+      alert(`Doctor account registered successfully! ID: ${newId}`);
+    } else {
+      setIsAuthenticated(true);
+    }
   };
 
   const handleLogout = () => {
@@ -268,7 +240,7 @@ function App() {
             <button type="submit" className="btn-submit">Secure Sign In</button>
           </form>
         ) : (
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
+          <form className="auth-form" onSubmit={handleRegisterSubmit}>
             <div className="form-group">
               <label>Full Name</label>
               <div className="input-wrapper">

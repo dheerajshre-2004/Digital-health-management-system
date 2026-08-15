@@ -15,40 +15,55 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   });
 
   useEffect(() => {
+    const handleStorageChange = () => {
+      const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      const id = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+      const found = list.find(p => p.id === id);
+      if (found) {
+        setCurrentPatient(found);
+        setEhrRecords(found.reports || []);
+      }
+      
+      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const patientId = id;
+      setAppointments(allAppts.filter(a => a.patientId === patientId));
+      
+      const teleAppts = allAppts.filter(a => a.patientId === patientId && a.type === 'Telemedicine');
+      setTeleconsultations(teleAppts.map(a => ({
+        id: a.id,
+        doctor: a.doctorName,
+        department: a.department,
+        date: a.date,
+        time: a.time,
+        status: a.status === 'Scheduled' ? 'Ready' : a.status,
+        reason: a.reason
+      })));
+
+      setAdherenceLogs(JSON.parse(localStorage.getItem('dhms_adherence_logs') || '{}'));
+      
+      const allLabOrders = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+      setLabOrders(allLabOrders.filter(l => l.patientId === patientId));
+      
+      setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+    };
+
+    // Load initial check
     const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
     const id = currentPatient?.id || loggedInPatient?.id || "PT-80234";
     const found = list.find(p => p.id === id);
     if (found) {
       setCurrentPatient(found);
     }
-  }, [activeTab, loggedInPatient]);
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [activeTab, loggedInPatient, currentPatient?.id]);
 
   // Appointments & Consultations State
   const [appointments, setAppointments] = useState(() => {
-    // Sync initially with localStorage. Seed a default cardiology checkup if none exists
     const list = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
     const patientId = currentPatient?.id || "PT-80234";
-    const myAppts = list.filter(a => a.patientId === patientId);
-    if (myAppts.length === 0) {
-      const seedAppt = {
-        id: "TELE-502",
-        patientId: patientId,
-        patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
-        doctorId: "dr_gregory_house",
-        doctorName: "Dr. Gregory House",
-        department: "Cardiology",
-        date: "2026-08-04",
-        time: "01:50 PM",
-        reason: "Follow-up on sinus arrhythmia symptoms.",
-        status: "Scheduled",
-        type: "Telemedicine",
-        source: "Online"
-      };
-      const updatedList = [seedAppt, ...list];
-      localStorage.setItem('dhms_appointments', JSON.stringify(updatedList));
-      return updatedList;
-    }
-    return list;
+    return list.filter(a => a.patientId === patientId);
   });
 
   const [reschedulingAppt, setReschedulingAppt] = useState(null);
@@ -57,14 +72,16 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const handleCancelConsultation = (apptId) => {
     if (window.confirm("Are you sure you want to cancel this consultation?")) {
-      const updated = appointments.map(a => {
+      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const updated = allAppts.map(a => {
         if (a.id === apptId) {
           return { ...a, status: 'Cancelled' };
         }
         return a;
       });
       localStorage.setItem('dhms_appointments', JSON.stringify(updated));
-      setAppointments(updated);
+      const patientId = currentPatient?.id || "PT-80234";
+      setAppointments(updated.filter(a => a.patientId === patientId));
       alert("Consultation cancelled successfully.");
     }
   };
@@ -73,7 +90,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     e.preventDefault();
     if (!rescheduleDate || !rescheduleTime) return;
 
-    const updated = appointments.map(a => {
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const updated = allAppts.map(a => {
       if (a.id === reschedulingAppt.id) {
         return { ...a, date: rescheduleDate, time: rescheduleTime, status: 'Rescheduled' };
       }
@@ -81,7 +99,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     });
 
     localStorage.setItem('dhms_appointments', JSON.stringify(updated));
-    setAppointments(updated);
+    const patientId = currentPatient?.id || "PT-80234";
+    setAppointments(updated.filter(a => a.patientId === patientId));
     setReschedulingAppt(null);
     setRescheduleDate('');
     setRescheduleTime('');
@@ -107,11 +126,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   };
 
   // EHR States
-  const [ehrRecords, setEhrRecords] = useState([
-    { id: "EHR-882", name: "Immunization Record & Covid-19 Card", type: "Immunization", size: "1.2 MB", date: "2026-05-12", author: "Dr. Allison Cameron", hash: "sha256-8a7f92b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f", details: { vaccine: "COVID-19 mRNA (Pfizer-BioNTech)", dose1: "2025-10-15", dose2: "2025-11-05", booster: "2026-05-10", facility: "DHMS Health Hub" } },
-    { id: "EHR-401", name: "Lipid Panel Test Report", type: "Lab Report", size: "850 KB", date: "2026-04-16", author: "Dr. Robert Chase", hash: "sha256-4c2d81a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0", details: { cholesterol: "215 mg/dL (High)", hdl: "45 mg/dL (Normal)", ldl: "142 mg/dL (High)", triglycerides: "160 mg/dL (Borderline High)" } },
-    { id: "EHR-210", name: "Chest X-Ray Diagnostic Imaging", type: "Imaging", size: "14.5 MB", date: "2026-03-02", author: "Dr. Gregory House", hash: "sha256-9e1b23c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2", details: { region: "Chest (PA and Lateral View)", findings: "Lungs are clear bilaterally. No pleural effusion or pneumothorax. Cardiomediastinal silhouette is within normal limits. Bony structures are intact.", impression: "Normal Chest Radiograph" } }
-  ]);
+  const [ehrRecords, setEhrRecords] = useState(() => {
+    return currentPatient?.reports || [];
+  });
   const [ehrSearchQuery, setEhrSearchQuery] = useState('');
   const [ehrFilterType, setEhrFilterType] = useState('All');
   const [selectedEhrRecord, setSelectedEhrRecord] = useState(null);
@@ -119,42 +136,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Laboratory States
-  const [labOrders, setLabOrders] = useState([
-    { 
-      id: "LAB-9801", 
-      testName: "Complete Blood Count (CBC)", 
-      status: "Completed", 
-      date: "2026-07-11", 
-      doctor: "Dr. Gregory House",
-      timeline: [
-        { title: "Order Created", date: "2026-07-10 09:00 AM", done: true },
-        { title: "Sample Collected", date: "2026-07-11 08:30 AM", done: true },
-        { title: "Received by Lab", date: "2026-07-11 11:45 AM", done: true },
-        { title: "Results Published", date: "2026-07-11 04:30 PM", done: true }
-      ],
-      results: [
-        { parameter: "White Blood Cell (WBC)", value: "6.5", range: "4.5 - 11.0", unit: "x10^3/uL", flag: "Normal" },
-        { parameter: "Red Blood Cell (RBC)", value: "4.8", range: "4.3 - 5.9", unit: "x10^6/uL", flag: "Normal" },
-        { parameter: "Hemoglobin", value: "15.2", range: "13.5 - 17.5", unit: "g/dL", flag: "Normal" },
-        { parameter: "Hematocrit", value: "44.5", range: "41.0 - 50.0", unit: "%", flag: "Normal" },
-        { parameter: "Platelets", value: "142", range: "150 - 450", unit: "x10^3/uL", flag: "Low" }
-      ]
-    },
-    { 
-      id: "LAB-7652", 
-      testName: "Metabolic Panel & Kidney Function", 
-      status: "Processing", 
-      date: "2026-07-14", 
-      doctor: "Dr. Gregory House",
-      timeline: [
-        { title: "Order Created", date: "2026-07-13 02:15 PM", done: true },
-        { title: "Sample Collected", date: "2026-07-14 07:30 AM", done: true },
-        { title: "Received by Lab", date: "2026-07-14 10:15 AM", done: true },
-        { title: "Results Published", date: "Pending Verification", done: false }
-      ],
-      results: []
-    }
-  ]);
+  const [labOrders, setLabOrders] = useState(() => {
+    const list = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+    const patientId = currentPatient?.id || "PT-80234";
+    return list.filter(l => l.patientId === patientId);
+  });
   const [selectedLabOrder, setSelectedLabOrder] = useState(null);
   const [showOrderLabModal, setShowOrderLabModal] = useState(false);
   const [newLabTestName, setNewLabTestName] = useState('Thyroid Panel (TSH, Free T4)');
@@ -163,8 +149,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   // Telemedicine States
   const [teleconsultations, setTeleconsultations] = useState(() => {
     const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    const teleAppts = saved.filter(a => a.type === 'Telemedicine');
-    const mapped = teleAppts.map(a => ({
+    const patientId = currentPatient?.id || "PT-80234";
+    const teleAppts = saved.filter(a => a.patientId === patientId && a.type === 'Telemedicine');
+    return teleAppts.map(a => ({
       id: a.id,
       doctor: a.doctorName,
       department: a.department,
@@ -173,30 +160,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       status: a.status === 'Scheduled' ? 'Ready' : a.status,
       reason: a.reason
     }));
-    const hasDefault = mapped.some(m => m.id === 'TELE-502');
-    if (!hasDefault) {
-      const defaultStatus = saved.find(a => a.id === 'TELE-502')?.status || 'Ready';
-      mapped.push({
-        id: "TELE-502",
-        doctor: "Dr. Gregory House",
-        department: "Cardiology",
-        date: "Today",
-        time: "01:50 PM",
-        status: defaultStatus === 'Scheduled' ? 'Ready' : defaultStatus,
-        reason: "Follow-up on sinus arrhythmia symptoms."
-      });
-    }
-    return mapped;
   });
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
-  const [activeCallId, setActiveCallId] = useState("TELE-502");
-  const [callChatMessages, setCallChatMessages] = useState([
-    { sender: "doctor", text: "Hello John, I've reviewed your ECG and recent lab values. How have you been feeling since our last visit?", time: "01:50 PM" }
-  ]);
+  const [activeCallId, setActiveCallId] = useState('');
+  const [callChatMessages, setCallChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [showScheduleTeleModal, setShowScheduleTeleModal] = useState(false);
-  const [newTeleDoctor, setNewTeleDoctor] = useState('Dr. Gregory House');
-  const [newTeleDept, setNewTeleDept] = useState('Cardiology');
+  const [newTeleDoctor, setNewTeleDoctor] = useState('');
+  const [newTeleDept, setNewTeleDept] = useState('Primary Care');
   const [newTeleDate, setNewTeleDate] = useState('');
   const [newTeleTime, setNewTeleTime] = useState('');
   const [newTeleReason, setNewTeleReason] = useState('');

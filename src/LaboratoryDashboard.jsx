@@ -24,6 +24,14 @@ export default function LaboratoryDashboard({ onLogout }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+      setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Direct lab appointments (Patient booked)
   const labAppointments = appointments.filter(appt => 
@@ -40,14 +48,14 @@ export default function LaboratoryDashboard({ onLogout }) {
 
   // Laboratory Attendance State
   const [labAttendanceForm, setLabAttendanceForm] = useState({
-    staffId: 'LAB-201',
-    staffName: 'Dr. Alex Vance',
-    role: 'Chief Lab Specialist',
+    staffId: '',
+    staffName: '',
+    role: 'Lab Technician',
     date: new Date().toISOString().split('T')[0],
     status: 'Present',
-    checkIn: '08:45 AM',
-    checkOut: '05:15 PM',
-    remarks: 'Biochemistry Unit'
+    checkIn: '08:30 AM',
+    checkOut: '05:00 PM',
+    remarks: ''
   });
 
   const handleMarkLabAttendance = (e) => {

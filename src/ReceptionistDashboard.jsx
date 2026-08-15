@@ -13,25 +13,26 @@ export default function ReceptionistDashboard({ onLogout }) {
     return JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
   });
 
-  const [doctorsList, setDoctorsList] = useState([
-    { id: "DOC-101", name: "Dr. Gregory House", specialty: "Cardiology", room: "Room 302", shift: "08:00 AM - 04:00 PM", status: "On Duty" },
-    { id: "DOC-102", name: "Dr. Allison Cameron", specialty: "Immunology", room: "Room 214", shift: "09:00 AM - 05:00 PM", status: "On Duty" },
-    { id: "DOC-103", name: "Dr. Robert Chase", specialty: "General Medicine", room: "Room 105", shift: "01:00 PM - 09:00 PM", status: "On Break" },
-    { id: "DOC-104", name: "Dr. Meredith Grey", specialty: "General Surgery", room: "Room 401", shift: "08:00 AM - 04:00 PM", status: "In Surgery" },
-    { id: "DOC-105", name: "Dr. John Watson", specialty: "Primary Care", room: "Room 102", shift: "09:00 AM - 05:00 PM", status: "On Leave" }
-  ]);
+  const [doctorsList, setDoctorsList] = useState(() => {
+    const saved = localStorage.getItem('dhms_doctors');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.map(d => ({
+        ...d,
+        specialty: d.specialty || d.department || 'Primary Care',
+        room: d.room || 'Room 101',
+        shift: d.shift || '09:00 AM - 05:00 PM',
+        status: d.status || 'On Duty'
+      }));
+    }
+    return [];
+  });
 
   const [billingList, setBillingList] = useState(() => {
     const saved = localStorage.getItem('dhms_billing');
     if (saved) return JSON.parse(saved);
-    const defaults = [
-      { id: "INV-5091", patientId: "PT-80234", patientName: "Alice Johnson", date: "2026-07-16", amount: "$150.00", status: "Paid", type: "Consultation Fee" },
-      { id: "INV-1102", patientId: "PT-11922", patientName: "Bob Smith", date: "2026-07-16", amount: "$350.00", status: "Unpaid", type: "Lab Diagnostics" },
-      { id: "INV-6540", patientId: "PT-55310", patientName: "Carol Davis", date: "2026-07-16", amount: "$75.00", status: "Paid", type: "Prescription Co-pay" },
-      { id: "INV-2908", patientId: "PT-22345", patientName: "David Wilson", date: "2026-07-15", amount: "$120.00", status: "Unpaid", type: "Consultation Fee" }
-    ];
-    localStorage.setItem('dhms_billing', JSON.stringify(defaults));
-    return defaults;
+    localStorage.setItem('dhms_billing', JSON.stringify([]));
+    return [];
   });
 
   // State for Patient Registration
@@ -79,15 +80,38 @@ export default function ReceptionistDashboard({ onLogout }) {
   });
 
   const [recAttendanceForm, setRecAttendanceForm] = useState({
-    staffId: 'REC-101',
-    staffName: 'Sarah Connor',
-    role: 'Senior Receptionist',
+    staffId: '',
+    staffName: '',
+    role: 'Receptionist',
     date: new Date().toISOString().split('T')[0],
     status: 'Present',
     checkIn: '08:00 AM',
     checkOut: '04:30 PM',
-    remarks: 'Front Desk Morning Shift'
+    remarks: ''
   });
+
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
+      setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      const savedDocs = localStorage.getItem('dhms_doctors');
+      if (savedDocs) {
+        setDoctorsList(JSON.parse(savedDocs).map(d => ({
+          ...d,
+          specialty: d.specialty || d.department || 'Primary Care',
+          room: d.room || 'Room 101',
+          shift: d.shift || '09:00 AM - 05:00 PM',
+          status: d.status || 'On Duty'
+        })));
+      }
+      setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
+      setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
+      setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+      setMasterAttendance(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleMarkRecAttendance = (e) => {
     e.preventDefault();

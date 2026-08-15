@@ -2,20 +2,9 @@ import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import CashCounterDashboard from './CashCounterDashboard';
 
-const DUMMY_DEPARTMENTS = [
-  { id: 1, name: 'Cardiology', head: 'Dr. Gregory House', code: 'CARD' },
-  { id: 2, name: 'Neurology', head: 'Dr. John Adams', code: 'NEUR' },
-  { id: 3, name: 'Pediatrics', head: 'Dr. Emily Johnson', code: 'PEDS' },
-  { id: 4, name: 'Orthopedics', head: 'Dr. Michael Williams', code: 'ORTH' },
-  { id: 5, name: 'Primary Care', head: 'Dr. John Watson', code: 'PRIM' },
-  { id: 6, name: 'General Surgery', head: 'Dr. Meredith Grey', code: 'SURG' }
-];
+const DUMMY_DEPARTMENTS = [];
 
-const DOCTORS = [
-  { id: 'dr_watson', name: 'Dr. John Watson', department: 'Primary Care' },
-  { id: 'dr_house', name: 'Dr. Gregory House', department: 'Cardiology' },
-  { id: 'dr_grey', name: 'Dr. Meredith Grey', department: 'General Surgery' }
-];
+const DOCTORS = [];
 
 export default function Dashboard({ onLogout, role }) {
   const [activeView, setActiveView] = useState('overview');
@@ -40,7 +29,7 @@ export default function Dashboard({ onLogout, role }) {
 
   const handleDoctorLogAttendance = (e) => {
     e.preventDefault();
-    const activeDocObj = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+    const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: '', name: 'Unknown Doctor', department: 'General' };
     const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
     const newRecord = {
       id: `ATT-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -84,16 +73,8 @@ export default function Dashboard({ onLogout, role }) {
   const [doctorsRoster, setDoctorsRoster] = useState(() => {
     const saved = localStorage.getItem('dhms_doctors');
     if (saved) return JSON.parse(saved);
-    const defaults = [
-      { id: 'dr_watson', name: 'Dr. John Watson', department: 'Primary Care', status: 'Available', email: 'watson@dhms.org', phone: '+1 (555) 019-2001' },
-      { id: 'dr_house', name: 'Dr. Gregory House', department: 'Cardiology', status: 'Available', email: 'house@dhms.org', phone: '+1 (555) 019-2002' },
-      { id: 'dr_grey', name: 'Dr. Meredith Grey', department: 'General Surgery', status: 'In Surgery', email: 'grey@dhms.org', phone: '+1 (555) 019-2003' },
-      { id: 'dr_adams', name: 'Dr. John Adams', department: 'Neurology', status: 'On Leave', email: 'adams@dhms.org', phone: '+1 (555) 019-2004' },
-      { id: 'dr_johnson', name: 'Dr. Emily Johnson', department: 'Pediatrics', status: 'Available', email: 'johnson@dhms.org', phone: '+1 (555) 019-2005' },
-      { id: 'dr_williams', name: 'Dr. Michael Williams', department: 'Orthopedics', status: 'In Surgery', email: 'williams@dhms.org', phone: '+1 (555) 019-2006' }
-    ];
-    localStorage.setItem('dhms_doctors', JSON.stringify(defaults));
-    return defaults;
+    localStorage.setItem('dhms_doctors', JSON.stringify([]));
+    return [];
   });
 
   // Modals state for Admin
@@ -111,7 +92,10 @@ export default function Dashboard({ onLogout, role }) {
 
   const [showAdminBookingModal, setShowAdminBookingModal] = useState(false);
   const [adminBookPatient, setAdminBookPatient] = useState('');
-  const [adminBookDoctor, setAdminBookDoctor] = useState('dr_watson');
+  const [adminBookDoctor, setAdminBookDoctor] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+    return saved.length > 0 ? saved[0].id : '';
+  });
   const [adminBookDept, setAdminBookDept] = useState('Primary Care');
   const [adminBookDate, setAdminBookDate] = useState(new Date().toISOString().split('T')[0]);
   const [adminBookTime, setAdminBookTime] = useState('10:00 AM');
@@ -122,18 +106,15 @@ export default function Dashboard({ onLogout, role }) {
   const [billingList, setBillingList] = useState(() => {
     const saved = localStorage.getItem('dhms_billing');
     if (saved) return JSON.parse(saved);
-    const defaults = [
-      { id: "INV-5091", patientId: "PT-80234", patientName: "Alice Johnson", date: "2026-07-16", amount: "₹150.00", status: "Paid", type: "Consultation Fee" },
-      { id: "INV-1102", patientId: "PT-11922", patientName: "Bob Smith", date: "2026-07-16", amount: "₹350.00", status: "Unpaid", type: "Lab Diagnostics" },
-      { id: "INV-6540", patientId: "PT-55310", patientName: "Carol Davis", date: "2026-07-16", amount: "₹75.00", status: "Paid", type: "Prescription Co-pay" },
-      { id: "INV-2908", patientId: "PT-22345", patientName: "David Wilson", date: "2026-07-15", amount: "₹120.00", status: "Unpaid", type: "Consultation Fee" }
-    ];
-    localStorage.setItem('dhms_billing', JSON.stringify(defaults));
-    return defaults;
+    localStorage.setItem('dhms_billing', JSON.stringify([]));
+    return [];
   });
 
   // Doctor state
-  const [activeDoctorId, setActiveDoctorId] = useState('dr_watson');
+  const [activeDoctorId, setActiveDoctorId] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+    return saved.length > 0 ? saved[0].id : '';
+  });
   const [selectedApptForCheckup, setSelectedApptForCheckup] = useState(null);
   const [selectedEhrPatient, setSelectedEhrPatient] = useState(null);
   const [patientSearch, setPatientSearch] = useState('');
@@ -1482,7 +1463,7 @@ export default function Dashboard({ onLogout, role }) {
         </>
       );
     } else if (role === 'doctor') {
-      const activeDoctor = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+      const activeDoctor = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { name: 'Doctor' };
       const docAppts = appointments.filter(appt => appt.doctorId === activeDoctorId);
       const uniquePatientsCount = new Set(docAppts.map(a => a.patientId)).size;
 
@@ -2555,7 +2536,7 @@ export default function Dashboard({ onLogout, role }) {
             </div>
           );
         } else if (role === 'doctor') {
-          const activeDocObj = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+          const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: '', name: 'Unknown Doctor', department: 'General' };
           const docRecords = (JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'))
             .filter(a => a.module === 'Doctor' && a.staffId === activeDocObj.id);
 
@@ -2702,7 +2683,7 @@ export default function Dashboard({ onLogout, role }) {
               <div className="tele-video-frame local">
                 <div className="tele-video-placeholder">
                   <div className="tele-video-avatar doctor">
-                    {DOCTORS.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0]}
+                    {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0]}
                   </div>
                   <h3>You</h3>
                   <p>Camera Streaming</p>
@@ -2878,7 +2859,7 @@ export default function Dashboard({ onLogout, role }) {
                 onChange={(e) => setActiveDoctorId(e.target.value)}
                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
               >
-                {DOCTORS.map(d => (
+                {doctorsRoster.map(d => (
                   <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
                 ))}
               </select>

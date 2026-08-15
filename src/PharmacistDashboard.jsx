@@ -36,13 +36,18 @@ export default function PharmacistDashboard({ onLogout }) {
   const [selectedMedForStock, setSelectedMedForStock] = useState(null);
   const [stockToUpdate, setStockToUpdate] = useState(0);
 
-  // Load from LocalStorage on mount
+  // Load from LocalStorage on mount and listen for storage updates
   useEffect(() => {
-    setMedications(JSON.parse(localStorage.getItem('dhms_medications') || '[]'));
-    setStaff(JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]'));
-    setAttendance(JSON.parse(localStorage.getItem('dhms_pharmacy_attendance') || '[]'));
-    setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
-    setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+    const loadFromStorage = () => {
+      setMedications(JSON.parse(localStorage.getItem('dhms_medications') || '[]'));
+      setStaff(JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]'));
+      setAttendance(JSON.parse(localStorage.getItem('dhms_pharmacy_attendance') || '[]'));
+      setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
+      setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+    };
+    loadFromStorage();
+    window.addEventListener('storage', loadFromStorage);
+    return () => window.removeEventListener('storage', loadFromStorage);
   }, []);
 
   // Sync helpers
