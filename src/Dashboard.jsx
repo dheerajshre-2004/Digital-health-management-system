@@ -6,7 +6,7 @@ const DUMMY_DEPARTMENTS = [];
 
 const DOCTORS = [];
 
-export default function Dashboard({ onLogout, role }) {
+export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [activeView, setActiveView] = useState('overview');
 
   // Admin Module States & Controls
@@ -112,9 +112,20 @@ export default function Dashboard({ onLogout, role }) {
 
   // Doctor state
   const [activeDoctorId, setActiveDoctorId] = useState(() => {
+    if (role === 'doctor' && loggedInDoctor) {
+      return loggedInDoctor.id;
+    }
     const saved = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
     return saved.length > 0 ? saved[0].id : '';
   });
+
+  useEffect(() => {
+    if (role === 'doctor' && loggedInDoctor) {
+      setActiveDoctorId(loggedInDoctor.id);
+    }
+  }, [loggedInDoctor, role]);
+
+  const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: '', name: 'Unknown Doctor', department: 'Primary Care' });
   const [selectedApptForCheckup, setSelectedApptForCheckup] = useState(null);
   const [selectedEhrPatient, setSelectedEhrPatient] = useState(null);
   const [patientSearch, setPatientSearch] = useState('');
@@ -2854,15 +2865,9 @@ export default function Dashboard({ onLogout, role }) {
           <div className="topbar-title">{role.toUpperCase()} Dashboard</div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {role === 'doctor' && (
-              <select 
-                value={activeDoctorId} 
-                onChange={(e) => setActiveDoctorId(e.target.value)}
-                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
-              >
-                {doctorsRoster.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
-                ))}
-              </select>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', background: '#f1f5f9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                {activeDocObj.name} ({activeDocObj.department})
+              </span>
             )}
             <div className="user-profile">Role: {role.toUpperCase()}</div>
           </div>

@@ -23,11 +23,8 @@ function InsuranceDashboard({ onLogout }) {
     maxCoverage: '500000'
   });
 
-  // Pre-authorization requests (simulated)
-  const [preAuths, setPreAuths] = useState([
-    { id: "PA-301", patientId: "PT-80234", patientName: "Alice Johnson", procedure: "Laparoscopic Cholecystectomy", estimatedCost: "₹180,000", provider: "Max Life Insurance", policyNo: "MAX-8023401", status: "Pending", date: "2026-08-04" },
-    { id: "PA-302", patientId: "PT-22345", patientName: "David Wilson", procedure: "Angioplasty + Stent placement", estimatedCost: "₹350,000", provider: "HDFC Ergo", policyNo: "HDFC-2234504", status: "Approved", date: "2026-08-03" }
-  ]);
+  // Pre-authorization requests
+  const [preAuths, setPreAuths] = useState([]);
 
   useEffect(() => {
     const loadFromStorage = () => {
@@ -40,6 +37,11 @@ function InsuranceDashboard({ onLogout }) {
       const savedPolicies = localStorage.getItem('dhms_insurance_policies');
       if (savedPolicies) {
         setPolicies(JSON.parse(savedPolicies));
+      }
+      // Load pre-auths from localStorage
+      const savedPreAuths = localStorage.getItem('dhms_insurance_pre_auths');
+      if (savedPreAuths) {
+        setPreAuths(JSON.parse(savedPreAuths));
       }
     };
     loadFromStorage();
@@ -147,6 +149,11 @@ function InsuranceDashboard({ onLogout }) {
     });
   };
 
+  const savePreAuthsToStorage = (updated) => {
+    localStorage.setItem('dhms_insurance_pre_auths', JSON.stringify(updated));
+    setPreAuths(updated);
+  };
+
   const handleApprovePreAuth = (id) => {
     const updated = preAuths.map(pa => {
       if (pa.id === id) {
@@ -154,7 +161,7 @@ function InsuranceDashboard({ onLogout }) {
       }
       return pa;
     });
-    setPreAuths(updated);
+    savePreAuthsToStorage(updated);
   };
 
   const handleRejectPreAuth = (id) => {
@@ -164,7 +171,7 @@ function InsuranceDashboard({ onLogout }) {
       }
       return pa;
     });
-    setPreAuths(updated);
+    savePreAuthsToStorage(updated);
   };
 
   // Analytics helper calculations

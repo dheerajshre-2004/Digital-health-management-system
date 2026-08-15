@@ -13,6 +13,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('patient');
   const [loggedInPatient, setLoggedInPatient] = useState(null);
+  const [loggedInDoctor, setLoggedInDoctor] = useState(null);
 
   useEffect(() => {
     // Seed initial empty state if not present
@@ -78,6 +79,7 @@ function App() {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       const matched = doctorsList.find(d => d.email?.toLowerCase() === emailVal.toLowerCase());
       if (matched) {
+        setLoggedInDoctor(matched);
         setIsAuthenticated(true);
       } else {
         alert('Doctor account not found. Please register first.');
@@ -116,9 +118,8 @@ function App() {
       };
       const updated = [newPatient, ...patientsList];
       localStorage.setItem('dhms_patients', JSON.stringify(updated));
-      setLoggedInPatient(newPatient);
-      setIsAuthenticated(true);
-      alert(`Patient account created successfully! Your ID is ${newId}`);
+      alert(`Patient account created successfully! Your ID is ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
@@ -136,16 +137,18 @@ function App() {
       };
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
-      setIsAuthenticated(true);
-      alert(`Doctor account registered successfully! ID: ${newId}`);
+      alert(`Doctor account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
     } else {
-      setIsAuthenticated(true);
+      alert('Registration successful! Please sign in using your account credentials.');
+      setActiveTab('signin');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setLoggedInPatient(null);
+    setLoggedInDoctor(null);
   };
 
   if (isAuthenticated) {
@@ -167,7 +170,7 @@ function App() {
     if (userRole === 'insurance_agent') {
       return <InsuranceDashboard onLogout={handleLogout} />;
     }
-    return <Dashboard onLogout={handleLogout} role={userRole} />;
+    return <Dashboard onLogout={handleLogout} role={userRole} loggedInDoctor={loggedInDoctor} />;
   }
 
   return (
