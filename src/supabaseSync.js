@@ -133,14 +133,14 @@ export function initSupabaseSync() {
  */
 export async function fetchSupabaseData() {
   try {
-    // Clear local storage first to force a clean slate and avoid syncing old local data
-    window.localStorage.clear();
-
-    // Check if Supabase keys are configured
+    // Check if Supabase keys are configured first
     if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
       console.warn('[Supabase Sync] API keys missing. Running in local-only mode.');
       return;
     }
+
+    // Clear local storage first to force a clean slate and avoid syncing old local data
+    window.localStorage.clear();
 
     const { data, error } = await supabase
       .from('dhms_store')

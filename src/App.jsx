@@ -14,8 +14,36 @@ function App() {
   const [userRole, setUserRole] = useState('patient');
   const [loggedInPatient, setLoggedInPatient] = useState(null);
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    // Clean up dummy staff accounts from user's existing localStorage session
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+
+    const recSaved = localStorage.getItem('dhms_receptionist_staff');
+    if (recSaved) {
+      const filtered = JSON.parse(recSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(filtered));
+    }
+
+    const labSaved = localStorage.getItem('dhms_laboratory_staff');
+    if (labSaved) {
+      const filtered = JSON.parse(labSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(filtered));
+    }
+
+    const phrSaved = localStorage.getItem('dhms_pharmacy_staff');
+    if (phrSaved) {
+      const filtered = JSON.parse(phrSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(filtered));
+    }
+
+    const cashSaved = localStorage.getItem('dhms_cashier_staff');
+    if (cashSaved) {
+      const filtered = JSON.parse(cashSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify(filtered));
+    }
+
     // Seed initial empty state if not present
     if (!localStorage.getItem('dhms_patients')) {
       localStorage.setItem('dhms_patients', JSON.stringify([]));
@@ -34,11 +62,33 @@ function App() {
     }
 
     if (!localStorage.getItem('dhms_medications')) {
-      localStorage.setItem('dhms_medications', JSON.stringify([]));
+      const defaultMeds = [
+        { id: "MED-101", name: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", category: "Antibiotics", stock: 150, price: 18.00, isEmergency: false, lowStockThreshold: 20 },
+        { id: "MED-102", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 120, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
+        { id: "MED-103", name: "Metoprolol 25mg", genericName: "Metoprolol Succinate", category: "Cardiovascular", stock: 95, price: 20.00, isEmergency: false, lowStockThreshold: 15 },
+        { id: "MED-104", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 6.50, isEmergency: false, lowStockThreshold: 25 },
+        { id: "MED-105", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 3.00, isEmergency: true, lowStockThreshold: 50 },
+        { id: "MED-106", name: "Epinephrine 1mg/mL", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 60, price: 40.00, isEmergency: true, lowStockThreshold: 15 },
+        { id: "MED-107", name: "Adenosine 6mg/2mL", genericName: "Adenosine", category: "Antiarrhythmic", stock: 40, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
+        { id: "MED-108", name: "Naloxone 0.4mg/mL", genericName: "Naloxone", category: "Opioid Antagonist", stock: 50, price: 35.00, isEmergency: true, lowStockThreshold: 15 }
+      ];
+      localStorage.setItem('dhms_medications', JSON.stringify(defaultMeds));
+    }
+
+    if (!localStorage.getItem('dhms_receptionist_staff')) {
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify([]));
+    }
+
+    if (!localStorage.getItem('dhms_laboratory_staff')) {
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify([]));
     }
 
     if (!localStorage.getItem('dhms_pharmacy_staff')) {
       localStorage.setItem('dhms_pharmacy_staff', JSON.stringify([]));
+    }
+
+    if (!localStorage.getItem('dhms_cashier_staff')) {
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify([]));
     }
 
     if (!localStorage.getItem('dhms_pharmacy_attendance')) {
@@ -60,16 +110,33 @@ function App() {
     if (!localStorage.getItem('dhms_insurance_claims')) {
       localStorage.setItem('dhms_insurance_claims', JSON.stringify([]));
     }
+
+    if (!localStorage.getItem('dhms_lab_facilities')) {
+      const defaultFacilities = [
+        { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+        { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+        { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+        { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+        { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+        { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+      ];
+      localStorage.setItem('dhms_lab_facilities', JSON.stringify(defaultFacilities));
+    }
   }, []);
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
+    const passwordVal = e.target.querySelector('input[type="password"]')?.value || '';
     
     if (userRole === 'patient') {
       const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
       const matched = patientsList.find(p => p.email?.toLowerCase() === emailVal.toLowerCase());
       if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
         setLoggedInPatient(matched);
         setIsAuthenticated(true);
       } else {
@@ -79,13 +146,65 @@ function App() {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       const matched = doctorsList.find(d => d.email?.toLowerCase() === emailVal.toLowerCase());
       if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
         setLoggedInDoctor(matched);
         setIsAuthenticated(true);
       } else {
         alert('Doctor account not found. Please register first.');
       }
+    } else if (userRole === 'receptionist') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
+      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
+        setIsAuthenticated(true);
+      } else {
+        alert('Receptionist account not found. Please register first.');
+      }
+    } else if (userRole === 'laboratory') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
+      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
+        setIsAuthenticated(true);
+      } else {
+        alert('Laboratory staff account not found. Please register first.');
+      }
+    } else if (userRole === 'pharmacist') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
+        setIsAuthenticated(true);
+      } else {
+        alert('Pharmacy staff account not found. Please register first.');
+      }
+    } else if (userRole === 'cash_counter') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
+      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          return;
+        }
+        setIsAuthenticated(true);
+      } else {
+        alert('Cash counter staff account not found. Please register first.');
+      }
     } else {
-      // Allow other staff roles to log in directly
+      // Allow other roles (like admin) to log in directly
       setIsAuthenticated(true);
     }
   };
@@ -94,6 +213,7 @@ function App() {
     e.preventDefault();
     const nameVal = e.target.querySelector('input[placeholder="Enter your full name"]')?.value || '';
     const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
+    const passwordVal = e.target.querySelector('input[type="password"]')?.value || '';
     
     const nameParts = nameVal.trim().split(/\s+/);
     const firstName = nameParts[0] || 'Unknown';
@@ -111,6 +231,7 @@ function App() {
         firstName,
         lastName,
         email: emailVal,
+        password: passwordVal,
         dob: '1990-01-01', // Default, can be updated in dashboard
         gender: 'other',
         phone: '',
@@ -133,11 +254,88 @@ function App() {
         department: 'Primary Care',
         status: 'Available',
         email: emailVal,
+        password: passwordVal,
         phone: ''
       };
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
       alert(`Doctor account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
+    } else if (userRole === 'receptionist') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
+      if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `REC-${Math.floor(100 + Math.random() * 900)}`;
+      const newStaff = {
+        id: newId,
+        name: nameVal,
+        role: 'Senior Receptionist',
+        email: emailVal,
+        password: passwordVal,
+        status: 'Available'
+      };
+      const updated = [newStaff, ...staffList];
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
+      alert(`Receptionist account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
+    } else if (userRole === 'laboratory') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
+      if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `LAB-${Math.floor(100 + Math.random() * 900)}`;
+      const newStaff = {
+        id: newId,
+        name: nameVal,
+        role: 'Lab Technician',
+        email: emailVal,
+        password: passwordVal,
+        status: 'Available'
+      };
+      const updated = [newStaff, ...staffList];
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
+      alert(`Laboratory staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
+    } else if (userRole === 'pharmacist') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+      if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `PHR-${Math.floor(100 + Math.random() * 900)}`;
+      const newStaff = {
+        id: newId,
+        name: nameVal,
+        role: 'Dispensing Pharmacist',
+        email: emailVal,
+        password: passwordVal,
+        status: 'Available'
+      };
+      const updated = [newStaff, ...staffList];
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
+      alert(`Pharmacy staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      setActiveTab('signin');
+    } else if (userRole === 'cash_counter') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
+      if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('Account already exists with this email.');
+        return;
+      }
+      const newId = `CSH-${Math.floor(100 + Math.random() * 900)}`;
+      const newStaff = {
+        id: newId,
+        name: nameVal,
+        role: 'Billing Specialist',
+        email: emailVal,
+        password: passwordVal,
+        status: 'Available'
+      };
+      const updated = [newStaff, ...staffList];
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
+      alert(`Cash counter staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
       setActiveTab('signin');
     } else {
       alert('Registration successful! Please sign in using your account credentials.');
@@ -216,7 +414,24 @@ function App() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <input type="password" placeholder="Enter password" required />
+                <input type={showPassword ? "text" : "password"} placeholder="Enter password" required style={{ paddingRight: '40px' }} />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -273,7 +488,24 @@ function App() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <input type="password" placeholder="Enter password" required />
+                <input type={showPassword ? "text" : "password"} placeholder="Enter password" required style={{ paddingRight: '40px' }} />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
 

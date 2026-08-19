@@ -24,10 +24,26 @@ export default function LaboratoryDashboard({ onLogout }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [labFacilities, setLabFacilities] = useState(() => {
+    const saved = localStorage.getItem('dhms_lab_facilities');
+    if (saved) return JSON.parse(saved);
+    const defaultFacilities = [
+      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    ];
+    localStorage.setItem('dhms_lab_facilities', JSON.stringify(defaultFacilities));
+    return defaultFacilities;
+  });
+
   useEffect(() => {
     const handleStorageChange = () => {
       setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
       setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -87,15 +103,56 @@ export default function LaboratoryDashboard({ onLogout }) {
     alert(`Attendance logged successfully for ${labAttendanceForm.staffName} (${labAttendanceForm.status}).`);
   };
 
-  // Laboratory Services / Packages Available
-  const labFacilities = [
-    { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
-    { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
-    { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
-    { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
-    { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
-    { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
-  ];
+  const [editingFacility, setEditingFacility] = useState(null);
+  const [showFacilityModal, setShowFacilityModal] = useState(false);
+  const [facilityForm, setFacilityForm] = useState({
+    code: '',
+    name: '',
+    dept: '',
+    cost: '₹',
+    time: '',
+    fast: 'No fasting required',
+    description: ''
+  });
+
+  const handleFacilitySubmit = (e) => {
+    e.preventDefault();
+    let updated;
+    const formattedCost = facilityForm.cost.startsWith('₹') ? facilityForm.cost : `₹${facilityForm.cost}`;
+    const newFac = { ...facilityForm, cost: formattedCost };
+
+    if (editingFacility) {
+      updated = labFacilities.map(f => f.code === editingFacility.code ? newFac : f);
+      alert("Lab facility updated successfully.");
+    } else {
+      if (labFacilities.some(f => f.code === facilityForm.code)) {
+        alert("A lab facility with this code already exists.");
+        return;
+      }
+      updated = [newFac, ...labFacilities];
+      alert("Lab facility added successfully.");
+    }
+    setLabFacilities(updated);
+    localStorage.setItem('dhms_lab_facilities', JSON.stringify(updated));
+    setShowFacilityModal(false);
+    setEditingFacility(null);
+    setFacilityForm({ code: '', name: '', dept: '', cost: '₹', time: '', fast: 'No fasting required', description: '' });
+  };
+
+  const handleEditFacility = (fac) => {
+    setEditingFacility(fac);
+    setFacilityForm(fac);
+    setShowFacilityModal(true);
+  };
+
+  const handleDeleteFacility = (code) => {
+    if (window.confirm("Are you sure you want to delete this lab facility/service?")) {
+      const updated = labFacilities.filter(f => f.code !== code);
+      setLabFacilities(updated);
+      localStorage.setItem('dhms_lab_facilities', JSON.stringify(updated));
+      alert("Lab facility deleted successfully.");
+    }
+  };
 
   const handleCompleteLabWithResults = (e) => {
     e.preventDefault();
@@ -688,30 +745,59 @@ export default function LaboratoryDashboard({ onLogout }) {
 
           {activeTab === 'facilities' && (
             <div className="lab-view-container animate-fade-in">
-              <div className="lab-view-header">
+              <div className="lab-view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
                   <h1>Lab Facilities & Available Services</h1>
                   <p>Reference catalog of pathology, biochemistry, and microbiology packages available at the DHMS Facility.</p>
                 </div>
+                <button 
+                  onClick={() => {
+                    setEditingFacility(null);
+                    setFacilityForm({ code: '', name: '', dept: '', cost: '₹', time: '', fast: 'No fasting required', description: '' });
+                    setShowFacilityModal(true);
+                  }}
+                  className="lab-btn-submit bg-purple"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  + Add Lab Service
+                </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 {labFacilities.map((fac, idx) => (
-                  <div key={idx} className="lab-card" style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '12px' }}>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: 'bold' }}>{fac.code}</span>
-                        <h3 style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#1e293b' }}>{fac.name}</h3>
+                  <div key={idx} className="lab-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '12px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: 'bold' }}>{fac.code}</span>
+                          <h3 style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#1e293b' }}>{fac.name}</h3>
+                        </div>
+                        <span className="price-tag" style={{ fontSize: '16px', color: '#4f46e5', fontWeight: 'bold' }}>{fac.cost}</span>
                       </div>
-                      <span className="price-tag" style={{ fontSize: '16px', color: '#4f46e5' }}>{fac.cost}</span>
+                      <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{fac.description}</p>
+                      <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '12px' }}>
+                        <span>Department: <strong>{fac.dept}</strong></span>
+                        <span>•</span>
+                        <span>Turnaround: <strong>{fac.time}</strong></span>
+                        <span>•</span>
+                        <span>{fac.fast}</span>
+                      </div>
                     </div>
-                    <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>{fac.description}</p>
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px' }}>
-                      <span>Department: <strong>{fac.dept}</strong></span>
-                      <span>•</span>
-                      <span>Turnaround: <strong>{fac.time}</strong></span>
-                      <span>•</span>
-                      <span>{fac.fast}</span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <button 
+                        onClick={() => handleEditFacility(fac)}
+                        className="lab-btn-submit bg-purple"
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteFacility(fac.code)}
+                        className="lab-btn-cancel"
+                        style={{ padding: '4px 10px', fontSize: '12px', color: '#ef4444', borderColor: '#ef4444' }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -803,6 +889,110 @@ export default function LaboratoryDashboard({ onLogout }) {
             <div className="lab-modal-footer">
               <button onClick={() => setViewedLabRequestResults(null)} className="lab-btn-submit bg-dark">Close Report</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lab Facility Form Modal */}
+      {showFacilityModal && (
+        <div className="lab-modal-overlay">
+          <div className="lab-modal" style={{ maxWidth: '500px' }}>
+            <div className="lab-modal-header bg-purple">
+              <h3>{editingFacility ? 'Edit Lab Service' : 'Add Lab Service'}</h3>
+              <button onClick={() => setShowFacilityModal(false)} className="lab-modal-close">&times;</button>
+            </div>
+            
+            <form onSubmit={handleFacilitySubmit}>
+              <div className="lab-modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Facility Code</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. PATH-CBC" 
+                      value={facilityForm.code} 
+                      onChange={(e) => setFacilityForm({ ...facilityForm, code: e.target.value.toUpperCase() })} 
+                      required
+                      disabled={!!editingFacility}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Service Cost</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 45.00" 
+                      value={facilityForm.cost} 
+                      onChange={(e) => setFacilityForm({ ...facilityForm, cost: e.target.value })} 
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Service Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Complete Blood Count (CBC)" 
+                    value={facilityForm.name} 
+                    onChange={(e) => setFacilityForm({ ...facilityForm, name: e.target.value })} 
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Department</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Hematology" 
+                      value={facilityForm.dept} 
+                      onChange={(e) => setFacilityForm({ ...facilityForm, dept: e.target.value })} 
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Turnaround Time</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 4-6 Hours" 
+                      value={facilityForm.time} 
+                      onChange={(e) => setFacilityForm({ ...facilityForm, time: e.target.value })} 
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Fasting Requirement</label>
+                  <select 
+                    value={facilityForm.fast} 
+                    onChange={(e) => setFacilityForm({ ...facilityForm, fast: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  >
+                    <option value="No fasting required">No fasting required</option>
+                    <option value="Fasting required (8-10 hours)">Fasting required (8-10 hours)</option>
+                    <option value="Fasting required (12 hours)">Fasting required (12 hours)</option>
+                    <option value="Fasting required (14 hours)">Fasting required (14 hours)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea 
+                    placeholder="Describe the clinical purpose and biomarkers evaluated..." 
+                    value={facilityForm.description} 
+                    onChange={(e) => setFacilityForm({ ...facilityForm, description: e.target.value })} 
+                    required
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="lab-modal-footer">
+                <button type="button" onClick={() => setShowFacilityModal(false)} className="lab-btn-cancel">Cancel</button>
+                <button type="submit" className="lab-btn-submit bg-purple">{editingFacility ? 'Update Service' : 'Add Service'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

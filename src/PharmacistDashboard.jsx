@@ -5,7 +5,22 @@ export default function PharmacistDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Local storage states
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState(() => {
+    const list = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+    if (list.length > 0) return list;
+    const defaultMeds = [
+      { id: "MED-101", name: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", category: "Antibiotics", stock: 150, price: 18.00, isEmergency: false, lowStockThreshold: 20 },
+      { id: "MED-102", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 120, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
+      { id: "MED-103", name: "Metoprolol 25mg", genericName: "Metoprolol Succinate", category: "Cardiovascular", stock: 95, price: 20.00, isEmergency: false, lowStockThreshold: 15 },
+      { id: "MED-104", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 6.50, isEmergency: false, lowStockThreshold: 25 },
+      { id: "MED-105", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 3.00, isEmergency: true, lowStockThreshold: 50 },
+      { id: "MED-106", name: "Epinephrine 1mg/mL", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 60, price: 40.00, isEmergency: true, lowStockThreshold: 15 },
+      { id: "MED-107", name: "Adenosine 6mg/2mL", genericName: "Adenosine", category: "Antiarrhythmic", stock: 40, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
+      { id: "MED-108", name: "Naloxone 0.4mg/mL", genericName: "Naloxone", category: "Opioid Antagonist", stock: 50, price: 35.00, isEmergency: true, lowStockThreshold: 15 }
+    ];
+    localStorage.setItem('dhms_medications', JSON.stringify(defaultMeds));
+    return defaultMeds;
+  });
   const [staff, setStaff] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
@@ -248,7 +263,7 @@ export default function PharmacistDashboard({ onLogout }) {
         patientId: rx.patientId,
         patientName: rx.patientName,
         date: new Date().toISOString().split('T')[0],
-        amount: `$${parseFloat(rx.cost).toFixed(2)}`,
+        amount: `₹${parseFloat(rx.cost).toFixed(2)}`,
         status: 'Unpaid',
         type: 'Pharmacy Prescription'
       };
@@ -286,9 +301,9 @@ MEDICATIONS DISPENSED:
 ${(adm.medications || []).map((m, i) => `${i + 1}. ${m.name}
    - Instructions: ${m.instructions || 'N/A'}
    - Date: ${m.date}
-   - Cost: $${parseFloat(m.cost).toFixed(2)} (${m.status})`).join('\n')}
+   - Cost: ₹${parseFloat(m.cost).toFixed(2)} (${m.status})`).join('\n')}
 -----------------------------------------
-TOTAL PHARMACY BILL: $${totalBill.toFixed(2)}
+TOTAL PHARMACY BILL: ₹${totalBill.toFixed(2)}
 =========================================
 Generated on: ${new Date().toLocaleString()}
 Thank you for using DHMS Hospital.
@@ -305,7 +320,7 @@ Thank you for using DHMS Hospital.
 
   const handleDischargeAndPay = (adm) => {
     const totalBill = calculatePharmacyBill(adm);
-    const confirmPay = window.confirm(`Patient ${adm.patientName} total pharmacy bill is $${totalBill.toFixed(2)}. Proceed with payment and discharge?`);
+    const confirmPay = window.confirm(`Patient ${adm.patientName} total pharmacy bill is ₹${totalBill.toFixed(2)}. Proceed with payment and discharge?`);
     if (!confirmPay) return;
 
     // Update admission record
@@ -330,7 +345,7 @@ Thank you for using DHMS Hospital.
       patientId: adm.patientId,
       patientName: adm.patientName,
       date: today,
-      amount: `$${totalBill.toFixed(2)}`,
+      amount: `₹${totalBill.toFixed(2)}`,
       status: 'Paid',
       type: 'Admitted Pharmacy Bill'
     };
@@ -630,7 +645,7 @@ Thank you for using DHMS Hospital.
                               </span>
                               {med.stock <= med.lowStockThreshold && <span className="warning-indicator">Low Stock</span>}
                             </td>
-                            <td><strong>${med.price.toFixed(2)}</strong></td>
+                            <td><strong>₹{med.price.toFixed(2)}</strong></td>
                             <td>
                               <button onClick={() => toggleEmergency(med.id)} className={`emergency-toggle ${med.isEmergency ? 'active' : ''}`}>
                                 {med.isEmergency ? 'Emergency' : 'Standard'}
@@ -699,7 +714,7 @@ Thank you for using DHMS Hospital.
                         />
                       </div>
                       <div className="form-group">
-                        <label>Unit Price ($)</label>
+                        <label>Unit Price (₹)</label>
                         <input 
                           type="number" 
                           step="0.01" 
@@ -799,7 +814,7 @@ Thank you for using DHMS Hospital.
                             </span>
                           </td>
                           <td>{rx.doctorName}</td>
-                          <td><strong>${parseFloat(rx.cost).toFixed(2)}</strong></td>
+                          <td><strong>₹{parseFloat(rx.cost).toFixed(2)}</strong></td>
                           <td>
                             <span className="status-badge surgery">
                               {rx.status}
@@ -876,7 +891,7 @@ Thank you for using DHMS Hospital.
                           </td>
                           <td>
                             <strong style={{ fontSize: '15px', color: '#1e3a8a' }}>
-                              ${calculatePharmacyBill(adm).toFixed(2)}
+                              ₹{calculatePharmacyBill(adm).toFixed(2)}
                             </strong>
                           </td>
                           <td>

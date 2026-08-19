@@ -77,6 +77,50 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return [];
   });
 
+  const [receptionistStaff, setReceptionistStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_receptionist_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
+  const [laboratoryStaff, setLaboratoryStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_laboratory_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
+  const [pharmacyStaff, setPharmacyStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_pharmacy_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
+  const [cashierStaff, setCashierStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_cashier_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
   // Modals state for Admin
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
@@ -89,6 +133,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [newDocStatus, setNewDocStatus] = useState('Available');
   const [newDocEmail, setNewDocEmail] = useState('');
   const [newDocPhone, setNewDocPhone] = useState('');
+  const [newDocPassword, setNewDocPassword] = useState('');
 
   const [showAdminBookingModal, setShowAdminBookingModal] = useState(false);
   const [adminBookPatient, setAdminBookPatient] = useState('');
@@ -124,6 +169,132 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       setActiveDoctorId(loggedInDoctor.id);
     }
   }, [loggedInDoctor, role]);
+
+  useEffect(() => {
+    const masterAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+    
+    // Extract unique receptionists
+    const recsFromAtt = masterAtt
+      .filter(a => a.module === 'Receptionist')
+      .reduce((acc, curr) => {
+        if (!acc.some(s => s.id === curr.staffId)) {
+          acc.push({
+            id: curr.staffId,
+            name: curr.staffName,
+            role: curr.role || 'Senior Receptionist',
+            email: `${curr.staffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+            status: 'Available'
+          });
+        }
+        return acc;
+      }, []);
+
+    // Extract unique lab staff
+    const labsFromAtt = masterAtt
+      .filter(a => a.module === 'Laboratory')
+      .reduce((acc, curr) => {
+        if (!acc.some(s => s.id === curr.staffId)) {
+          acc.push({
+            id: curr.staffId,
+            name: curr.staffName,
+            role: curr.role || 'Lab Technician',
+            email: `${curr.staffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+            status: 'Available'
+          });
+        }
+        return acc;
+      }, []);
+
+    // Extract unique pharmacy staff
+    const phrsFromAtt = masterAtt
+      .filter(a => a.module === 'Pharmacist')
+      .reduce((acc, curr) => {
+        if (!acc.some(s => s.id === curr.staffId)) {
+          acc.push({
+            id: curr.staffId,
+            name: curr.staffName,
+            role: curr.role || 'Dispensing Pharmacist',
+            email: `${curr.staffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+            status: 'Available'
+          });
+        }
+        return acc;
+      }, []);
+
+    // Extract unique cashier staff
+    const cashsFromAtt = masterAtt
+      .filter(a => a.module === 'Cashier')
+      .reduce((acc, curr) => {
+        if (!acc.some(s => s.id === curr.staffId)) {
+          acc.push({
+            id: curr.staffId,
+            name: curr.staffName,
+            role: curr.role || 'Billing Specialist',
+            email: `${curr.staffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+            status: 'Available'
+          });
+        }
+        return acc;
+      }, []);
+
+    let recsUpdated = false;
+    let labsUpdated = false;
+    let phrsUpdated = false;
+    let cashsUpdated = false;
+
+    const currentRecs = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
+    const mergedRecs = [...currentRecs];
+    recsFromAtt.forEach(r => {
+      if (!mergedRecs.some(m => m.id === r.id)) {
+        mergedRecs.push(r);
+        recsUpdated = true;
+      }
+    });
+
+    const currentLabs = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
+    const mergedLabs = [...currentLabs];
+    labsFromAtt.forEach(l => {
+      if (!mergedLabs.some(m => m.id === l.id)) {
+        mergedLabs.push(l);
+        labsUpdated = true;
+      }
+    });
+
+    const currentPhrs = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+    const mergedPhrs = [...currentPhrs];
+    phrsFromAtt.forEach(p => {
+      if (!mergedPhrs.some(m => m.id === p.id)) {
+        mergedPhrs.push(p);
+        phrsUpdated = true;
+      }
+    });
+
+    const currentCashs = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
+    const mergedCashs = [...currentCashs];
+    cashsFromAtt.forEach(c => {
+      if (!mergedCashs.some(m => m.id === c.id)) {
+        mergedCashs.push(c);
+        cashsUpdated = true;
+      }
+    });
+
+    if (recsUpdated) {
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(mergedRecs));
+      setReceptionistStaff(mergedRecs);
+    }
+    if (labsUpdated) {
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(mergedLabs));
+      setLaboratoryStaff(mergedLabs);
+    }
+    if (phrsUpdated) {
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(mergedPhrs));
+      setPharmacyStaff(mergedPhrs);
+    }
+    if (cashsUpdated) {
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify(mergedCashs));
+      setCashierStaff(mergedCashs);
+    }
+  }, []);
 
   const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: '', name: 'Unknown Doctor', department: 'Primary Care' });
   const [selectedApptForCheckup, setSelectedApptForCheckup] = useState(null);
@@ -1229,6 +1400,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       department: newDocDept,
       status: newDocStatus,
       email: newDocEmail || `${newDocName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+      password: newDocPassword,
       phone: newDocPhone || '+1 (555) 000-0000'
     };
     const updated = [...doctorsRoster, newDoc];
@@ -1237,6 +1409,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setNewDocName('');
     setNewDocEmail('');
     setNewDocPhone('');
+    setNewDocPassword('');
     setShowAddDoctorModal(false);
     alert(`${newDoc.name} added to hospital doctors roster.`);
   };
@@ -1245,6 +1418,30 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const updated = doctorsRoster.map(d => d.id === docId ? { ...d, status: newStatus } : d);
     setDoctorsRoster(updated);
     localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+  };
+
+  const handleToggleRecStaffStatus = (staffId, newStatus) => {
+    const updated = receptionistStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setReceptionistStaff(updated);
+    localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
+  };
+
+  const handleToggleLabStaffStatus = (staffId, newStatus) => {
+    const updated = laboratoryStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setLaboratoryStaff(updated);
+    localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
+  };
+
+  const handleTogglePharmacyStaffStatus = (staffId, newStatus) => {
+    const updated = pharmacyStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setPharmacyStaff(updated);
+    localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
+  };
+
+  const handleToggleCashierStaffStatus = (staffId, newStatus) => {
+    const updated = cashierStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setCashierStaff(updated);
+    localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
   };
 
   const handleAdminCreateAppointment = (e) => {
@@ -1292,11 +1489,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'overview', label: 'Operations Overview' },
           { id: 'departments', label: 'Departments & Staff' },
           { id: 'doctors', label: 'Doctors Roster' },
-          { id: 'receptionist', label: 'Receptionist Desk' },
-          { id: 'laboratory', label: 'Laboratory Desk' },
-          { id: 'pharmacy', label: 'Pharmacy & Stock' },
-          { id: 'billing', label: 'Financials & Billing' },
-          { id: 'cashcounter', label: 'Cash Counter Desk' },
+          { id: 'receptionist_staff', label: 'Receptionist Staff' },
+          { id: 'laboratory_staff', label: 'Laboratory Staff' },
+          { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
+          { id: 'cashier_staff', label: 'Cash Counter Staff' },
+          { id: 'pharmacy', label: 'Pharmacy Stock' },
           { id: 'attendance', label: 'Attendance & Absentees' }
         ];
       case 'doctor':
@@ -1338,11 +1535,51 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       const meds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
       const lowStockCount = meds.filter(m => m.stock <= (m.lowStockThreshold || 15)).length;
 
+      const masterAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
+      const todayStr = new Date().toISOString().split('T')[0];
+      const countPresent = (moduleName) => {
+        return masterAtt.filter(a => a.date === todayStr && a.module === moduleName && (a.status === 'Present' || a.status === 'Late')).length;
+      };
+      
+      const doctorsPresent = countPresent('Doctor');
+      const receptionistsPresent = countPresent('Receptionist');
+      const labStaffPresent = countPresent('Laboratory');
+      const pharmacistsPresent = countPresent('Pharmacist');
+      const cashiersPresent = countPresent('Cashier');
+
       return (
         <>
           <p style={{ color: '#475569', fontSize: '15px' }}>
-            Welcome <strong>Administrator</strong>. Executive Operations Console connecting hospital departments, doctors roster, receptionist desk, laboratory orders, pharmacy inventory, and billing ledger.
+            Welcome <strong>Administrator</strong>. Executive Operations Console connecting hospital departments, doctors roster, pharmacy inventory, and shift attendance tracker.
           </p>
+
+          <div style={{ marginTop: '16px', marginBottom: '20px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Staff Presence Summary (Today: {todayStr})
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Doctors</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>{doctorsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Receptionists</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#3b82f6' }}>{receptionistsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Lab Staff</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#6366f1' }}>{labStaffPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Pharmacists</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>{pharmacistsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Cashiers</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f59e0b' }}>{cashiersPresent} Present</div>
+              </div>
+            </div>
+          </div>
           
           <div className="stats-grid" style={{ marginTop: '20px' }}>
             <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', cursor: 'pointer' }} onClick={() => setActiveView('departments')}>
@@ -1357,34 +1594,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>On Active Duty</div>
             </div>
 
-            <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => setActiveView('receptionist')}>
-              <h3>Appointments Desk</h3>
-              <div className="stat-value">{appointments.length}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                <span style={{ color: '#10b981', fontWeight: '600' }}>{appointments.filter(a => a.status === 'Completed').length}</span> Completed
-              </div>
-            </div>
-
-            <div className="stat-card" style={{ borderLeft: '4px solid #6366f1', cursor: 'pointer' }} onClick={() => setActiveView('laboratory')}>
-              <h3>Diagnostic Lab Orders</h3>
-              <div className="stat-value">{labRequests.length}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                <span style={{ color: '#ef4444', fontWeight: '600' }}>{labRequests.filter(l => l.status === 'Pending').length}</span> Pending Tests
-              </div>
-            </div>
-
             <div className="stat-card" style={{ borderLeft: '4px solid #ec4899', cursor: 'pointer' }} onClick={() => setActiveView('pharmacy')}>
               <h3>Pharmacy & Stock</h3>
               <div className="stat-value">{meds.length} Meds</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                 <span style={{ color: lowStockCount > 0 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{lowStockCount} Low Stock Items</span>
               </div>
-            </div>
-
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }} onClick={() => setActiveView('billing')}>
-              <h3>Hospital Revenue</h3>
-              <div className="stat-value">₹{totalRev.toFixed(2)}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Collected Billing Ledger</div>
             </div>
 
             <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setActiveView('attendance')}>
@@ -1395,80 +1610,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', fontWeight: 'bold' }}>
                 {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]')).filter(a => a.date === adminAttendanceDate && (a.status === 'Absent' || a.status === 'On Leave')).length} Absent / On Leave
               </div>
-            </div>
-          </div>
-
-          {/* Connected Operations Desks Matrix */}
-          <div style={{ marginTop: '30px' }}>
-            <h3 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '16px' }}>Connected Operational Desks</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-              
-              {/* Card 1: Reception Desk Quick Access */}
-              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', color: '#1e3a8a' }}>Reception & Appointments Desk</h4>
-                  <button onClick={() => setActiveView('receptionist')} style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
-                </div>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Overview of current patient bookings, walk-ins, and schedule statuses.</p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                  <div>Upcoming: <strong>{appointments.filter(a => a.status === 'Upcoming' || a.status === 'Confirmed').length}</strong></div>
-                  <div>Checked In: <strong>{appointments.filter(a => a.status === 'Checked In').length}</strong></div>
-                  <div>Completed: <strong>{appointments.filter(a => a.status === 'Completed').length}</strong></div>
-                </div>
-              </div>
-
-              {/* Card 2: Laboratory Desk Quick Access */}
-              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', color: '#4338ca' }}>Laboratory Diagnostics Desk</h4>
-                  <button onClick={() => setActiveView('laboratory')} style={{ padding: '6px 12px', background: '#eef2ff', color: '#4338ca', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
-                </div>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Track diagnostic lab orders, test turnaround times, and completed reports.</p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                  <div>Pending Tests: <strong style={{ color: '#ef4444' }}>{labRequests.filter(l => l.status === 'Pending').length}</strong></div>
-                  <div>Completed & Billed: <strong style={{ color: '#10b981' }}>{labRequests.filter(l => l.status === 'Completed & Billed').length}</strong></div>
-                </div>
-              </div>
-
-              {/* Card 3: Pharmacy Desk Quick Access */}
-              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', color: '#047857' }}>Pharmacy & Stock Control</h4>
-                  <button onClick={() => setActiveView('pharmacy')} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#047857', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
-                </div>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Monitor drug inventory levels, emergency medications, and prescription logs.</p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                  <div>Pending RX: <strong style={{ color: '#ef4444' }}>{prescriptions.filter(r => r.status === 'Pending').length}</strong></div>
-                  <div>Dispensed: <strong style={{ color: '#10b981' }}>{prescriptions.filter(r => r.status === 'Dispensed & Billed').length}</strong></div>
-                </div>
-              </div>
-
-              {/* Card 4: Financials & Billing Quick Access */}
-              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', color: '#6b21a8' }}>Hospital Billing & Revenue</h4>
-                  <button onClick={() => setActiveView('billing')} style={{ padding: '6px 12px', background: '#faf5ff', color: '#6b21a8', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
-                </div>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Master ledger across consultations, laboratory tests, and pharmacy billing.</p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                  <div>Paid Invoices: <strong style={{ color: '#10b981' }}>{billingList.filter(b => b.status === 'Paid').length}</strong></div>
-                  <div>Unpaid Invoices: <strong style={{ color: '#ef4444' }}>{billingList.filter(b => b.status === 'Unpaid').length}</strong></div>
-                </div>
-              </div>
-
-              {/* Card 5: Cash Counter Desk Quick Access */}
-              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', color: '#6366f1' }}>Cash Counter Desk</h4>
-                  <button onClick={() => setActiveView('cashcounter')} style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4f46e5', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>Manage Desk &rarr;</button>
-                </div>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>Manage cashier duty, collect outstanding patient payments and print receipt invoices.</p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                  <div>Pending Cash: <strong style={{ color: '#ef4444' }}>{billingList.filter(b => b.status === 'Unpaid').length}</strong></div>
-                  <div>Total Invoiced: <strong style={{ color: '#10b981' }}>{billingList.length}</strong></div>
-                </div>
-              </div>
-
             </div>
           </div>
         </>
@@ -1656,6 +1797,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Email Address</label>
                       <input type="email" value={newDocEmail} onChange={(e) => setNewDocEmail(e.target.value)} placeholder="alice@dhms.org" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
                     </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Password</label>
+                      <input type="password" required value={newDocPassword} onChange={(e) => setNewDocPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
                       <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                       <button type="submit" style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Doctor</button>
@@ -1667,20 +1812,222 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           </div>
         );
 
+      case 'receptionist_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Receptionist Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage front desk receptionist staff, active statuses, and assignments.</p>
+              </div>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {receptionistStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{s.role}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleToggleRecStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'laboratory_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Laboratory Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage pathologists, lab technicians, active duty statuses, and assignments.</p>
+              </div>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {laboratoryStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{s.role}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleToggleLabStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'pharmacy_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Pharmacy Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage pharmacists, stock handlers, active duty statuses, and assignments.</p>
+              </div>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {pharmacyStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{s.role}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleTogglePharmacyStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'cashier_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Cash Counter Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage cashiers, billing specialists, active duty statuses, and assignments.</p>
+              </div>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {cashierStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{s.role}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleToggleCashierStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
       case 'receptionist':
         return (
           <div className="module-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2>Receptionist & Appointment Desk</h2>
-                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>View and manage patient appointments, check-in statuses, and bookings.</p>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Observe patient appointments, check-in statuses, and bookings.</p>
               </div>
-              <button 
-                onClick={() => setShowAdminBookingModal(true)}
-                style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
-              >
-                + Schedule Appointment
-              </button>
             </div>
 
             <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
@@ -1744,18 +2091,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                         </span>
                       </td>
                       <td>
-                        {appt.status !== 'Completed' && (
-                          <select 
-                            value={appt.status} 
-                            onChange={(e) => handleUpdateApptStatus(appt.id, e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}
-                          >
-                            <option value="Upcoming">Upcoming</option>
-                            <option value="Checked In">Checked In</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                          </select>
-                        )}
+                        <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px' }}>Read-Only (Observed)</span>
                       </td>
                     </tr>
                   ))}
@@ -1892,19 +2228,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               </div>
             </div>
 
-            {/* Sub-tabs for Pharmacy Desk */}
+             {/* Sub-tabs for Pharmacy Desk */}
             <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px' }}>
               <button 
                 onClick={() => setAdminPharmacySubTab('medications')}
                 style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'medications' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'medications' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
               >
                 Medication Stock ({medsList.length})
-              </button>
-              <button 
-                onClick={() => setAdminPharmacySubTab('prescriptions')}
-                style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'prescriptions' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'prescriptions' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
-              >
-                Prescription Log ({prescriptions.length})
               </button>
               <button 
                 onClick={() => setAdminPharmacySubTab('staff')}
@@ -1953,42 +2283,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                         >
                           + Restock (+50)
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {adminPharmacySubTab === 'prescriptions' && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>RX ID</th>
-                    <th>Patient Name</th>
-                    <th>Medication Prescribed</th>
-                    <th>Prescribing Doctor</th>
-                    <th>Date</th>
-                    <th>Co-pay Cost</th>
-                    <th>Fulfillment Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {prescriptions.map(rx => (
-                    <tr key={rx.id}>
-                      <td><strong>{rx.id}</strong></td>
-                      <td>{rx.patientName}</td>
-                      <td><strong>{rx.medication}</strong></td>
-                      <td>{rx.doctorName}</td>
-                      <td>{rx.date}</td>
-                      <td><strong>₹{rx.cost}</strong></td>
-                      <td>
-                        <span className="status-badge" style={{
-                          backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2',
-                          color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c'
-                        }}>
-                          {rx.status}
-                        </span>
                       </td>
                     </tr>
                   ))}

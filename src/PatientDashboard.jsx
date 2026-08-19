@@ -45,6 +45,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       setLabOrders(allLabOrders.filter(l => l.patientId === patientId));
       
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+      setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
     };
 
     // Load initial check
@@ -143,7 +144,13 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   });
   const [selectedLabOrder, setSelectedLabOrder] = useState(null);
   const [showOrderLabModal, setShowOrderLabModal] = useState(false);
-  const [newLabTestName, setNewLabTestName] = useState('Thyroid Panel (TSH, Free T4)');
+  const [labFacilities, setLabFacilities] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+  });
+  const [newLabTestName, setNewLabTestName] = useState(() => {
+    const list = JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+    return list[0]?.name || '';
+  });
   const [labSubTab, setLabSubTab] = useState('orders');
 
   // Telemedicine States
@@ -295,55 +302,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       prescriptions: h.prescriptions || [],
       labs: h.labs || [],
       status: "Completed"
-    })),
-    {
-      id: "V-9082",
-      date: "2026-07-10",
-      time: "10:00 AM",
-      doctor: "Dr. Gregory House",
-      department: "Cardiology",
-      reason: "Shortness of breath and chest tightness",
-      diagnosis: "Mild Sinus Arrhythmia",
-      notes: "Patient reported episodes of heart palpitations during light exercise. ECG shows slight variations but nothing critical. Advised to reduce caffeine intake, adhere to daily medications, and return for a follow-up in two weeks.",
-      vitals: { bp: "135/85 mmHg", hr: "78 BPM", temp: "98.6 °F", weight: "78 kg" },
-      prescriptions: [
-        { name: "Lisinopril", dosage: "10mg", frequency: "Once daily in the morning", duration: "30 days" },
-        { name: "Metoprolol", dosage: "25mg", frequency: "Twice daily", duration: "15 days" }
-      ],
-      status: "Completed",
-    },
-    {
-      id: "V-8421",
-      date: "2026-06-01",
-      time: "02:30 PM",
-      doctor: "Dr. Allison Cameron",
-      department: "Immunology",
-      reason: "Persistent skin rash and joint fatigue",
-      diagnosis: "Acute Contact Dermatitis",
-      notes: "Presented with red, itchy scaling rash on forearms. Appears to be an allergic reaction to garden weeds. Prescribed topical steroid cream and daily antihistamines.",
-      vitals: { bp: "120/80 mmHg", hr: "72 BPM", temp: "99.1 °F", weight: "78.2 kg" },
-      prescriptions: [
-        { name: "Cetirizine", dosage: "10mg", frequency: "Once daily at bedtime", duration: "10 days" },
-        { name: "Hydrocortisone 1% Cream", dosage: "Apply to affected area", frequency: "Twice daily", duration: "7 days" }
-      ],
-      status: "Completed",
-    },
-    {
-      id: "V-7130",
-      date: "2026-04-15",
-      time: "09:15 AM",
-      doctor: "Dr. Robert Chase",
-      department: "General Medicine",
-      reason: "Annual physical check-up",
-      diagnosis: "Healthy Patient Profile",
-      notes: "Annual wellness check. Patient is in general good health. Blood panel indicates slightly elevated LDL cholesterol level. Suggested dietary modifications and 150 minutes of moderate aerobic activity weekly.",
-      vitals: { bp: "118/76 mmHg", hr: "68 BPM", temp: "98.4 °F", weight: "79.5 kg" },
-      prescriptions: [
-        { name: "Fish Oil Supplement", dosage: "1000mg", frequency: "Daily with meal", duration: "Ongoing" },
-        { name: "CoQ10", dosage: "100mg", frequency: "Once daily", duration: "Ongoing" }
-      ],
-      status: "Completed",
-    }
+    }))
   ];
 
   const renderHealthConsole = () => (
@@ -361,11 +320,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
       {/* Vitals Grid */}
       {(() => {
-        const latestVitals = currentPatient?.clinicalHistory?.[0]?.vitals || { bp: "120/80", hr: "72", temp: "98.6", spo2: "98" };
+        const latestVitals = currentPatient?.clinicalHistory?.[0]?.vitals || { bp: "--", hr: "--", temp: "--", spo2: "--" };
         
         // Vitals helper indicators
         const getBPStatus = (bpVal) => {
-          if (!bpVal) return { label: 'Optimal', class: 'success' };
+          if (!bpVal || bpVal === "--") return { label: 'No Data', class: 'warning' };
           const parts = bpVal.split('/');
           if (parts.length === 2) {
             const sys = parseInt(parts[0]);
@@ -377,6 +336,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         };
 
         const getHRStatus = (hrVal) => {
+          if (!hrVal || hrVal === "--") return { label: 'No Data', class: 'warning' };
           const hr = parseInt(hrVal);
           if (isNaN(hr)) return { label: 'Normal', class: 'success' };
           if (hr > 100) return { label: 'Tachycardia', class: 'danger' };
@@ -385,6 +345,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         };
 
         const getTempStatus = (tempVal) => {
+          if (!tempVal || tempVal === "--") return { label: 'No Data', class: 'warning' };
           const temp = parseFloat(tempVal);
           if (isNaN(temp)) return { label: 'Normal', class: 'success' };
           if (temp > 100.4) return { label: 'Fever (Pyrexia)', class: 'danger' };
@@ -393,6 +354,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         };
 
         const getSpO2Status = (spo2Val) => {
+          if (!spo2Val || spo2Val === "--") return { label: 'No Data', class: 'warning' };
           const spo2 = parseInt(spo2Val);
           if (isNaN(spo2)) return { label: 'Optimal', class: 'success' };
           if (spo2 < 95) return { label: 'Hypoxia (Low O₂)', class: 'danger' };
@@ -585,15 +547,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               const myPrescriptions = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]')
                 .filter(r => r.patientId === (currentPatient?.id || "PT-80234"));
 
-              // Fallback default prompt if patient doesn't have any prescriptions
-              const activePrompts = myPrescriptions.length > 0 ? myPrescriptions : [
-                {
-                  id: "DEFAULT-LISI",
-                  medication: "Lisinopril 10mg",
-                  instructions: "once daily in the morning",
-                  doctorName: "Dr. Gregory House"
-                }
-              ];
+              const activePrompts = myPrescriptions;
+
+              if (activePrompts.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic' }}>
+                    No daily medication adherence prompts.
+                  </div>
+                );
+              }
 
               const todayStr = new Date().toISOString().split('T')[0];
               const patientId = currentPatient?.id || "PT-80234";
@@ -799,23 +761,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </div>
             <div className="pd-info-item">
               <label>Date of Birth</label>
-              <p>{currentPatient?.dob || "12/04/1985"}</p>
+              <p>{currentPatient?.dob || "--"}</p>
             </div>
             <div className="pd-info-item">
               <label>Gender</label>
-              <p style={{ textTransform: 'capitalize' }}>{currentPatient?.gender || "Male"}</p>
+              <p style={{ textTransform: 'capitalize' }}>{currentPatient?.gender || "--"}</p>
             </div>
             <div className="pd-info-item">
               <label>Blood Type</label>
-              <p>{currentPatient?.bloodType || "O+"}</p>
+              <p>{currentPatient?.bloodType || "--"}</p>
             </div>
             <div className="pd-info-item">
               <label>Phone Number</label>
-              <p>{currentPatient?.phone || "+1 (555) 123-4567"}</p>
+              <p>{currentPatient?.phone || "--"}</p>
             </div>
             <div className="pd-info-item">
               <label>Email Address</label>
-              <p>{currentPatient?.email || "patient@dhms.com"}</p>
+              <p>{currentPatient?.email || "--"}</p>
             </div>
           </div>
         </div>
@@ -850,16 +812,22 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
             <h3>Insurance Details</h3>
           </div>
-          <div className="pd-info-grid">
-            <div className="pd-info-item">
-              <label>Provider</label>
-              <p>BlueCross BlueShield</p>
-            </div>
-            <div className="pd-info-item">
-              <label>Policy Number</label>
-              <p>BCBS-987654321</p>
-            </div>
-          </div>
+          {(() => {
+            const policies = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+            const myPolicy = policies.find(p => p.patientId === (currentPatient?.id || "PT-80234"));
+            return (
+              <div className="pd-info-grid">
+                <div className="pd-info-item">
+                  <label>Provider</label>
+                  <p>{myPolicy ? myPolicy.provider : "--"}</p>
+                </div>
+                <div className="pd-info-item">
+                  <label>Policy Number</label>
+                  <p>{myPolicy ? myPolicy.policyNo : "--"}</p>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -1223,17 +1191,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   };
   const handleOrderLabSubmit = (e) => {
     e.preventDefault();
-    const costMap = {
-      "Thyroid Panel (TSH, Free T4)": "85.00",
-      "Lipid Profile (Cholesterol, HDL, LDL)": "120.00",
-      "Urinalysis & Urine Culture": "45.00",
-      "Vitamin D-25 Hydroxy Screen": "95.00"
-    };
-    const orderCost = costMap[newLabTestName] || "85.00";
+    const facilities = JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+    const matchedFac = facilities.find(f => f.name === newLabTestName);
+    const orderCost = matchedFac ? (matchedFac.cost.replace('₹', '')) : "85.00";
+    const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe";
     const newOrder = {
       id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
-      patientId: "PT-99999",
-      patientName: "John Doe",
+      patientId: patientId,
+      patientName: patientName,
       testName: newLabTestName,
       status: "Pending",
       date: new Date().toISOString().split('T')[0],
@@ -1492,14 +1458,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   };
 
   const renderLaboratoryCenter = () => {
-    const labFacilities = [
-      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
-      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
-      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
-      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
-      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
-      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
-    ];
 
     return (
       <div className="pd-lab-view">
@@ -1638,10 +1596,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       onChange={(e) => setNewLabTestName(e.target.value)} 
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
                     >
-                      <option value="Thyroid Panel (TSH, Free T4)">Thyroid Panel (TSH, Free T4)</option>
-                      <option value="Lipid Profile (Cholesterol, HDL, LDL)">Lipid Profile (Cholesterol, HDL, LDL)</option>
-                      <option value="Urinalysis & Urine Culture">Urinalysis & Urine Culture</option>
-                      <option value="Vitamin D-25 Hydroxy Screen">Vitamin D-25 Hydroxy Screen</option>
+                      {labFacilities.map((fac, idx) => (
+                        <option key={idx} value={fac.name}>{fac.name}</option>
+                      ))}
                     </select>
                   </div>
                   <p style={{ fontSize: '12px', color: '#64748b', marginTop: '12px', lineHeight: '1.4' }}>
