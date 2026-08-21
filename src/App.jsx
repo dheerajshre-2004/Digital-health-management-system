@@ -444,6 +444,11 @@ function App() {
                   type={userRole === 'patient' ? "text" : "email"} 
                   placeholder={userRole === 'patient' ? "Enter Patient ID (e.g., PT-101)" : "Enter email address"} 
                   required 
+                  onInput={(e) => {
+                    if (userRole === 'patient') {
+                      e.target.value = e.target.value.toUpperCase();
+                    }
+                  }}
                 />
               </div>
             </div>
