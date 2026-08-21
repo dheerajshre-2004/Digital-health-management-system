@@ -2212,6 +2212,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
       <div className="pd-body">
         {/* Sidebar */}
+        {mobileMenuOpen && (
+          <div className="pd-sidebar-overlay" onClick={() => setMobileMenuOpen(false)} />
+        )}
         <aside className={`pd-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
           <ul className="pd-nav">
             <li className={activeTab === 'health_console' ? 'active' : ''} onClick={() => { setActiveTab('health_console'); setMobileMenuOpen(false); }}>
