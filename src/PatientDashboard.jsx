@@ -16,6 +16,17 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   });
 
   useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.classList.add('pd-lock-scroll');
+    } else {
+      document.body.classList.remove('pd-lock-scroll');
+    }
+    return () => {
+      document.body.classList.remove('pd-lock-scroll');
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
     const handleStorageChange = () => {
       const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
       const id = currentPatient?.id || loggedInPatient?.id || "PT-80234";
