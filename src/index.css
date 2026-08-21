@@ -138,7 +138,7 @@ body {
 
 .input-wrapper input, .select-wrapper select {
   width: 100%;
-  padding: 12px 12px 12px 42px !important;
+  padding: 12px 42px 12px 42px !important;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 15px;
@@ -151,6 +151,7 @@ body {
 
 .select-wrapper select {
   padding-left: 16px !important;
+  padding-right: 42px !important;
   appearance: none;
   background-color: var(--input-bg);
   cursor: pointer;
@@ -182,4 +183,50 @@ body {
 
 .btn-submit:hover {
   background: #6259db;
+}
+
+/* Mobile Responsiveness for Login Screen */
+@media (max-width: 480px) {
+  body {
+    padding: 12px !important;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .auth-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 8px !important;
+    box-sizing: border-box;
+  }
+
+  .auth-card {
+    padding: 24px 20px !important;
+    border-radius: 16px !important;
+    box-sizing: border-box;
+  }
+
+  .auth-header {
+    margin-bottom: 20px !important;
+  }
+
+  .auth-header h1 {
+    font-size: 28px !important;
+  }
+
+  .auth-header p {
+    font-size: 14px !important;
+  }
+
+  .tabs-container {
+    margin-bottom: 20px !important;
+  }
+
+  .tab {
+    padding: 10px !important;
+    font-size: 14px !important;
+  }
 }
