@@ -1595,6 +1595,7 @@ End of Generated Health Summary Report
             </div>
           </div>
         </div>
+      )}
       {/* View Invoice Receipt Modal */}
       {selectedInvoice && (
         <div className="rd-modal-overlay" onClick={() => setSelectedInvoice(null)}>
