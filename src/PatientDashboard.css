@@ -25,6 +25,10 @@
   gap: 12px;
 }
 
+.pd-hamburger {
+  display: none;
+}
+
 .pd-logo-icon {
   width: 28px;
   height: 28px;
@@ -1646,6 +1650,10 @@
   100% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(118,109,245,0.6)); }
 }
 
+.pd-facilities-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
 /* Mobile Responsiveness Overrides */
 @media (max-width: 768px) {
   /* Prevent horizontal page stretching globally */
@@ -1657,14 +1665,41 @@
     min-height: 100vh;
   }
 
+  /* Show Hamburger on mobile */
+  .pd-hamburger {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #475569;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .pd-hamburger:hover {
+    background-color: #f1f5f9;
+    color: #5c6bc0;
+  }
+
   .pd-topbar {
     padding: 12px 16px;
     height: auto;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
     box-sizing: border-box;
     width: 100% !important;
+    position: sticky;
+    top: 0;
+    z-index: 1001;
+  }
+
+  .pd-logo-area {
+    gap: 8px;
   }
 
   .pd-logo-divider, .pd-logo-sub {
@@ -1672,16 +1707,17 @@
   }
 
   .pd-topbar-right {
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 8px;
+    width: auto !important;
+    gap: 12px;
   }
 
   .pd-profile-info {
     border-right: none;
     padding-right: 0;
+  }
+
+  .pd-profile-info .pd-user-details {
+    display: none; /* Hide details on mobile header to save space */
   }
 
   .pd-body {
@@ -1690,45 +1726,50 @@
     width: 100% !important;
   }
 
+  /* Hamburger Slide-out Drawer Menu */
   .pd-sidebar {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow: hidden !important;
-    padding: 12px 0 0 0;
-    border-right: none;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 99;
-    background-color: #ffffff;
+    position: fixed !important;
+    top: 68px !important; /* height of header on mobile */
+    left: -280px !important; /* hidden off-screen */
+    width: 260px !important;
+    max-width: 80vw !important;
+    height: calc(100vh - 68px) !important;
+    background-color: #ffffff !important;
+    border-right: 1px solid #cbd5e1 !important;
+    z-index: 1000 !important;
+    transition: left 0.3s ease-in-out !important;
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+    overflow-y: auto !important;
+    padding: 16px 0 !important;
     box-sizing: border-box;
   }
 
-  /* Make tab bar scrollable horizontally WITHOUT breaking page layout */
+  .pd-sidebar.open {
+    left: 0 !important; /* slide in */
+  }
+
   .pd-nav {
     display: flex !important;
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-    padding: 0 16px 8px 16px !important;
-    gap: 8px !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    gap: 6px !important;
     width: 100% !important;
-    max-width: 100% !important;
     box-sizing: border-box;
-    -webkit-overflow-scrolling: touch;
   }
 
   .pd-nav li {
-    padding: 8px 16px !important;
-    border-left: none !important;
-    border-bottom: 3px solid transparent !important;
+    padding: 12px 20px !important;
+    border-left: 4px solid transparent !important;
+    border-bottom: none !important;
     flex-shrink: 0 !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
+    width: 100% !important;
+    box-sizing: border-box;
   }
 
   .pd-nav li.active {
-    border-left: none !important;
-    border-bottom: 3px solid #5c6bc0 !important;
+    border-left: 4px solid #5c6bc0 !important;
+    border-bottom: none !important;
     background-color: #f5f8ff;
   }
 
@@ -1736,6 +1777,7 @@
     padding: 16px !important;
     width: 100% !important;
     box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   .pd-welcome-banner {
@@ -1744,6 +1786,7 @@
     gap: 12px;
     text-align: left;
     margin-bottom: 20px;
+    padding: 20px !important;
   }
 
   /* Vitals: Force 1 column on mobile to prevent squishing */
@@ -1760,10 +1803,30 @@
     font-size: 22px !important;
   }
 
-  /* Force content columns to stack */
-  .pd-content-grid {
+  /* Force content columns and grids to stack */
+  .pd-content-grid, 
+  .pd-health-grid, 
+  .pd-records-container, 
+  .consultation-detail-grid,
+  .billing-summary-grid {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
+  }
+
+  /* Make sure all forms/inputs stack and fit */
+  .pd-main form, .appointment-form, .telemedicine-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .pd-main input, 
+  .pd-main select, 
+  .pd-main textarea, 
+  .pd-main button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
   }
 
   /* Table responsiveness wrapper */
@@ -1774,35 +1837,12 @@
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     white-space: nowrap;
-  }
-  
-  /* Additional layout constraints for patient grids */
-  .pd-health-grid {
-    grid-template-columns: 1fr !important;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
   }
 
-  .pd-records-container {
+  .pd-facilities-grid {
     grid-template-columns: 1fr !important;
-  }
-
-  /* EHR consult modal or grids */
-  .consultation-detail-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .pd-vitals-grid {
-    grid-template-columns: 1fr;
-  }
-  .pd-topbar-right {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .pd-signout-btn {
-    align-self: flex-end;
-    margin-top: -40px;
   }
 }
 
