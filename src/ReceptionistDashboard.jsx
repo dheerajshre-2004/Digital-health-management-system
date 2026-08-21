@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './ReceptionistDashboard.css';
 
-export default function ReceptionistDashboard({ onLogout }) {
+export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('register_patient');
 
   // Load initial datasets from localStorage
@@ -45,6 +45,7 @@ export default function ReceptionistDashboard({ onLogout }) {
     email: '',
   });
   const [generatedId, setGeneratedId] = useState(null);
+  const [generatedPassword, setGeneratedPassword] = useState(null);
 
   // Search & Pagination States for Patient Records
   const [patientSearch, setPatientSearch] = useState('');
@@ -147,6 +148,7 @@ export default function ReceptionistDashboard({ onLogout }) {
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
     const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
+    const randomPassword = `pass_${Math.floor(1000 + Math.random() * 9000)}`;
     const newPatient = {
       id: newId,
       firstName: patientData.firstName,
@@ -154,13 +156,15 @@ export default function ReceptionistDashboard({ onLogout }) {
       dob: patientData.dob,
       gender: patientData.gender,
       phone: patientData.phone,
-      email: patientData.email || 'N/A'
+      email: patientData.email || 'N/A',
+      password: randomPassword
     };
 
     const updatedPatients = [newPatient, ...patients];
     setPatients(updatedPatients);
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
     setGeneratedId(newId);
+    setGeneratedPassword(randomPassword);
   };
 
   // State for Appointment Booking
@@ -343,11 +347,13 @@ End of Generated Health Summary Report
             </div>
             <h3>Registration Successful!</h3>
             <p>The patient has been added to the DHMS network.</p>
-            <div className="rd-id-display">
-              Patient ID: <strong>{generatedId}</strong>
+            <div className="rd-id-display" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', width: 'fit-content', margin: '16px auto' }}>
+              <div>Patient ID: <strong style={{ color: '#1e293b', fontSize: '18px' }}>{generatedId}</strong></div>
+              <div>Portal Password: <strong style={{ color: '#4f46e5', fontSize: '18px' }}>{generatedPassword}</strong></div>
             </div>
             <button className="rd-btn-primary mt-4" onClick={() => {
               setGeneratedId(null);
+              setGeneratedPassword(null);
               setPatientData({firstName: '', lastName: '', dob: '', gender: '', phone: '', email: ''});
             }}>Register Another Patient</button>
           </div>
@@ -1153,10 +1159,10 @@ End of Generated Health Summary Report
         </div>
         <div className="rd-topbar-right">
           <div className="rd-profile-info">
-            <div className="rd-avatar">R</div>
+            <div className="rd-avatar">{loggedInStaff?.name ? loggedInStaff.name.charAt(0) : 'R'}</div>
             <div className="rd-user-details">
-              <strong>Sarah Jenkins</strong>
-              <span>Front Desk</span>
+              <strong>{loggedInStaff?.name || 'Sarah Jenkins'}</strong>
+              <span>{loggedInStaff?.role || 'Front Desk'}</span>
             </div>
             <div className="rd-role-badge">RECEPTIONIST</div>
           </div>

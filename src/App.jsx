@@ -15,6 +15,7 @@ function App() {
   const [userRole, setUserRole] = useState('patient');
   const [loggedInPatient, setLoggedInPatient] = useState(null);
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
+  const [loggedInStaff, setLoggedInStaff] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -165,6 +166,7 @@ function App() {
           alert('Incorrect password. Please try again.');
           return;
         }
+        setLoggedInStaff(matched);
         setIsAuthenticated(true);
       } else {
         alert('Receptionist account not found. Please register first.');
@@ -177,6 +179,7 @@ function App() {
           alert('Incorrect password. Please try again.');
           return;
         }
+        setLoggedInStaff(matched);
         setIsAuthenticated(true);
       } else {
         alert('Laboratory staff account not found. Please register first.');
@@ -189,6 +192,7 @@ function App() {
           alert('Incorrect password. Please try again.');
           return;
         }
+        setLoggedInStaff(matched);
         setIsAuthenticated(true);
       } else {
         alert('Pharmacy staff account not found. Please register first.');
@@ -201,6 +205,7 @@ function App() {
           alert('Incorrect password. Please try again.');
           return;
         }
+        setLoggedInStaff(matched);
         setIsAuthenticated(true);
       } else {
         alert('Cash counter staff account not found. Please register first.');
@@ -369,6 +374,7 @@ function App() {
     setIsAuthenticated(false);
     setLoggedInPatient(null);
     setLoggedInDoctor(null);
+    setLoggedInStaff(null);
   };
 
   if (isAuthenticated) {
@@ -376,7 +382,7 @@ function App() {
       return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
     }
     if (userRole === 'receptionist') {
-      return <ReceptionistDashboard onLogout={handleLogout} />;
+      return <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'laboratory') {
       return <LaboratoryDashboard onLogout={handleLogout} />;
