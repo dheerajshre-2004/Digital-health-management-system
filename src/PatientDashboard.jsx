@@ -8,6 +8,53 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [deptFilter, setDeptFilter] = useState('All');
   const [selectedVisit, setSelectedVisit] = useState(null);
 
+  // Edit Profile States
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editDob, setEditDob] = useState('');
+  const [editGender, setEditGender] = useState('other');
+  const [editBloodType, setEditBloodType] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAllergies, setEditAllergies] = useState('');
+  const [editChronic, setEditChronic] = useState('');
+
+  const openEditProfile = () => {
+    setEditDob(currentPatient?.dob || '');
+    setEditGender(currentPatient?.gender || 'other');
+    setEditBloodType(currentPatient?.bloodType || '');
+    setEditPhone(currentPatient?.phone || '');
+    setEditAllergies(currentPatient?.allergies || '');
+    setEditChronic(currentPatient?.chronicConditions || '');
+    setShowEditProfileModal(true);
+  };
+
+  const handleEditProfileSubmit = (e) => {
+    e.preventDefault();
+    const updatedPatient = {
+      ...currentPatient,
+      dob: editDob,
+      gender: editGender,
+      bloodType: editBloodType,
+      phone: editPhone,
+      allergies: editAllergies,
+      chronicConditions: editChronic
+    };
+
+    setCurrentPatient(updatedPatient);
+
+    const patients = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const updatedPatients = patients.map(p => p.id === updatedPatient.id ? updatedPatient : p);
+    localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+
+    const session = JSON.parse(localStorage.getItem('dhms_active_session') || '{}');
+    if (session.user && session.user.id === updatedPatient.id) {
+      session.user = updatedPatient;
+      localStorage.setItem('dhms_active_session', JSON.stringify(session));
+    }
+
+    setShowEditProfileModal(false);
+    alert("Profile updated successfully!");
+  };
+
   // Dynamic Patient Record State
   const [currentPatient, setCurrentPatient] = useState(() => {
     const list = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
@@ -754,7 +801,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <h1>Digital <span className="highlight">Patient Profile</span></h1>
           <p>Manage your personal information, emergency contacts, and insurance details.</p>
         </div>
-        <button className="pd-btn-primary">
+        <button className="pd-btn-primary" onClick={openEditProfile}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           Edit Profile
         </button>
@@ -2488,6 +2535,89 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 >
                   Cancel
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="pd-modal-overlay" onClick={() => setShowEditProfileModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <form onSubmit={handleEditProfileSubmit}>
+              <div className="pd-modal-header">
+                <h2>Edit Patient Profile</h2>
+                <button className="pd-modal-close" type="button" onClick={() => setShowEditProfileModal(false)}>&times;</button>
+              </div>
+              <div className="pd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Date of Birth</label>
+                  <input 
+                    type="date" 
+                    value={editDob} 
+                    onChange={(e) => setEditDob(e.target.value)} 
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Gender</label>
+                  <select 
+                    value={editGender} 
+                    onChange={(e) => setEditGender(e.target.value)} 
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
+                    required
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Blood Type</label>
+                  <input 
+                    type="text" 
+                    value={editBloodType} 
+                    onChange={(e) => setEditBloodType(e.target.value)} 
+                    placeholder="e.g. O+, A-"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Phone Number</label>
+                  <input 
+                    type="tel" 
+                    value={editPhone} 
+                    onChange={(e) => setEditPhone(e.target.value)} 
+                    placeholder="Enter phone number"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Known Allergies</label>
+                  <input 
+                    type="text" 
+                    value={editAllergies} 
+                    onChange={(e) => setEditAllergies(e.target.value)} 
+                    placeholder="e.g. Penicillin, Peanuts (comma separated)"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Chronic Conditions</label>
+                  <input 
+                    type="text" 
+                    value={editChronic} 
+                    onChange={(e) => setEditChronic(e.target.value)} 
+                    placeholder="e.g. Hypertension, Diabetes (comma separated)"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  />
+                </div>
+              </div>
+              <div className="pd-modal-footer">
+                <button className="pd-btn-primary" type="submit">Save Changes</button>
+                <button className="pd-btn-outline" type="button" onClick={() => setShowEditProfileModal(false)}>Cancel</button>
               </div>
             </form>
           </div>
