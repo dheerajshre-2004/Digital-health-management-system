@@ -127,12 +127,13 @@ function App() {
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
-    const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
-    const passwordVal = e.target.querySelector('input[type="password"]')?.value || '';
+    const inputs = e.target.querySelectorAll('input');
+    const emailVal = inputs[0]?.value || '';
+    const passwordVal = inputs[1]?.value || '';
     
     if (userRole === 'patient') {
       const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
-      const matched = patientsList.find(p => p.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = patientsList.find(p => p.id?.toLowerCase() === emailVal.trim().toLowerCase() || p.email?.toLowerCase() === emailVal.trim().toLowerCase());
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
@@ -141,7 +142,7 @@ function App() {
         setLoggedInPatient(matched);
         setIsAuthenticated(true);
       } else {
-        alert('Patient account not found. Please register first.');
+        alert('Patient account not found. Please verify your Patient ID.');
       }
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
@@ -420,13 +421,24 @@ function App() {
         {activeTab === 'signin' ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
-              <label>Email Address</label>
+              <label>{userRole === 'patient' ? 'Patient ID' : 'Email Address'}</label>
               <div className="input-wrapper">
-                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
-                <input type="email" placeholder="Enter email address" required />
+                {userRole === 'patient' ? (
+                  <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                ) : (
+                  <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                )}
+                <input 
+                  type={userRole === 'patient' ? "text" : "email"} 
+                  placeholder={userRole === 'patient' ? "Enter Patient ID (e.g., PT-101)" : "Enter email address"} 
+                  required 
+                />
               </div>
             </div>
             

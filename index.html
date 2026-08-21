@@ -15,7 +15,25 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('[PWA] Service Worker registered successfully:', reg.scope))
+            .then((reg) => {
+              console.log('[PWA] Service Worker registered successfully:', reg.scope);
+              
+              // Force check for updates immediately on app startup
+              reg.update();
+              
+              // Auto-reload the app when a new service worker is installed
+              reg.onupdatefound = () => {
+                const installingWorker = reg.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('[PWA] New update installed. Reloading...');
+                      window.location.reload();
+                    }
+                  };
+                }
+              };
+            })
             .catch((err) => console.error('[PWA] Service Worker registration failed:', err));
         });
       }
