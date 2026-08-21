@@ -1822,11 +1822,51 @@
 
   .pd-main input, 
   .pd-main select, 
-  .pd-main textarea, 
-  .pd-main button {
+  .pd-main textarea {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box;
+  }
+
+  /* Form action buttons should be block, inline action buttons should remain auto width */
+  .pd-main form button,
+  .pd-main .btn-block,
+  .pd-main .submit-btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Allow inline buttons to keep their natural wrapping */
+  .pd-main button {
+    width: auto;
+    box-sizing: border-box;
+  }
+
+  /* Give sign-out button right padding away from the edge */
+  .pd-topbar-right {
+    margin-right: 12px !important;
+  }
+
+  /* Prevent text overlapping or stretching inside cards */
+  .pd-section-card, .pd-vital-card, .rd-card, .pd-lab-item, .visit-item, .billing-card {
+    white-space: normal !important;
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+  }
+
+  .pd-vital-card-header, 
+  .pd-lab-item, 
+  .visit-item-header, 
+  .billing-card-header,
+  .pd-logo-area {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  p, h1, h2, h3, h4, h5, h6, span, strong, div {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
   }
 
   /* Table responsiveness wrapper */
