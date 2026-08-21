@@ -17,6 +17,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [editAllergies, setEditAllergies] = useState('');
   const [editChronic, setEditChronic] = useState('');
 
+  // Invoice / Receipt State
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
   const openEditProfile = () => {
     setEditDob(currentPatient?.dob || '');
     setEditGender(currentPatient?.gender || 'other');
@@ -2226,6 +2229,82 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             })}
           </div>
         )}
+
+        {/* General Billing Invoices Section */}
+        <div style={{ marginTop: '40px', borderTop: '1px solid #e2e8f0', paddingTop: '30px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>General Consultation & Service Invoices</h3>
+          <p style={{ color: '#64748b', fontSize: '13.5px', marginBottom: '16px' }}>
+            Below is the billing history of your clinic consultations, lab diagnostics, and physical checkups processed at the Central Cash Desk.
+          </p>
+          {(() => {
+            const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+            const myBilling = allBilling.filter(b => b.patientId === (currentPatient?.id || "PT-80234"));
+
+            if (myBilling.length === 0) {
+              return (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px' }}>
+                  No general invoices or payment records found.
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 8px' }}>Invoice ID</th>
+                      <th style={{ padding: '12px 8px' }}>Service Type</th>
+                      <th style={{ padding: '12px 8px' }}>Billing Date</th>
+                      <th style={{ padding: '12px 8px' }}>Amount</th>
+                      <th style={{ padding: '12px 8px' }}>Status</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myBilling.map(inv => (
+                      <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                        <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{inv.id}</td>
+                        <td style={{ padding: '12px 8px' }}>{inv.type}</td>
+                        <td style={{ padding: '12px 8px' }}>{inv.date}</td>
+                        <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{inv.amount}</td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            background: inv.status === 'Paid' ? '#dcfce7' : inv.status === 'Unpaid' ? '#fee2e2' : '#fef3c7',
+                            color: inv.status === 'Paid' ? '#15803d' : inv.status === 'Unpaid' ? '#b91c1c' : '#b45309'
+                          }}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <button 
+                            onClick={() => setSelectedInvoice(inv)}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#efefef',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              color: '#334155',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            View Receipt
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
       </div>
     );
   };
@@ -2620,6 +2699,102 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 <button className="pd-btn-outline" type="button" onClick={() => setShowEditProfileModal(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Invoice Receipt Modal */}
+      {selectedInvoice && (
+        <div className="pd-modal-overlay" onClick={() => setSelectedInvoice(null)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', display: 'flex', flexDirection: 'column' }}>
+            <div className="pd-modal-header">
+              <h2>Invoice Details & Receipt</h2>
+              <button className="pd-modal-close" onClick={() => setSelectedInvoice(null)}>&times;</button>
+            </div>
+            <div className="pd-modal-body" style={{ padding: '24px', backgroundColor: 'white', color: '#1e293b', fontFamily: 'Courier New, Courier, monospace', overflowY: 'auto' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold' }}>DHMS CENTRAL CLINICAL CENTER</h3>
+                <p style={{ margin: 0, fontSize: '11px' }}>100 Hospital Road, Medical City</p>
+                <p style={{ margin: 0, fontSize: '11px' }}>Email: billing@dhms.org</p>
+              </div>
+
+              <div style={{ marginBottom: '16px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Invoice Info</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Invoice ID:</span>
+                  <strong>{selectedInvoice.id}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Billing Date:</span>
+                  <span>{selectedInvoice.date}</span>
+                </div>
+                {selectedInvoice.paymentDate && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>Payment Date:</span>
+                    <span>{selectedInvoice.paymentDate}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Status:</span>
+                  <strong style={{ color: selectedInvoice.status === 'Paid' ? '#15803d' : '#b91c1c' }}>
+                    {selectedInvoice.status.toUpperCase()}
+                  </strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '16px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Patient Info</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Patient ID:</span>
+                  <span>{selectedInvoice.patientId}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Name:</span>
+                  <strong>{selectedInvoice.patientName}</strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Billing Details</h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '6px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                      <th style={{ textAlign: 'left', padding: '4px 0' }}>Description</th>
+                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '8px 0' }}>{selectedInvoice.type}</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 'bold' }}>{selectedInvoice.amount}</td>
+                    </tr>
+                    <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 'bold' }}>
+                      <td style={{ padding: '8px 0', fontSize: '14px' }}>GRAND TOTAL:</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontSize: '14px' }}>{selectedInvoice.amount}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedInvoice.paymentMethod && (
+                <div style={{ fontSize: '11px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>Payment Method:</span>
+                    <strong>{selectedInvoice.paymentMethod}</strong>
+                  </div>
+                  {selectedInvoice.paymentRemarks && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>Reference Notes:</span>
+                      <span>{selectedInvoice.paymentRemarks}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="pd-modal-footer">
+              <button className="pd-btn-outline" onClick={() => setSelectedInvoice(null)}>Close</button>
+              <button className="pd-btn-primary" onClick={() => window.print()}>Print Invoice</button>
+            </div>
           </div>
         </div>
       )}

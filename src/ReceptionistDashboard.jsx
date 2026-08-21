@@ -59,6 +59,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [billingModalAppt, setBillingModalAppt] = useState(null);
   const [billingModalFee, setBillingModalFee] = useState('120.00');
   const [billingModalType, setBillingModalType] = useState('Appointment Fee');
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [prescriptions, setPrescriptions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
   });
@@ -1445,11 +1446,12 @@ End of Generated Health Summary Report
                           <th>Date</th>
                           <th>Amount</th>
                           <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {billingList.filter(b => b.patientId === selectedPatientFile.id).length === 0 ? (
-                          <tr><td colSpan="5" className="empty-row">No invoice history</td></tr>
+                          <tr><td colSpan="6" className="empty-row">No invoice history</td></tr>
                         ) : (
                           billingList.filter(b => b.patientId === selectedPatientFile.id).map(b => (
                             <tr key={b.id}>
@@ -1459,6 +1461,24 @@ End of Generated Health Summary Report
                               <td style={{ fontWeight: 'bold' }}>{b.amount}</td>
                               <td>
                                 <span className={`rd-status-badge ${b.status.toLowerCase().replace(' ', '-')}`}>{b.status}</span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button 
+                                  onClick={() => setSelectedInvoice(b)}
+                                  className="rd-btn-small"
+                                  style={{
+                                    padding: '2px 8px',
+                                    background: '#f1f5f9',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: '#475569',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  View
+                                </button>
                               </td>
                             </tr>
                           ))
@@ -1550,7 +1570,7 @@ End of Generated Health Summary Report
               <button 
                 className="rd-btn-primary w-full"
                 onClick={() => {
-                  const cleanAmount = `$${parseFloat(billingModalFee || 0).toFixed(2)}`;
+                  const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
                   const newInvoice = {
                     id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
                     patientId: billingModalAppt.patientId,
@@ -1572,6 +1592,100 @@ End of Generated Health Summary Report
               >
                 Send Invoice to Cash Counter
               </button>
+            </div>
+          </div>
+        </div>
+      {/* View Invoice Receipt Modal */}
+      {selectedInvoice && (
+        <div className="rd-modal-overlay" onClick={() => setSelectedInvoice(null)}>
+          <div className="rd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', display: 'flex', flexDirection: 'column' }}>
+            <div className="rd-modal-header">
+              <h2>Invoice Details & Receipt</h2>
+              <button className="rd-btn-close" onClick={() => setSelectedInvoice(null)}>&times;</button>
+            </div>
+            <div className="rd-modal-body" style={{ padding: '24px', backgroundColor: 'white', color: '#1e293b', fontFamily: 'Courier New, Courier, monospace', overflowY: 'auto' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold' }}>DHMS CENTRAL CLINICAL CENTER</h3>
+                <p style={{ margin: 0, fontSize: '11px' }}>100 Hospital Road, Medical City</p>
+                <p style={{ margin: 0, fontSize: '11px' }}>Email: billing@dhms.org</p>
+              </div>
+
+              <div style={{ marginBottom: '16px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Invoice Info</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Invoice ID:</span>
+                  <strong>{selectedInvoice.id}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Billing Date:</span>
+                  <span>{selectedInvoice.date}</span>
+                </div>
+                {selectedInvoice.paymentDate && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>Payment Date:</span>
+                    <span>{selectedInvoice.paymentDate}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Status:</span>
+                  <strong style={{ color: selectedInvoice.status === 'Paid' ? '#15803d' : '#b91c1c' }}>
+                    {selectedInvoice.status.toUpperCase()}
+                  </strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '16px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Patient Info</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Patient ID:</span>
+                  <span>{selectedInvoice.patientId}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Name:</span>
+                  <strong>{selectedInvoice.patientName}</strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px', fontSize: '12px' }}>
+                <h4 style={{ margin: '0 0 8px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Billing Details</h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '6px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                      <th style={{ textAlign: 'left', padding: '4px 0' }}>Description</th>
+                      <th style={{ textAlign: 'right', padding: '4px 0' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '8px 0' }}>{selectedInvoice.type}</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 'bold' }}>{selectedInvoice.amount}</td>
+                    </tr>
+                    <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 'bold' }}>
+                      <td style={{ padding: '8px 0', fontSize: '14px' }}>GRAND TOTAL:</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontSize: '14px' }}>{selectedInvoice.amount}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedInvoice.paymentMethod && (
+                <div style={{ fontSize: '11px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>Payment Method:</span>
+                    <strong>{selectedInvoice.paymentMethod}</strong>
+                  </div>
+                  {selectedInvoice.paymentRemarks && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>Reference Notes:</span>
+                      <span>{selectedInvoice.paymentRemarks}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="rd-modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', padding: '16px 24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+              <button className="rd-btn-close" style={{ border: '1px solid #cbd5e1', background: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', color: '#64748b' }} onClick={() => setSelectedInvoice(null)}>Close</button>
+              <button className="rd-btn-primary" style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }} onClick={() => window.print()}>Print Invoice</button>
             </div>
           </div>
         </div>
