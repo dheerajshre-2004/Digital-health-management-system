@@ -9,6 +9,7 @@ import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
 
 function App() {
+  const isPatientOnly = new URLSearchParams(window.location.search).get('portal') === 'patient';
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('patient');
@@ -203,8 +204,28 @@ function App() {
       } else {
         alert('Cash counter staff account not found. Please register first.');
       }
+    } else if (userRole === 'admin') {
+      const savedAdmin = localStorage.getItem('dhms_admin');
+      if (savedAdmin) {
+        const adminObj = JSON.parse(savedAdmin);
+        if (adminObj.email.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
+          setIsAuthenticated(true);
+        } else {
+          alert('Incorrect Administrator credentials. Access denied.');
+          return;
+        }
+      } else {
+        // Dynamically save the admin credentials as the registered admin on first login
+        const newAdmin = {
+          name: 'System Administrator',
+          email: emailVal,
+          password: passwordVal
+        };
+        localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
+        setIsAuthenticated(true);
+      }
     } else {
-      // Allow other roles (like admin) to log in directly
+      // Allow other roles (like insurance_agent) to log in directly
       setIsAuthenticated(true);
     }
   };
@@ -375,24 +396,26 @@ function App() {
     <div className="auth-container">
       <div className="auth-header">
         <h1>Welcome to <span className="highlight">DHMS</span></h1>
-        <p>Secure access portal for patients, doctors, and administrators</p>
+        <p>{isPatientOnly ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and administrators"}</p>
       </div>
 
       <div className="auth-card">
-        <div className="tabs-container">
-          <button 
-            className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
-            onClick={() => setActiveTab('signin')}
-          >
-            Sign In
-          </button>
-          <button 
-            className={`tab ${activeTab === 'register' ? 'active' : ''}`}
-            onClick={() => setActiveTab('register')}
-          >
-            Register Account
-          </button>
-        </div>
+        {!isPatientOnly && (
+          <div className="tabs-container">
+            <button 
+              className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
+              onClick={() => setActiveTab('signin')}
+            >
+              Sign In
+            </button>
+            <button 
+              className={`tab ${activeTab === 'register' ? 'active' : ''}`}
+              onClick={() => setActiveTab('register')}
+            >
+              Register Account
+            </button>
+          </div>
+        )}
 
         {activeTab === 'signin' ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
@@ -435,25 +458,27 @@ function App() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Login As </label>
-              <div className="select-wrapper">
-                <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
-                  <option value="" disabled hidden>Select a role</option>
-                  <option value="patient">Patient</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="laboratory">Laboratory</option>
-                  <option value="pharmacist">Pharmacist</option>
-                  <option value="receptionist">Receptionist</option>
-                  <option value="cash_counter">Cash Counter</option>
-                  <option value="admin">Administrator</option>
-                  <option value="insurance_agent">Insurance Agent / TPA</option>
-                </select>
-                <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+            {!isPatientOnly && (
+              <div className="form-group">
+                <label>Login As </label>
+                <div className="select-wrapper">
+                  <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                    <option value="" disabled hidden>Select a role</option>
+                    <option value="patient">Patient</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="laboratory">Laboratory</option>
+                    <option value="pharmacist">Pharmacist</option>
+                    <option value="receptionist">Receptionist</option>
+                    <option value="cash_counter">Cash Counter</option>
+                    <option value="admin">Administrator</option>
+                    <option value="insurance_agent">Insurance Agent / TPA</option>
+                  </select>
+                  <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
               </div>
-            </div>
+            )}
 
             <button type="submit" className="btn-submit">Secure Sign In</button>
           </form>

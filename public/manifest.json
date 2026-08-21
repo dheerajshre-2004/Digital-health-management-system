@@ -1,0 +1,19 @@
+{
+  "name": "Digital Health Management System",
+  "short_name": "DHMS",
+  "description": "Secure Patient Portal & Hospital Management Console",
+  "theme_color": "#0f172a",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "orientation": "any",
+  "start_url": "/?portal=patient",
+  "id": "/?portal=patient",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

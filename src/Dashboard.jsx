@@ -9,6 +9,13 @@ const DOCTORS = [];
 export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [activeView, setActiveView] = useState('overview');
 
+  // Admin Authority Transfer States
+  const [transferEmail, setTransferEmail] = useState('');
+  const [transferName, setTransferName] = useState('System Administrator');
+  const [transferPassword, setTransferPassword] = useState('');
+  const [transferConfirmPassword, setTransferConfirmPassword] = useState('');
+  const [currentAdminVerifyPassword, setCurrentAdminVerifyPassword] = useState('');
+
   // Admin Module States & Controls
   const [adminSearch, setAdminSearch] = useState('');
   const [adminStatusFilter, setAdminStatusFilter] = useState('All');
@@ -61,6 +68,50 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const allAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
     const updated = allAtt.map(a => a.id === attId ? { ...a, status: newStatus } : a);
     localStorage.setItem('dhms_master_attendance', JSON.stringify(updated));
+  };
+
+  const handleTransferAuthority = (e) => {
+    e.preventDefault();
+    const currentAdminStr = localStorage.getItem('dhms_admin');
+    const currentAdmin = currentAdminStr ? JSON.parse(currentAdminStr) : {
+      name: 'System Administrator',
+      email: 'admin@dhms.org',
+      password: 'admin'
+    };
+
+    if (currentAdminVerifyPassword !== currentAdmin.password) {
+      alert('Security Verification Failed: The current administrator password you entered is incorrect.');
+      return;
+    }
+
+    if (transferPassword !== transferConfirmPassword) {
+      alert('Input Validation Failed: The new administrator password and confirmation password do not match.');
+      return;
+    }
+
+    if (!transferEmail.trim() || !transferName.trim() || !transferPassword.trim()) {
+      alert('Input Validation Failed: All fields are required.');
+      return;
+    }
+
+    const confirmTransfer = window.confirm(
+      `WARNING: You are about to transfer all administrator authority to:\n` +
+      `Name: ${transferName}\n` +
+      `Email: ${transferEmail}\n\n` +
+      `This action is irreversible and you will be immediately logged out and lose admin status. Are you sure you want to proceed?`
+    );
+
+    if (!confirmTransfer) return;
+
+    const newAdmin = {
+      name: transferName.trim(),
+      email: transferEmail.trim().toLowerCase(),
+      password: transferPassword
+    };
+
+    localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
+    alert('Authority transferred successfully! You will now be logged out.');
+    onLogout();
   };
 
   const [departmentsList, setDepartmentsList] = useState(() => {
@@ -1444,6 +1495,46 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
   };
 
+  const handleDeleteDoctor = (docId) => {
+    if (window.confirm("Are you sure you want to delete this doctor?")) {
+      const updated = doctorsRoster.filter(d => d.id !== docId);
+      setDoctorsRoster(updated);
+      localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeleteRecStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this receptionist staff member?")) {
+      const updated = receptionistStaff.filter(s => s.id !== staffId);
+      setReceptionistStaff(updated);
+      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeleteLabStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this laboratory staff member?")) {
+      const updated = laboratoryStaff.filter(s => s.id !== staffId);
+      setLaboratoryStaff(updated);
+      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeletePharmacyStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this pharmacy staff member?")) {
+      const updated = pharmacyStaff.filter(s => s.id !== staffId);
+      setPharmacyStaff(updated);
+      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeleteCashierStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this cashier staff member?")) {
+      const updated = cashierStaff.filter(s => s.id !== staffId);
+      setCashierStaff(updated);
+      localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
+    }
+  };
+
   const handleAdminCreateAppointment = (e) => {
     e.preventDefault();
     if (!adminBookPatient.trim()) return;
@@ -1494,7 +1585,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
           { id: 'pharmacy', label: 'Pharmacy Stock' },
-          { id: 'attendance', label: 'Attendance & Absentees' }
+          { id: 'attendance', label: 'Attendance & Absentees' },
+          { id: 'transfer_authority', label: 'Transfer Authority' }
         ];
       case 'doctor':
         return [
@@ -1750,7 +1842,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </span>
                     </td>
                     {role === 'admin' && (
-                      <td>
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select 
                           value={d.status} 
                           onChange={(e) => handleToggleDoctorStatus(d.id, e.target.value)}
@@ -1760,6 +1852,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <option value="On Leave">On Leave</option>
                           <option value="In Surgery">In Surgery</option>
                         </select>
+                        <button 
+                          onClick={() => handleDeleteDoctor(d.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -1846,7 +1944,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </span>
                     </td>
                     {role === 'admin' && (
-                      <td>
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select 
                           value={s.status} 
                           onChange={(e) => handleToggleRecStaffStatus(s.id, e.target.value)}
@@ -1855,6 +1953,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <option value="Available">Available</option>
                           <option value="On Leave">On Leave</option>
                         </select>
+                        <button 
+                          onClick={() => handleDeleteRecStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -1898,7 +2002,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </span>
                     </td>
                     {role === 'admin' && (
-                      <td>
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select 
                           value={s.status} 
                           onChange={(e) => handleToggleLabStaffStatus(s.id, e.target.value)}
@@ -1907,6 +2011,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <option value="Available">Available</option>
                           <option value="On Leave">On Leave</option>
                         </select>
+                        <button 
+                          onClick={() => handleDeleteLabStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -1950,7 +2060,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </span>
                     </td>
                     {role === 'admin' && (
-                      <td>
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select 
                           value={s.status} 
                           onChange={(e) => handleTogglePharmacyStaffStatus(s.id, e.target.value)}
@@ -1959,6 +2069,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <option value="Available">Available</option>
                           <option value="On Leave">On Leave</option>
                         </select>
+                        <button 
+                          onClick={() => handleDeletePharmacyStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -2002,7 +2118,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </span>
                     </td>
                     {role === 'admin' && (
-                      <td>
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select 
                           value={s.status} 
                           onChange={(e) => handleToggleCashierStaffStatus(s.id, e.target.value)}
@@ -2011,6 +2127,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <option value="Available">Available</option>
                           <option value="On Leave">On Leave</option>
                         </select>
+                        <button 
+                          onClick={() => handleDeleteCashierStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -2931,7 +3053,107 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             </div>
           );
         }
-        return null;
+      case 'transfer_authority':
+        if (role !== 'admin') return null;
+        
+        const currentAdminData = JSON.parse(localStorage.getItem('dhms_admin') || '{"name":"System Administrator","email":"admin@dhms.org","password":"admin"}');
+
+        return (
+          <div className="module-content" style={{ maxWidth: '600px', margin: '0 auto', background: '#ffffff', padding: '30px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ color: '#1e293b', marginBottom: '8px', fontSize: '22px' }}>🔒 Transfer Administrator Authority</h2>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+              Hand over total control of the hospital administrative dashboard to a new owner. This action is **highly sensitive** and will immediately demote your access.
+            </p>
+
+            <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#991b1b', padding: '16px', borderRadius: '8px', marginBottom: '24px', fontSize: '13px', lineHeight: '1.5' }}>
+              <strong>⚠️ CRITICAL SECURITY WARNING:</strong>
+              <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                <li>There must be exactly **one** super-administrator in the system.</li>
+                <li>Your current account session will be terminated instantly upon successful handover.</li>
+                <li>Ensure the new administrator\'s email is correct; otherwise, the portal will be inaccessible.</li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleTransferAuthority} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', display: 'block', fontWeight: 'bold' }}>CURRENT ADMINISTRATOR</span>
+                <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#334155' }}>{currentAdminData.name} ({currentAdminData.email})</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>New Admin Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={transferName} 
+                  onChange={(e) => setTransferName(e.target.value)} 
+                  placeholder="e.g. Dr. Helen Cho" 
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>New Admin Email Address</label>
+                <input 
+                  type="email" 
+                  required 
+                  value={transferEmail} 
+                  onChange={(e) => setTransferEmail(e.target.value)} 
+                  placeholder="newadmin@dhms.org" 
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>New Admin Password</label>
+                  <input 
+                    type="password" 
+                    required 
+                    value={transferPassword} 
+                    onChange={(e) => setTransferPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    required 
+                    value={transferConfirmPassword} 
+                    onChange={(e) => setTransferConfirmPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                  />
+                </div>
+              </div>
+
+              <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '16px 0' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#ef4444' }}>Current Administrator Password (Security Check)</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={currentAdminVerifyPassword} 
+                  onChange={(e) => setCurrentAdminVerifyPassword(e.target.value)} 
+                  placeholder="Enter your current password to authorize" 
+                  style={{ padding: '10px', borderRadius: '6px', border: '2px solid #fca5a5', fontSize: '14px' }} 
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                style={{ marginTop: '12px', padding: '12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(239,68,68,0.2)', transition: 'background 0.2s' }}
+                onMouseOver={(e) => e.target.style.background = '#dc2626'}
+                onMouseOut={(e) => e.target.style.background = '#ef4444'}
+              >
+                Execute Handover & Log Out
+              </button>
+            </form>
+          </div>
+        );
 
       default:
         return null;
