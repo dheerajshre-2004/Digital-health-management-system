@@ -19,6 +19,25 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    // Restore active session if it exists in localStorage
+    const savedSession = localStorage.getItem('dhms_active_session');
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        setUserRole(session.role);
+        if (session.role === 'patient') {
+          setLoggedInPatient(session.user);
+        } else if (session.role === 'doctor') {
+          setLoggedInDoctor(session.user);
+        } else if (session.user) {
+          setLoggedInStaff(session.user);
+        }
+        setIsAuthenticated(true);
+      } catch (err) {
+        console.error("Failed to restore session:", err);
+      }
+    }
+
     // Clean up dummy staff accounts from user's existing localStorage session
     const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
 
@@ -142,6 +161,7 @@ function App() {
         }
         setLoggedInPatient(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'patient', user: matched }));
       } else {
         alert('Patient account not found. Please verify your Patient ID.');
       }
@@ -155,6 +175,7 @@ function App() {
         }
         setLoggedInDoctor(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'doctor', user: matched }));
       } else {
         alert('Doctor account not found. Please register first.');
       }
@@ -168,6 +189,7 @@ function App() {
         }
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'receptionist', user: matched }));
       } else {
         alert('Receptionist account not found. Please register first.');
       }
@@ -181,6 +203,7 @@ function App() {
         }
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'laboratory', user: matched }));
       } else {
         alert('Laboratory staff account not found. Please register first.');
       }
@@ -194,6 +217,7 @@ function App() {
         }
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'pharmacist', user: matched }));
       } else {
         alert('Pharmacy staff account not found. Please register first.');
       }
@@ -207,6 +231,7 @@ function App() {
         }
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'cash_counter', user: matched }));
       } else {
         alert('Cash counter staff account not found. Please register first.');
       }
@@ -216,6 +241,7 @@ function App() {
         const adminObj = JSON.parse(savedAdmin);
         if (adminObj.email.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
           setIsAuthenticated(true);
+          localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: { name: 'System Administrator', email: emailVal } }));
         } else {
           alert('Incorrect Administrator credentials. Access denied.');
           return;
@@ -229,10 +255,12 @@ function App() {
         };
         localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
         setIsAuthenticated(true);
+        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: newAdmin }));
       }
     } else {
       // Allow other roles (like insurance_agent) to log in directly
       setIsAuthenticated(true);
+      localStorage.setItem('dhms_active_session', JSON.stringify({ role: userRole, user: { email: emailVal } }));
     }
   };
 
@@ -371,6 +399,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('dhms_active_session');
     setIsAuthenticated(false);
     setLoggedInPatient(null);
     setLoggedInDoctor(null);
