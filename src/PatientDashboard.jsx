@@ -108,6 +108,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
+      setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
     };
 
     // Load initial check
@@ -117,12 +118,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     if (found) {
       setCurrentPatient(found);
     }
+    setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
+
+    // Interval polling for instant state updates in same tab
+    const intervalId = setInterval(handleStorageChange, 1000);
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [activeTab, loggedInPatient, currentPatient?.id]);
 
   // Appointments & Consultations State
+  const [billingList, setBillingList] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+  });
+
   const [appointments, setAppointments] = useState(() => {
     const list = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
     const patientId = currentPatient?.id || "PT-80234";
@@ -2237,8 +2249,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             Below is the billing history of your clinic consultations, lab diagnostics, and physical checkups processed at the Central Cash Desk.
           </p>
           {(() => {
-            const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-            const myBilling = allBilling.filter(b => b.patientId === (currentPatient?.id || "PT-80234"));
+            const myBilling = billingList.filter(b => b.patientId === (currentPatient?.id || "PT-80234"));
 
             if (myBilling.length === 0) {
               return (
