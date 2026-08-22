@@ -109,6 +109,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
       setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
+      setDoctorsList(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
     };
 
     // Load initial check
@@ -247,8 +248,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [callChatMessages, setCallChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [showScheduleTeleModal, setShowScheduleTeleModal] = useState(false);
-  const [newTeleDoctor, setNewTeleDoctor] = useState('Dr. Gregory House');
-  const [newTeleDept, setNewTeleDept] = useState('Primary Care');
+  const [newTeleDoctor, setNewTeleDoctor] = useState('');
+  const [newTeleDept, setNewTeleDept] = useState('');
   const [newTeleDate, setNewTeleDate] = useState('');
   const [newTeleTime, setNewTeleTime] = useState('');
   const [newTeleReason, setNewTeleReason] = useState('');
@@ -313,10 +314,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     };
   };
 
+  const [doctorsList, setDoctorsList] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+  });
+
   // Physical Appointment Request States
   const [showRequestApptModal, setShowRequestApptModal] = useState(false);
-  const [newApptDoctor, setNewApptDoctor] = useState('Dr. Gregory House');
-  const [newApptDept, setNewApptDept] = useState('Cardiology');
+  const [newApptDoctor, setNewApptDoctor] = useState('');
+  const [newApptDept, setNewApptDept] = useState('');
   const [newApptDate, setNewApptDate] = useState('');
   const [newApptTime, setNewApptTime] = useState('');
   const [newApptReason, setNewApptReason] = useState('');
@@ -656,26 +661,30 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Doctor</label>
                     <select 
+                      required
                       value={newApptDoctor} 
-                      onChange={(e) => setNewApptDoctor(e.target.value)}
+                      onChange={(e) => {
+                        const docId = e.target.value;
+                        setNewApptDoctor(docId);
+                        const doc = doctorsList.find(d => d.id === docId);
+                        if (doc) setNewApptDept(doc.specialty || doc.department || 'Primary Care');
+                      }}
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
                     >
-                      <option value="Dr. Gregory House">Dr. Gregory House (Cardiology)</option>
-                      <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery)</option>
-                      <option value="Dr. John Watson">Dr. John Watson (Primary Care)</option>
+                      <option value="" disabled hidden>Select Doctor</option>
+                      {doctorsList.map(doc => (
+                        <option key={doc.id} value={doc.id}>{doc.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Department</label>
-                    <select 
-                      value={newApptDept} 
-                      onChange={(e) => setNewApptDept(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                    >
-                      <option value="Cardiology">Cardiology</option>
-                      <option value="General Surgery">General Surgery</option>
-                      <option value="Primary Care">Primary Care</option>
-                    </select>
+                    <input 
+                      type="text"
+                      disabled
+                      value={newApptDept}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9' }}
+                    />
                   </div>
                 </div>
 
@@ -1133,12 +1142,16 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const handleRequestApptSubmit = (e) => {
     e.preventDefault();
+    const matchedDoc = doctorsList.find(d => d.id === newApptDoctor);
+    const doctorName = matchedDoc ? matchedDoc.name : newApptDoctor;
+    const doctorId = matchedDoc ? matchedDoc.id : newApptDoctor.toLowerCase().replace('.', '').replace(' ', '_');
+
     const newAppt = {
       id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
       patientId: currentPatient?.id || "PT-80234",
       patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
-      doctorId: newApptDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
-      doctorName: newApptDoctor,
+      doctorId: doctorId,
+      doctorName: doctorName,
       department: newApptDept,
       date: newApptDate,
       time: newApptTime,
@@ -1160,9 +1173,13 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const handleScheduleTeleSubmit = (e) => {
     e.preventDefault();
+    const matchedDoc = doctorsList.find(d => d.id === newTeleDoctor);
+    const doctorName = matchedDoc ? matchedDoc.name : newTeleDoctor;
+    const doctorId = matchedDoc ? matchedDoc.id : newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_');
+
     const newConsult = {
       id: `TELE-${Math.floor(100 + Math.random() * 900)}`,
-      doctor: newTeleDoctor,
+      doctor: doctorName,
       department: newTeleDept,
       date: newTeleDate || "2026-07-20",
       time: newTeleTime || "11:00 AM",
@@ -1175,8 +1192,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       id: newConsult.id,
       patientId: currentPatient?.id || "PT-80234",
       patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
-      doctorId: newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_'),
-      doctorName: newTeleDoctor,
+      doctorId: doctorId,
+      doctorName: doctorName,
       department: newTeleDept,
       date: newConsult.date,
       time: newConsult.time,
@@ -1826,26 +1843,30 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Doctor</label>
                       <select 
+                        required
                         value={newTeleDoctor} 
-                        onChange={(e) => setNewTeleDoctor(e.target.value)}
+                        onChange={(e) => {
+                          const docId = e.target.value;
+                          setNewTeleDoctor(docId);
+                          const doc = doctorsList.find(d => d.id === docId);
+                          if (doc) setNewTeleDept(doc.specialty || doc.department || 'Primary Care');
+                        }}
                         style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
                       >
-                        <option value="Dr. Gregory House">Dr. Gregory House</option>
-                        <option value="Dr. Allison Cameron">Dr. Allison Cameron</option>
-                        <option value="Dr. Robert Chase">Dr. Robert Chase</option>
+                        <option value="" disabled hidden>Select Doctor</option>
+                        {doctorsList.map(doc => (
+                          <option key={doc.id} value={doc.id}>{doc.name}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Department</label>
-                      <select 
-                        value={newTeleDept} 
-                        onChange={(e) => setNewTeleDept(e.target.value)}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                      >
-                        <option value="Cardiology">Cardiology</option>
-                        <option value="Immunology">Immunology</option>
-                        <option value="General Medicine">General Medicine</option>
-                      </select>
+                      <input 
+                        type="text"
+                        disabled
+                        value={newTeleDept}
+                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9' }}
+                      />
                     </div>
                   </div>
 
