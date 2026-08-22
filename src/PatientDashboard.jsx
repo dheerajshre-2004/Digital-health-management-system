@@ -247,7 +247,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [callChatMessages, setCallChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [showScheduleTeleModal, setShowScheduleTeleModal] = useState(false);
-  const [newTeleDoctor, setNewTeleDoctor] = useState('');
+  const [newTeleDoctor, setNewTeleDoctor] = useState('Dr. Gregory House');
   const [newTeleDept, setNewTeleDept] = useState('Primary Care');
   const [newTeleDate, setNewTeleDate] = useState('');
   const [newTeleTime, setNewTeleTime] = useState('');
@@ -285,6 +285,33 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }, 800);
     return () => clearInterval(interval);
   }, [isVideoCallActive, activeCallId]);
+
+  const getSlotAvailability = (doctorName, date) => {
+    if (!doctorName || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false } };
+    const docId = doctorName.toLowerCase().replace('.', '').replace(' ', '_');
+    const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+    const config = slotConfigs.find(c => c.doctorId === docId && c.date === date) || {
+      slot1Capacity: 5,
+      slot2Capacity: 5
+    };
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const slot1Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled').length;
+    const slot2Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled').length;
+    return {
+      slot1: {
+        capacity: config.slot1Capacity,
+        booked: slot1Bookings,
+        available: Math.max(0, config.slot1Capacity - slot1Bookings),
+        isFull: slot1Bookings >= config.slot1Capacity
+      },
+      slot2: {
+        capacity: config.slot2Capacity,
+        booked: slot2Bookings,
+        available: Math.max(0, config.slot2Capacity - slot2Bookings),
+        isFull: slot2Bookings >= config.slot2Capacity
+      }
+    };
+  };
 
   // Physical Appointment Request States
   const [showRequestApptModal, setShowRequestApptModal] = useState(false);
@@ -776,13 +803,27 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
                   <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Time Slot</label>
-                    <input 
-                      type="time" 
+                    <select 
                       required 
                       value={newApptTime} 
                       onChange={(e) => setNewApptTime(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                    />
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
+                    >
+                      <option value="" disabled>Select a Slot</option>
+                      {(() => {
+                        const avail = getSlotAvailability(newApptDoctor, newApptDate);
+                        return (
+                          <>
+                            <option value="Slot 1" disabled={avail.slot1.isFull}>
+                              Slot 1 (Morning: 9 AM - 1 PM) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
+                            </option>
+                            <option value="Slot 2" disabled={avail.slot2.isFull}>
+                              Slot 2 (Afternoon: 2 PM - 6 PM) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
+                            </option>
+                          </>
+                        );
+                      })()}
+                    </select>
                   </div>
                 </div>
 
@@ -1931,14 +1972,28 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       />
                     </div>
                     <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Time</label>
-                      <input 
-                        type="time" 
+                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Time Slot</label>
+                      <select 
                         required 
                         value={newTeleTime} 
                         onChange={(e) => setNewTeleTime(e.target.value)}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
+                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
+                      >
+                        <option value="" disabled>Select a Slot</option>
+                        {(() => {
+                          const avail = getSlotAvailability(newTeleDoctor, newTeleDate);
+                          return (
+                            <>
+                              <option value="Slot 1" disabled={avail.slot1.isFull}>
+                                Slot 1 (Morning: 9 AM - 1 PM) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
+                              </option>
+                              <option value="Slot 2" disabled={avail.slot2.isFull}>
+                                Slot 2 (Afternoon: 2 PM - 6 PM) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
+                              </option>
+                            </>
+                          );
+                        })()}
+                      </select>
                     </div>
                   </div>
 

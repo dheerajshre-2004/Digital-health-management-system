@@ -10,6 +10,12 @@ import InsuranceDashboard from './InsuranceDashboard';
 
 function App() {
   const isPatientOnly = new URLSearchParams(window.location.search).get('portal') === 'patient';
+  const isMobileOrPWA = isPatientOnly || 
+                        window.matchMedia('(display-mode: standalone)').matches || 
+                        window.navigator.standalone || 
+                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                        window.innerWidth <= 768;
+
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('patient');
@@ -24,18 +30,31 @@ function App() {
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
-        setUserRole(session.role);
-        if (session.role === 'patient') {
-          setLoggedInPatient(session.user);
-        } else if (session.role === 'doctor') {
-          setLoggedInDoctor(session.user);
-        } else if (session.user) {
-          setLoggedInStaff(session.user);
+        if (isMobileOrPWA) {
+          if (session.role === 'patient') {
+            setUserRole('patient');
+            setLoggedInPatient(session.user);
+            setIsAuthenticated(true);
+          } else {
+            setUserRole('patient');
+            setIsAuthenticated(false);
+          }
+        } else {
+          setUserRole(session.role);
+          if (session.role === 'patient') {
+            setLoggedInPatient(session.user);
+          } else if (session.role === 'doctor') {
+            setLoggedInDoctor(session.user);
+          } else if (session.user) {
+            setLoggedInStaff(session.user);
+          }
+          setIsAuthenticated(true);
         }
-        setIsAuthenticated(true);
       } catch (err) {
         console.error("Failed to restore session:", err);
       }
+    } else if (isMobileOrPWA) {
+      setUserRole('patient');
     }
 
     // Clean up dummy staff accounts from user's existing localStorage session
@@ -144,6 +163,50 @@ function App() {
       localStorage.setItem('dhms_lab_facilities', JSON.stringify(defaultFacilities));
     }
   }, []);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedSession = localStorage.getItem('dhms_active_session');
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          if (isMobileOrPWA) {
+            if (session.role === 'patient') {
+              setUserRole('patient');
+              setLoggedInPatient(session.user);
+              setIsAuthenticated(true);
+            } else {
+              setUserRole('patient');
+              setIsAuthenticated(false);
+              setLoggedInPatient(null);
+            }
+          } else {
+            setUserRole(session.role);
+            if (session.role === 'patient') {
+              setLoggedInPatient(session.user);
+            } else if (session.role === 'doctor') {
+              setLoggedInDoctor(session.user);
+            } else if (session.user) {
+              setLoggedInStaff(session.user);
+            }
+            setIsAuthenticated(true);
+          }
+        } catch (err) {
+          console.error("Failed to restore session on storage change:", err);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setLoggedInPatient(null);
+        setLoggedInDoctor(null);
+        setLoggedInStaff(null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [isMobileOrPWA]);
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
@@ -432,11 +495,11 @@ function App() {
     <div className="auth-container">
       <div className="auth-header">
         <h1>Welcome to <span className="highlight">DHMS</span></h1>
-        <p>{isPatientOnly ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and administrators"}</p>
+        <p>{isMobileOrPWA ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and administrators"}</p>
       </div>
 
       <div className="auth-card">
-        {!isPatientOnly && (
+        {(!isPatientOnly && !isMobileOrPWA) && (
           <div className="tabs-container">
             <button 
               className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
@@ -510,7 +573,7 @@ function App() {
               </div>
             </div>
 
-            {!isPatientOnly && (
+            {(!isPatientOnly && !isMobileOrPWA) && (
               <div className="form-group">
                 <label>Login As </label>
                 <div className="select-wrapper">
@@ -586,25 +649,27 @@ function App() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>System Role</label>
-              <div className="select-wrapper">
-                <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
-                  <option value="" disabled hidden>Select a role</option>
-                  <option value="patient">Patient Portal</option>
-                  <option value="doctor">Doctor Portal</option>
-                  <option value="laboratory">Laboratory Portal</option>
-                  <option value="pharmacist">Pharmacist Portal</option>
-                  <option value="receptionist">Receptionist Portal</option>
-                  <option value="cash_counter">Cash Counter Portal</option>
-                  <option value="admin">Admin Portal</option>
-                  <option value="insurance_agent">Insurance / TPA Portal</option>
-                </select>
-                <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+            {!isMobileOrPWA && (
+              <div className="form-group">
+                <label>System Role</label>
+                <div className="select-wrapper">
+                  <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                    <option value="" disabled hidden>Select a role</option>
+                    <option value="patient">Patient Portal</option>
+                    <option value="doctor">Doctor Portal</option>
+                    <option value="laboratory">Laboratory Portal</option>
+                    <option value="pharmacist">Pharmacist Portal</option>
+                    <option value="receptionist">Receptionist Portal</option>
+                    <option value="cash_counter">Cash Counter Portal</option>
+                    <option value="admin">Admin Portal</option>
+                    <option value="insurance_agent">Insurance / TPA Portal</option>
+                  </select>
+                  <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
               </div>
-            </div>
+            )}
 
             <button type="submit" className="btn-submit">Create Encrypted Account</button>
           </form>

@@ -194,7 +194,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   });
   const [adminBookDept, setAdminBookDept] = useState('Primary Care');
   const [adminBookDate, setAdminBookDate] = useState(new Date().toISOString().split('T')[0]);
-  const [adminBookTime, setAdminBookTime] = useState('10:00 AM');
+  const [adminBookTime, setAdminBookTime] = useState('Slot 1');
   const [adminBookReason, setAdminBookReason] = useState('Routine Checkup');
   const [adminBookType, setAdminBookType] = useState('Physical');
 
@@ -215,11 +215,56 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return saved.length > 0 ? saved[0].id : '';
   });
 
+  // Doctor Slot Management state
+  const [slotManageDate, setSlotManageDate] = useState(new Date().toISOString().split('T')[0]);
+  const [slot1CapacityInput, setSlot1CapacityInput] = useState(5);
+  const [slot2CapacityInput, setSlot2CapacityInput] = useState(5);
+
   useEffect(() => {
     if (role === 'doctor' && loggedInDoctor) {
       setActiveDoctorId(loggedInDoctor.id);
     }
   }, [loggedInDoctor, role]);
+
+  useEffect(() => {
+    if (role === 'doctor' && activeDoctorId) {
+      const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+      const docId = activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_');
+      const config = slotConfigs.find(c => c.doctorId === docId && c.date === slotManageDate);
+      if (config) {
+        setSlot1CapacityInput(config.slot1Capacity);
+        setSlot2CapacityInput(config.slot2Capacity);
+      } else {
+        setSlot1CapacityInput(5); // default
+        setSlot2CapacityInput(5); // default
+      }
+    }
+  }, [slotManageDate, activeDoctorId, role]);
+
+  const handleSaveSlotCapacities = (e) => {
+    e.preventDefault();
+    if (!activeDoctorId) return;
+
+    const docId = activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_');
+    const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+    
+    const existingIndex = slotConfigs.findIndex(c => c.doctorId === docId && c.date === slotManageDate);
+    const newConfig = {
+      doctorId: docId,
+      date: slotManageDate,
+      slot1Capacity: parseInt(slot1CapacityInput) || 5,
+      slot2Capacity: parseInt(slot2CapacityInput) || 5
+    };
+
+    if (existingIndex > -1) {
+      slotConfigs[existingIndex] = newConfig;
+    } else {
+      slotConfigs.push(newConfig);
+    }
+
+    localStorage.setItem('dhms_doctor_slots', JSON.stringify(slotConfigs));
+    alert("Slot capacities saved successfully for " + slotManageDate + "!");
+  };
 
   useEffect(() => {
     const masterAtt = JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
@@ -1593,6 +1638,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'overview', label: 'My Dashboard' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
+          { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
           { id: 'attendance', label: 'My Shift Attendance' }
@@ -2244,8 +2290,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                         <input type="date" required value={adminBookDate} onChange={(e) => setAdminBookDate(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
                       </div>
                       <div>
-                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Time</label>
-                        <input type="text" required value={adminBookTime} onChange={(e) => setAdminBookTime(e.target.value)} placeholder="10:00 AM" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Time Slot</label>
+                        <select value={adminBookTime} onChange={(e) => setAdminBookTime(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box', background: 'white' }}>
+                          <option value="Slot 1">Slot 1 (Morning)</option>
+                          <option value="Slot 2">Slot 2 (Afternoon)</option>
+                        </select>
                       </div>
                     </div>
                     <div>
@@ -2727,6 +2776,196 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             </table>
           </div>
         );
+
+      case 'slot_management': {
+        const docId = activeDoctorId ? activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_') : '';
+        const docAppointmentsForDate = appointments.filter(a => 
+          a.doctorId === activeDoctorId && a.date === slotManageDate && a.status !== 'Cancelled'
+        );
+        const slot1BookedPatients = docAppointmentsForDate.filter(a => a.time === 'Slot 1');
+        const slot2BookedPatients = docAppointmentsForDate.filter(a => a.time === 'Slot 2');
+
+        const getNextSevenDays = () => {
+          const days = [];
+          for (let i = 0; i < 7; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() + i);
+            const dateString = d.toISOString().split('T')[0];
+            days.push(dateString);
+          }
+          return days;
+        };
+
+        return (
+          <div className="module-content">
+            <h2>Manage Slot Capacities & Bookings</h2>
+            <p>Set custom capacities for Morning (Slot 1) and Afternoon (Slot 2) for any day. View booked patients and inspect their EHR records.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginTop: '20px' }}>
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Set Capacities</h3>
+                <form onSubmit={handleSaveSlotCapacities} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Select Date</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={slotManageDate} 
+                      onChange={(e) => setSlotManageDate(e.target.value)} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Slot 1 (Morning) Capacity</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      required 
+                      value={slot1CapacityInput} 
+                      onChange={(e) => setSlot1CapacityInput(e.target.value)} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Slot 2 (Afternoon) Capacity</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      required 
+                      value={slot2CapacityInput} 
+                      onChange={(e) => setSlot2CapacityInput(e.target.value)} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', marginTop: '8px' }}
+                  >
+                    Save Slot Capacities
+                  </button>
+                </form>
+
+                <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', color: '#475569', fontSize: '13px', fontWeight: 'bold' }}>Upcoming Days Quick View</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {getNextSevenDays().map(dayStr => {
+                      const allSlotsConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+                      const dayConfig = allSlotsConfigs.find(c => c.doctorId === docId && c.date === dayStr) || { slot1Capacity: 5, slot2Capacity: 5 };
+                      
+                      const dayAppts = appointments.filter(a => a.doctorId === activeDoctorId && a.date === dayStr && a.status !== 'Cancelled');
+                      const s1Booked = dayAppts.filter(a => a.time === 'Slot 1').length;
+                      const s2Booked = dayAppts.filter(a => a.time === 'Slot 2').length;
+
+                      const isSelected = slotManageDate === dayStr;
+
+                      return (
+                        <div 
+                          key={dayStr}
+                          onClick={() => setSlotManageDate(dayStr)}
+                          style={{
+                            padding: '10px',
+                            borderRadius: '6px',
+                            border: `1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                            background: isSelected ? '#eff6ff' : '#f8fafc',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          <div style={{ fontWeight: 'bold', color: isSelected ? '#1e40af' : '#1e293b' }}>{dayStr}</div>
+                          <div style={{ color: '#64748b', marginTop: '4px' }}>
+                            Slot 1: {s1Booked}/{dayConfig.slot1Capacity} booked | Slot 2: {s2Booked}/{dayConfig.slot2Capacity} booked
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}>🌅 Slot 1 (Morning: 9 AM - 1 PM) Bookings</h3>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1' }}>
+                      {slot1BookedPatients.length} Booked
+                    </span>
+                  </div>
+                  {slot1BookedPatients.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: 0, textAlign: 'center', padding: '16px 0' }}>No patients booked for this slot.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {slot1BookedPatients.map(appt => (
+                        <div key={appt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9', background: '#fafafa' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{appt.patientName} <span style={{ fontSize: '11px', color: '#64748b' }}>({appt.patientId})</span></div>
+                            <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}><strong>Reason:</strong> {appt.reason}</div>
+                            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>Type: {appt.type} | Status: {appt.status}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const patientObj = patients.find(p => p.id === appt.patientId);
+                              if (patientObj) {
+                                setSelectedEhrPatient(patientObj);
+                                setActiveView('patients');
+                              } else {
+                                alert("Patient records not found.");
+                              }
+                            }}
+                            style={{ padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}
+                          >
+                            Inspect EHR File
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}>🌇 Slot 2 (Afternoon: 2 PM - 6 PM) Bookings</h3>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1' }}>
+                      {slot2BookedPatients.length} Booked
+                    </span>
+                  </div>
+                  {slot2BookedPatients.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: 0, textAlign: 'center', padding: '16px 0' }}>No patients booked for this slot.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {slot2BookedPatients.map(appt => (
+                        <div key={appt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9', background: '#fafafa' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{appt.patientName} <span style={{ fontSize: '11px', color: '#64748b' }}>({appt.patientId})</span></div>
+                            <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}><strong>Reason:</strong> {appt.reason}</div>
+                            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>Type: {appt.type} | Status: {appt.status}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const patientObj = patients.find(p => p.id === appt.patientId);
+                              if (patientObj) {
+                                setSelectedEhrPatient(patientObj);
+                                setActiveView('patients');
+                              } else {
+                                alert("Patient records not found.");
+                              }
+                            }}
+                            style={{ padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}
+                          >
+                            Inspect EHR File
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       case 'prescriptions':
         const docRx = prescriptions.filter(r => r.doctorName === (DOCTORS.find(d => d.id === activeDoctorId)?.name || ''));
