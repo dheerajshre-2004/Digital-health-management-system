@@ -318,6 +318,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     return JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
   });
 
+  // Change Password States
+  const [currPassword, setCurrPassword] = useState('');
+  const [newPasswordVal, setNewPasswordVal] = useState('');
+  const [confirmPasswordVal, setConfirmPasswordVal] = useState('');
+
   // Physical Appointment Request States
   const [showRequestApptModal, setShowRequestApptModal] = useState(false);
   const [newApptDoctor, setNewApptDoctor] = useState('');
@@ -379,6 +384,47 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setCardNumber('');
     setCardExpiry('');
     setCardCvv('');
+  };
+
+  const handleChangePassword = (e) => {
+    e.preventDefault();
+    if (!currentPatient) return;
+    
+    if (currPassword && currentPatient.password && currentPatient.password !== currPassword) {
+      alert("Incorrect current password. Please try again.");
+      return;
+    }
+    
+    if (newPasswordVal !== confirmPasswordVal) {
+      alert("New password and confirm password do not match.");
+      return;
+    }
+    
+    if (newPasswordVal.length < 4) {
+      alert("Password must be at least 4 characters long.");
+      return;
+    }
+    
+    const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const updated = patientsList.map(p => {
+      if (p.id === currentPatient.id) {
+        return { ...p, password: newPasswordVal };
+      }
+      return p;
+    });
+    localStorage.setItem('dhms_patients', JSON.stringify(updated));
+    
+    const activeSession = JSON.parse(localStorage.getItem('dhms_active_session') || '{}');
+    if (activeSession.user && activeSession.user.id === currentPatient.id) {
+      activeSession.user.password = newPasswordVal;
+      localStorage.setItem('dhms_active_session', JSON.stringify(activeSession));
+    }
+    
+    setCurrentPatient(prev => ({ ...prev, password: newPasswordVal }));
+    setCurrPassword('');
+    setNewPasswordVal('');
+    setConfirmPasswordVal('');
+    alert("Password updated successfully!");
   };
 
   const visitHistoryData = [
@@ -841,6 +887,54 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
             );
           })()}
+        </div>
+
+        <div className="pd-section-card">
+          <div className="pd-section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <h3>Security Settings (Change Password)</h3>
+          </div>
+          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Current Password</label>
+              <input 
+                type="password" 
+                required 
+                placeholder="Enter current password" 
+                value={currPassword} 
+                onChange={(e) => setCurrPassword(e.target.value)} 
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>New Password</label>
+              <input 
+                type="password" 
+                required 
+                placeholder="Enter new password" 
+                value={newPasswordVal} 
+                onChange={(e) => setNewPasswordVal(e.target.value)} 
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Confirm New Password</label>
+              <input 
+                type="password" 
+                required 
+                placeholder="Confirm new password" 
+                value={confirmPasswordVal} 
+                onChange={(e) => setConfirmPasswordVal(e.target.value)} 
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button type="submit" className="pd-btn-primary" style={{ marginTop: '4px', width: 'fit-content' }}>
+              Update Password
+            </button>
+          </form>
         </div>
       </div>
     </div>
