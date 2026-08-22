@@ -155,6 +155,13 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
     e.preventDefault();
     if (!newStaffName.trim()) return;
 
+    // Indian Mobile Number validation (optionally starting with +91, 91, or 0, followed by 10 digits)
+    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (newStaffPhone.trim() && !indianPhoneRegex.test(newStaffPhone.trim().replace(/[\s\-]/g, ''))) {
+      alert("Please enter a valid 10-digit Indian phone number.");
+      return;
+    }
+
     const newMember = {
       id: `PHR-${Math.floor(1000 + Math.random() * 9000)}`,
       name: newStaffName.trim(),
