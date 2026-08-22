@@ -62,7 +62,7 @@ export function initSupabaseSync() {
     originalSetItem.apply(this, arguments);
 
     // If it's a DHMS-specific key, sync it with Supabase in the background
-    if (key.startsWith('dhms_')) {
+    if (key.startsWith('dhms_') && key !== 'dhms_active_session') {
       if (updateDebounceTimers[key]) {
         clearTimeout(updateDebounceTimers[key]);
       }
@@ -80,7 +80,7 @@ export function initSupabaseSync() {
   window.localStorage.removeItem = function (key) {
     originalRemoveItem.apply(this, arguments);
 
-    if (key.startsWith('dhms_')) {
+    if (key.startsWith('dhms_') && key !== 'dhms_active_session') {
       if (updateDebounceTimers[key]) {
         clearTimeout(updateDebounceTimers[key]);
         delete updateDebounceTimers[key];
@@ -102,7 +102,7 @@ export function initSupabaseSync() {
 
         if (eventType === 'INSERT' || eventType === 'UPDATE') {
           const { key, value } = newRecord;
-          if (key && key.startsWith('dhms_')) {
+          if (key && key.startsWith('dhms_') && key !== 'dhms_active_session') {
             const valStr = typeof value === 'object' ? JSON.stringify(value) : value;
             // Avoid redundant sets to prevent infinite loops
             if (window.localStorage.getItem(key) !== valStr) {
@@ -112,7 +112,7 @@ export function initSupabaseSync() {
           }
         } else if (eventType === 'DELETE') {
           const { key } = oldRecord;
-          if (key && key.startsWith('dhms_')) {
+          if (key && key.startsWith('dhms_') && key !== 'dhms_active_session') {
             if (window.localStorage.getItem(key) !== null) {
               originalRemoveItem.call(window.localStorage, key);
               window.dispatchEvent(new Event('storage'));
@@ -154,6 +154,7 @@ export async function fetchSupabaseData() {
     if (data && data.length > 0) {
       const originalSetItem = window.localStorage.setItem;
       data.forEach(({ key, value }) => {
+        if (key === 'dhms_active_session') return;
         const valStr = typeof value === 'object' ? JSON.stringify(value) : value;
         // Use original setItem to avoid firing the update sync back to Supabase
         originalSetItem.call(window.localStorage, key, valStr);
