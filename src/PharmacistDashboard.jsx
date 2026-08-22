@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './PharmacistDashboard.css';
 
-export default function PharmacistDashboard({ onLogout }) {
+export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Local storage states
@@ -380,10 +380,10 @@ Thank you for using DHMS Hospital.
         </div>
         <div className="pharmacy-topbar-right">
           <div className="pharmacy-profile-info">
-            <div className="pharmacy-avatar">PH</div>
+            <div className="pharmacy-avatar">{(loggedInStaff?.name || 'Pharmacist')[0]}</div>
             <div className="pharmacy-user-details">
-              <strong>Pharmacist Specialist</strong>
-              <span>Clinical Operations</span>
+              <strong>{loggedInStaff?.name || 'Pharmacist Specialist'}</strong>
+              <span>{loggedInStaff?.role || 'Clinical Operations'}</span>
             </div>
           </div>
           <button onClick={onLogout} className="pharmacy-btn-logout">

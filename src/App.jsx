@@ -477,13 +477,13 @@ function App() {
       return <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'laboratory') {
-      return <LaboratoryDashboard onLogout={handleLogout} />;
+      return <LaboratoryDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'pharmacist') {
-      return <PharmacistDashboard onLogout={handleLogout} />;
+      return <PharmacistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'cash_counter') {
-      return <CashCounterDashboard onLogout={handleLogout} />;
+      return <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'insurance_agent') {
       return <InsuranceDashboard onLogout={handleLogout} />;

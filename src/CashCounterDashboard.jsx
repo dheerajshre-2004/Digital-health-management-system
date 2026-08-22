@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './CashCounterDashboard.css';
 
-export default function CashCounterDashboard({ onLogout, embedMode = false, adminMode = false }) {
+export default function CashCounterDashboard({ onLogout, embedMode = false, adminMode = false, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Datasets from localStorage
@@ -38,9 +38,9 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   });
   
   const [cashierAttendanceForm, setCashierAttendanceForm] = useState({
-    staffId: 'CSH-201',
-    staffName: 'Clara Oswald',
-    role: 'Senior Billing Specialist',
+    staffId: loggedInStaff?.id || 'CSH-201',
+    staffName: loggedInStaff?.name || 'Clara Oswald',
+    role: loggedInStaff?.role || 'Senior Billing Specialist',
     date: new Date().toISOString().split('T')[0],
     status: 'Present',
     checkIn: '08:00 AM',
@@ -776,10 +776,10 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
           </div>
           <div className="cc-topbar-right">
             <div className="cc-profile-info">
-              <div className="cc-avatar">C</div>
+              <div className="cc-avatar">{(loggedInStaff?.name || 'Clara Oswald')[0]}</div>
               <div className="cc-user-details">
-                <strong>Clara Oswald</strong>
-                <span>Billing Counter</span>
+                <strong>{loggedInStaff?.name || 'Clara Oswald'}</strong>
+                <span>{loggedInStaff?.role || 'Billing Counter'}</span>
               </div>
               <div className="cc-role-badge">CASH DESK SPECIALIST</div>
             </div>

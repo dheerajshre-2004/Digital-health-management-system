@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './LaboratoryDashboard.css';
 
-export default function LaboratoryDashboard({ onLogout }) {
+export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Core states from localStorage
@@ -271,10 +271,10 @@ export default function LaboratoryDashboard({ onLogout }) {
         </div>
         <div className="lab-topbar-right">
           <div className="lab-profile-info">
-            <div className="lab-avatar">LS</div>
+            <div className="lab-avatar">{(loggedInStaff?.name || 'Lab')[0]}</div>
             <div className="lab-user-details">
-              <strong>Lab Specialist</strong>
-              <span>Pathology Department</span>
+              <strong>{loggedInStaff?.name || 'Lab Specialist'}</strong>
+              <span>{loggedInStaff?.role || 'Pathology Department'}</span>
             </div>
           </div>
           <button onClick={onLogout} className="lab-btn-logout">
