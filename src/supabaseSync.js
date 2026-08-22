@@ -139,16 +139,6 @@ export async function fetchSupabaseData() {
       return;
     }
 
-    // Clear only DHMS-synced local storage keys first to force a clean slate, preserving local-only active sessions
-    const keysToRemove = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith('dhms_') && key !== 'dhms_active_session') {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => window.localStorage.removeItem(key));
-
     const { data, error } = await supabase
       .from('dhms_store')
       .select('key, value');
