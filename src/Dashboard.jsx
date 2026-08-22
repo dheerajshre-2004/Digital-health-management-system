@@ -691,6 +691,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <input type="text" className="clinical-input" value={labCost} onChange={(e) => setLabCost(e.target.value)} />
             </div>
             <button type="button" onClick={addPrescribedLab} className="btn-action-outline">Add Test</button>
+            <button type="button" onClick={() => setPrescribedLabs([{ name: "No Test Recommended", priority: "Routine", cost: "0.00" }])} className="btn-action-outline" style={{ borderColor: '#e2e8f0', background: '#f8fafc', color: '#64748b' }}>No Test Recommended</button>
           </div>
 
           {/* Prescribed Labs List */}
