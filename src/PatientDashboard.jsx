@@ -110,6 +110,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
       setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
       setDoctorsList(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
+      setNotifications(JSON.parse(localStorage.getItem('dhms_notifications') || '[]'));
     };
 
     // Load initial check
@@ -330,16 +331,140 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [newApptDate, setNewApptDate] = useState('');
   const [newApptTime, setNewApptTime] = useState('');
   const [newApptReason, setNewApptReason] = useState('');
-
-  // Admissions and Billing states
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
+
+  // Notifications and Inbox States
+  const [notifications, setNotifications] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_notifications') || '[]');
+  });
+  const [showNotifInbox, setShowNotifInbox] = useState(false);
+  const [showNewUpdatesPopup, setShowNewUpdatesPopup] = useState(false);
+
+  const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+  const patientNotifs = notifications.filter(n => n.patientId === patientId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const unreadNotifsCount = patientNotifs.filter(n => !n.read).length;
+  const unreadNotifsToShow = patientNotifs.filter(n => !n.read && !n.popupShown);
+
+  const markNotifAsRead = (id) => {
+    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    localStorage.setItem('dhms_notifications', JSON.stringify(updated));
+    setNotifications(updated);
+  };
+
+  const markAllNotifsAsRead = () => {
+    const updated = notifications.map(n => n.patientId === patientId ? { ...n, read: true, popupShown: true } : n);
+    localStorage.setItem('dhms_notifications', JSON.stringify(updated));
+    setNotifications(updated);
+  };
+
+  const dismissNewUpdatesPopup = () => {
+    const updated = notifications.map(n => n.patientId === patientId && !n.read ? { ...n, read: true, popupShown: true } : n);
+    localStorage.setItem('dhms_notifications', JSON.stringify(updated));
+    setNotifications(updated);
+    setShowNewUpdatesPopup(false);
+  };
+
+  // Auto-generate notifications from state variables
+  useEffect(() => {
+    const currentNotifs = JSON.parse(localStorage.getItem('dhms_notifications') || '[]');
+    let updatedNotifs = [...currentNotifs];
+    let hasNew = false;
+
+    // 1. Scan Appointments
+    appointments.forEach(appt => {
+      if (appt.patientId !== patientId) return;
+      const notifId = `notif_appt_${appt.id}_${appt.status}`;
+      if (!currentNotifs.some(n => n.id === notifId)) {
+        let title = "Appointment Update";
+        let message = "";
+        
+        if (appt.status === 'Pending Confirmation') {
+          title = "Appointment Booked";
+          message = `Your appointment request with ${appt.doctorName} for ${appt.date} (${appt.time}) has been received and is pending confirmation.`;
+        } else if (appt.status === 'Scheduled') {
+          title = "Appointment Confirmed";
+          message = `Your appointment with ${appt.doctorName} for ${appt.date} (${appt.time}) has been confirmed.`;
+        } else if (appt.status === 'Checked In') {
+          title = "Checked In at Clinic";
+          message = `You have been checked in for your appointment with ${appt.doctorName}. Please proceed to the waiting area.`;
+        } else if (appt.status === 'Completed') {
+          title = "Consultation Completed";
+          message = `Your consultation with ${appt.doctorName} has been completed.`;
+        } else if (appt.status === 'Cancelled') {
+          title = "Appointment Cancelled";
+          message = `Your appointment with ${appt.doctorName} has been cancelled.`;
+        } else {
+          message = `Your appointment status with ${appt.doctorName} has changed to: ${appt.status}.`;
+        }
+
+        updatedNotifs.push({
+          id: notifId,
+          patientId,
+          title,
+          message,
+          timestamp: new Date().toISOString(),
+          read: false,
+          popupShown: false
+        });
+        hasNew = true;
+      }
+    });
+
+    // 2. Scan Billing
+    billingList.forEach(invoice => {
+      if (invoice.patientId !== patientId) return;
+      const notifId = `notif_bill_${invoice.id}_${invoice.status}`;
+      if (!currentNotifs.some(n => n.id === notifId)) {
+        updatedNotifs.push({
+          id: notifId,
+          patientId,
+          title: `Invoice Generated (${invoice.status})`,
+          message: `A new invoice (${invoice.id}) for "${invoice.type}" of ${invoice.amount} has been generated (Status: ${invoice.status}).`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          popupShown: false
+        });
+        hasNew = true;
+      }
+    });
+
+    // 3. Scan Lab Requests
+    labOrders.forEach(lab => {
+      if (lab.patientId !== patientId) return;
+      const notifId = `notif_lab_${lab.id}_${lab.status}`;
+      if (!currentNotifs.some(n => n.id === notifId)) {
+        updatedNotifs.push({
+          id: notifId,
+          patientId,
+          title: `Lab Order Update`,
+          message: `Your lab test for "${lab.testName}" priority "${lab.priority}" is now: ${lab.status}.`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          popupShown: false
+        });
+        hasNew = true;
+      }
+    });
+
+    if (hasNew) {
+      localStorage.setItem('dhms_notifications', JSON.stringify(updatedNotifs));
+      setNotifications(updatedNotifs);
+    }
+  }, [appointments, billingList, labOrders, patientId]);
+
+  useEffect(() => {
+    const unread = notifications.filter(n => n.patientId === patientId && !n.read && !n.popupShown);
+    if (unread.length > 0) {
+      setShowNewUpdatesPopup(true);
+    }
+  }, [notifications, patientId]);
+
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [selectedAdmissionForPay, setSelectedAdmissionForPay] = useState(null);
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
 
   const handlePayAndDischarge = (e) => {
     e.preventDefault();
@@ -2407,6 +2532,39 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </div>
             <div className="pd-role-badge">PATIENT</div>
           </div>
+
+          {/* Bell Icon Notification Button */}
+          <button 
+            className="pd-signout-btn" 
+            onClick={() => setShowNotifInbox(!showNotifInbox)} 
+            title="Message Inbox & Notifications" 
+            style={{ position: 'relative' }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            {unreadNotifsCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#ef4444',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                borderRadius: '50%',
+                width: '16px',
+                height: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {unreadNotifsCount}
+              </span>
+            )}
+          </button>
+
           <button className="pd-signout-btn" onClick={onLogout} title="Sign Out">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -2864,6 +3022,99 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             <div className="pd-modal-footer">
               <button className="pd-btn-outline" onClick={() => setSelectedInvoice(null)}>Close</button>
               <button className="pd-btn-primary" onClick={() => window.print()}>Print Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification / Message Inbox Modal */}
+      {showNotifInbox && (
+        <div className="pd-modal-overlay" onClick={() => setShowNotifInbox(false)} style={{ zIndex: 10001 }}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="pd-modal-header">
+              <h2>Message Inbox & Notifications</h2>
+              <button className="pd-modal-close" onClick={() => setShowNotifInbox(false)}>&times;</button>
+            </div>
+            <div className="pd-modal-body" style={{ maxHeight: '400px', overflowY: 'auto', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>{unreadNotifsCount} unread messages</span>
+                {unreadNotifsCount > 0 && (
+                  <button 
+                    onClick={markAllNotifsAsRead} 
+                    style={{ background: 'none', border: 'none', color: '#5c6bc0', cursor: 'pointer', fontSize: '13px', fontWeight: '600', padding: 0 }}
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              {patientNotifs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '48px', height: '48px', marginBottom: '8px', color: '#cbd5e1', margin: '0 auto' }}>
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  <p>Your inbox is empty.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {patientNotifs.map(notif => (
+                    <div 
+                      key={notif.id} 
+                      onClick={() => markNotifAsRead(notif.id)}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: notif.read ? '#f8fafc' : '#f5f8ff',
+                        borderLeft: notif.read ? '1px solid #e2e8f0' : '4px solid #5c6bc0',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <strong style={{ fontSize: '14px', color: notif.read ? '#475569' : '#1e293b' }}>{notif.title}</strong>
+                        {!notif.read && (
+                          <span style={{ background: '#5c6bc0', width: '8px', height: '8px', borderRadius: '50%' }}></span>
+                        )}
+                      </div>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', display: 'block' }}>
+                        {new Date(notif.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-popup for new notifications */}
+      {showNewUpdatesPopup && unreadNotifsToShow.length > 0 && (
+        <div className="pd-modal-overlay" style={{ zIndex: 10002 }}>
+          <div className="pd-modal-content" style={{ maxWidth: '450px', width: '90%', borderTop: '4px solid #5c6bc0' }}>
+            <div className="pd-modal-header">
+              <h2>New Updates & Notifications</h2>
+            </div>
+            <div className="pd-modal-body" style={{ padding: '16px' }}>
+              <p style={{ fontSize: '14px', color: '#475569', marginBottom: '16px', textAlign: 'left' }}>You have new updates on your file since your last visit:</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
+                {unreadNotifsToShow.map(notif => (
+                  <div key={notif.id} style={{ padding: '12px', borderRadius: '8px', background: '#f5f8ff', borderLeft: '4px solid #5c6bc0', textAlign: 'left' }}>
+                    <strong style={{ fontSize: '14px', color: '#1e293b', display: 'block', marginBottom: '4px' }}>{notif.title}</strong>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>{notif.message}</p>
+                  </div>
+                ))}
+              </div>
+              <button 
+                className="pd-btn-primary" 
+                onClick={dismissNewUpdatesPopup} 
+                style={{ width: '100%' }}
+              >
+                Mark as Read & Continue
+              </button>
             </div>
           </div>
         </div>
