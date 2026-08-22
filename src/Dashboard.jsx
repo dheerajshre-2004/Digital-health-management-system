@@ -535,36 +535,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const bpAlert = getBPAlert(vitalBP);
     const hrAlert = getHRAlert(vitalHR);
     const tempAlert = getTempAlert(vitalTemp);
-    const spo2Alert = getSpO2Alert(vitalSpO2);
-
     return (
       <div className="clinical-workspace-form">
-        {/* Vitals Section */}
-        <div className="clinical-section">
-          <h4 className="section-title"> Objective Parameters & Vitals</h4>
-          <div className="vitals-input-grid">
-            <div className="vital-input-col">
-              <label>Blood Pressure</label>
-              <input type="text" className="clinical-input" value={vitalBP} onChange={(e) => setVitalBP(e.target.value)} placeholder="120/80" />
-              {bpAlert && <span className="vital-badge" style={{ backgroundColor: bpAlert.color }}>{bpAlert.label}</span>}
-            </div>
-            <div className="vital-input-col">
-              <label>Heart Rate (bpm)</label>
-              <input type="text" className="clinical-input" value={vitalHR} onChange={(e) => setVitalHR(e.target.value)} placeholder="72" />
-              {hrAlert && <span className="vital-badge" style={{ backgroundColor: hrAlert.color }}>{hrAlert.label}</span>}
-            </div>
-            <div className="vital-input-col">
-              <label>Temperature (°F)</label>
-              <input type="text" className="clinical-input" value={vitalTemp} onChange={(e) => setVitalTemp(e.target.value)} placeholder="98.6" />
-              {tempAlert && <span className="vital-badge" style={{ backgroundColor: tempAlert.color }}>{tempAlert.label}</span>}
-            </div>
-            <div className="vital-input-col">
-              <label>SpO₂ Oxygen (%)</label>
-              <input type="text" className="clinical-input" value={vitalSpO2} onChange={(e) => setVitalSpO2(e.target.value)} placeholder="98" />
-              {spo2Alert && <span className="vital-badge" style={{ backgroundColor: spo2Alert.color }}>{spo2Alert.label}</span>}
-            </div>
-          </div>
-        </div>
 
         {/* Structured Clinical Notes */}
         <div className="clinical-section">
