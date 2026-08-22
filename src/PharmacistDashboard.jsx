@@ -157,7 +157,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
 
     // Indian Mobile Number validation (optionally starting with +91, 91, or 0, followed by 10 digits)
     const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-    if (newStaffPhone.trim() && !indianPhoneRegex.test(newStaffPhone.trim().replace(/[\s\-]/g, ''))) {
+    if (!newStaffPhone.trim() || !indianPhoneRegex.test(newStaffPhone.trim().replace(/[\s\-]/g, ''))) {
       alert("Please enter a valid 10-digit Indian phone number.");
       return;
     }
@@ -167,7 +167,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       name: newStaffName.trim(),
       role: newStaffRole,
       email: newStaffEmail.trim() || `${newStaffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
-      phone: newStaffPhone.trim() || '9999999999',
+      phone: newStaffPhone.trim(),
       status: 'Active',
       joinedDate: new Date().toISOString().split('T')[0]
     };
@@ -612,10 +612,11 @@ Thank you for using DHMS Hospital.
                       />
                     </div>
                     <div className="form-group">
-                      <label>Phone Number</label>
+                      <label>Phone Number *</label>
                       <input 
                         type="text" 
-                        placeholder="Enter phone number (optional)" 
+                        required
+                        placeholder="Enter 10-digit phone number" 
                         value={newStaffPhone} 
                         onChange={(e) => setNewStaffPhone(e.target.value)}
                       />
