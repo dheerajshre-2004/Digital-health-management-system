@@ -215,7 +215,13 @@ function App() {
     
     if (userRole === 'patient') {
       const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
-      const matched = patientsList.find(p => p.id?.toLowerCase() === emailVal.trim().toLowerCase() || p.email?.toLowerCase() === emailVal.trim().toLowerCase());
+      const cleanInput = emailVal.trim().replace(/[\s\-\(\)\+]/g, '');
+      const matched = patientsList.find(p => {
+        const cleanPhone = p.phone ? p.phone.replace(/[\s\-\(\)\+]/g, '') : '';
+        return p.id?.toLowerCase() === emailVal.trim().toLowerCase() || 
+               p.email?.toLowerCase() === emailVal.trim().toLowerCase() ||
+               (cleanPhone && cleanPhone === cleanInput);
+      });
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
