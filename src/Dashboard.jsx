@@ -1461,7 +1461,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   const handleAddDoctor = (e) => {
     e.preventDefault();
-    if (!newDocName.trim()) return;
+    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (newDocPhone.trim() && !indianPhoneRegex.test(newDocPhone.trim().replace(/[\s\-]/g, ''))) {
+      alert("Please enter a valid 10-digit Indian phone number.");
+      return;
+    }
+
     const idStr = `dr_${newDocName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Math.floor(100 + Math.random() * 900)}`;
     const newDoc = {
       id: idStr,
