@@ -13,8 +13,7 @@ function App() {
   const isMobileOrPWA = isPatientOnly || 
                         window.matchMedia('(display-mode: standalone)').matches || 
                         window.navigator.standalone || 
-                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                        window.innerWidth <= 768;
+                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
