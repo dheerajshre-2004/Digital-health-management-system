@@ -148,6 +148,15 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
 
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
+
+    // Indian phone number validation (starts with 6-9, 10 digits total, optional prefix +91/91/0)
+    const cleanPhone = patientData.phone.replace(/[\s\-\(\)]/g, '');
+    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (!indianPhoneRegex.test(cleanPhone)) {
+      alert("Invalid Indian Phone Number. Please enter a valid 10-digit number (starts with 6-9, optionally prefixed with +91, 91, or 0).");
+      return;
+    }
+
     const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
     const randomPassword = `pass_${Math.floor(1000 + Math.random() * 9000)}`;
     const newPatient = {
@@ -390,7 +399,7 @@ End of Generated Health Summary Report
             <div className="rd-form-row">
               <div className="rd-form-group">
                 <label>Phone Number</label>
-                <input type="tel" required value={patientData.phone} onChange={e => setPatientData({...patientData, phone: e.target.value})} placeholder="+1 (555) 000-0000" />
+                <input type="tel" required value={patientData.phone} onChange={e => setPatientData({...patientData, phone: e.target.value})} placeholder="e.g. +91 98765 43210 or 9876543210" />
               </div>
               <div className="rd-form-group">
                 <label>Email Address</label>
