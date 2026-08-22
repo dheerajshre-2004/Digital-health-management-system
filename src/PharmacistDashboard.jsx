@@ -45,6 +45,11 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
     date: new Date().toISOString().split('T')[0]
   });
 
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('Assistant Pharmacist');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showEmergencyOnly, setShowEmergencyOnly] = useState(false);
@@ -144,6 +149,33 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
 
     saveAttendance(updatedAttendance);
     alert(`Attendance logged successfully for ${staffMember.name}!`);
+  };
+
+  const handleRegisterStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffName.trim()) return;
+
+    const newMember = {
+      id: `PHR-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: newStaffName.trim(),
+      role: newStaffRole,
+      email: newStaffEmail.trim() || `${newStaffName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+      phone: newStaffPhone.trim() || '9999999999',
+      status: 'Active',
+      joinedDate: new Date().toISOString().split('T')[0]
+    };
+
+    const currentStaff = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+    const updated = [newMember, ...currentStaff];
+    localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
+    setStaff(updated);
+
+    setNewStaffName('');
+    setNewStaffRole('Assistant Pharmacist');
+    setNewStaffEmail('');
+    setNewStaffPhone('');
+
+    alert(`${newMember.name} has been registered as Pharmacy Staff successfully!`);
   };
 
   // 2. Medication / Stock actions
@@ -535,6 +567,53 @@ Thank you for using DHMS Hospital.
                     </div>
 
                     <button type="submit" className="btn-primary">Log Shift Details</button>
+                  </form>
+                </div>
+
+                <div className="section-card" style={{ marginTop: '20px' }}>
+                  <h2>Register Left-Out Pharmacy Staff</h2>
+                  <form onSubmit={handleRegisterStaff} className="custom-form">
+                    <div className="form-group">
+                      <label>Staff Name *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Enter full name" 
+                        value={newStaffName} 
+                        onChange={(e) => setNewStaffName(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Designation / Role</label>
+                      <select 
+                        value={newStaffRole} 
+                        onChange={(e) => setNewStaffRole(e.target.value)}
+                      >
+                        <option value="Assistant Pharmacist">Assistant Pharmacist</option>
+                        <option value="Senior Pharmacist">Senior Pharmacist</option>
+                        <option value="Pharmacy Trainee">Pharmacy Trainee</option>
+                        <option value="Inventory Helper">Inventory Helper</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Email Address</label>
+                      <input 
+                        type="email" 
+                        placeholder="Enter email address (optional)" 
+                        value={newStaffEmail} 
+                        onChange={(e) => setNewStaffEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Phone Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter phone number (optional)" 
+                        value={newStaffPhone} 
+                        onChange={(e) => setNewStaffPhone(e.target.value)}
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary" style={{ backgroundColor: '#10b981' }}>Register Staff Member</button>
                   </form>
                 </div>
 
