@@ -669,8 +669,8 @@
 
 .pd-search-input-wrapper {
   position: relative;
-  flex: 1 1 200px;
-  min-width: 140px;
+  width: 320px;
+  max-width: 100%;
 }
 
 .pd-search-input-wrapper .search-icon {
@@ -708,8 +708,7 @@
   background-color: #ffffff;
   outline: none;
   cursor: pointer;
-  flex: 1 1 150px;
-  min-width: 120px;
+  width: 180px;
 }
 
 .pd-visits-list {
@@ -1163,7 +1162,8 @@
   margin-bottom: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
+  justify-content: flex-start;
 }
 
 .pd-upload-area-card {
