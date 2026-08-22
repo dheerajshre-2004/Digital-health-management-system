@@ -371,22 +371,22 @@ End of Generated Health Summary Report
           <form className="rd-form" onSubmit={handleRegisterSubmit}>
             <div className="rd-form-row">
               <div className="rd-form-group">
-                <label>First Name</label>
+                <label>First Name <span style={{ color: 'red' }}>*</span></label>
                 <input type="text" required value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} placeholder="e.g. Jane" />
               </div>
               <div className="rd-form-group">
                 <label>Last Name</label>
-                <input type="text" required value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} placeholder="e.g. Smith" />
+                <input type="text" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} placeholder="e.g. Smith" />
               </div>
             </div>
 
             <div className="rd-form-row">
               <div className="rd-form-group">
-                <label>Date of Birth</label>
+                <label>Date of Birth <span style={{ color: 'red' }}>*</span></label>
                 <input type="date" required value={patientData.dob} onChange={e => setPatientData({...patientData, dob: e.target.value})} />
               </div>
               <div className="rd-form-group">
-                <label>Gender</label>
+                <label>Gender <span style={{ color: 'red' }}>*</span></label>
                 <select required value={patientData.gender} onChange={e => setPatientData({...patientData, gender: e.target.value})}>
                   <option value="" disabled hidden>Select Gender</option>
                   <option value="male">Male</option>
@@ -398,12 +398,12 @@ End of Generated Health Summary Report
 
             <div className="rd-form-row">
               <div className="rd-form-group">
-                <label>Phone Number</label>
+                <label>Phone Number <span style={{ color: 'red' }}>*</span></label>
                 <input type="tel" required value={patientData.phone} onChange={e => setPatientData({...patientData, phone: e.target.value})} placeholder="e.g. +91 98765 43210 or 9876543210" />
               </div>
               <div className="rd-form-group">
-                <label>Email Address</label>
-                <input type="email" value={patientData.email} onChange={e => setPatientData({...patientData, email: e.target.value})} placeholder="jane.smith@example.com" />
+                <label>Email Address <span style={{ color: 'red' }}>*</span></label>
+                <input type="email" required value={patientData.email} onChange={e => setPatientData({...patientData, email: e.target.value})} placeholder="jane.smith@example.com" />
               </div>
             </div>
 
