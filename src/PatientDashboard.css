@@ -1154,6 +1154,14 @@
   flex-wrap: wrap;
 }
 
+.pd-ehr-actions-panel .pd-filter-bar {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
 .pd-upload-area-card {
   display: flex;
   align-items: center;
@@ -1920,6 +1928,32 @@
 
   .pd-facilities-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  /* EHR Actions Panel mobile overrides to prevent overlapping */
+  .pd-ehr-actions-panel {
+    padding: 12px 16px !important;
+  }
+  .pd-search-input-wrapper {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+  .pd-filter-select {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+  .pd-ehr-actions-panel .pd-filter-bar {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .pd-upload-area-card {
+    width: 100% !important;
+  }
+  .pd-upload-btn-label {
+    width: 100% !important;
+    justify-content: center !important;
   }
 }
 
