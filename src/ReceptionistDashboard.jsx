@@ -195,12 +195,10 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     const patientName = matchedPatient ? `${matchedPatient.firstName} ${matchedPatient.lastName}` : appointmentData.patientId;
     const patientId = matchedPatient ? matchedPatient.id : `PT-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    const doctorMap = {
-      dr_house: { name: "Dr. Gregory House", dept: "Cardiology" },
-      dr_grey: { name: "Dr. Meredith Grey", dept: "General Surgery" },
-      dr_watson: { name: "Dr. John Watson", dept: "Primary Care" }
-    };
-    const docInfo = doctorMap[appointmentData.doctorId] || { name: appointmentData.doctorId, dept: "General Clinic" };
+    const matchedDoc = doctorsList.find(d => d.id === appointmentData.doctorId);
+    const docInfo = matchedDoc 
+      ? { name: matchedDoc.name, dept: matchedDoc.department || matchedDoc.specialty } 
+      : { name: appointmentData.doctorId, dept: "General Clinic" };
 
     const newAppt = {
       id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -591,9 +589,11 @@ End of Generated Health Summary Report
                 <label>Assign to Doctor</label>
                 <select required value={appointmentData.doctorId} onChange={e => setAppointmentData({...appointmentData, doctorId: e.target.value})}>
                   <option value="" disabled hidden>Select Doctor</option>
-                  <option value="dr_house">Dr. Gregory House (Cardiology)</option>
-                  <option value="dr_grey">Dr. Meredith Grey (General Surgery)</option>
-                  <option value="dr_watson">Dr. John Watson (Primary Care)</option>
+                  {doctorsList.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.name} ({doc.specialty || doc.department || 'Primary Care'})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -604,7 +604,52 @@ End of Generated Health Summary Report
                 </div>
                 <div className="rd-form-group">
                   <label>Time Slot</label>
-                  <input type="time" required value={appointmentData.time} onChange={e => setAppointmentData({...appointmentData, time: e.target.value})} />
+                  <select 
+                    required 
+                    value={appointmentData.time} 
+                    onChange={e => setAppointmentData({...appointmentData, time: e.target.value})}
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', width: '100%', boxSizing: 'border-box' }}
+                  >
+                    <option value="" disabled>Select a Slot</option>
+                    {(() => {
+                      const getSlotAvailability = (docId, date) => {
+                        if (!docId || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false } };
+                        const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+                        const config = slotConfigs.find(c => c.doctorId === docId && c.date === date) || {
+                          slot1Capacity: 5,
+                          slot2Capacity: 5
+                        };
+                        const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+                        const slot1Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled').length;
+                        const slot2Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled').length;
+                        return {
+                          slot1: {
+                            capacity: config.slot1Capacity,
+                            booked: slot1Bookings,
+                            available: Math.max(0, config.slot1Capacity - slot1Bookings),
+                            isFull: slot1Bookings >= config.slot1Capacity
+                          },
+                          slot2: {
+                            capacity: config.slot2Capacity,
+                            booked: slot2Bookings,
+                            available: Math.max(0, config.slot2Capacity - slot2Bookings),
+                            isFull: slot2Bookings >= config.slot2Capacity
+                          }
+                        };
+                      };
+                      const avail = getSlotAvailability(appointmentData.doctorId, appointmentData.date);
+                      return (
+                        <>
+                          <option value="Slot 1" disabled={avail.slot1.isFull}>
+                            Slot 1 (Morning) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
+                          </option>
+                          <option value="Slot 2" disabled={avail.slot2.isFull}>
+                            Slot 2 (Afternoon) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
+                          </option>
+                        </>
+                      );
+                    })()}
+                  </select>
                 </div>
               </div>
 
