@@ -372,6 +372,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
+  const [printedPatientReleaseCert, setPrintedPatientReleaseCert] = useState(null);
+  const [printedPatientAdmissionPass, setPrintedPatientAdmissionPass] = useState(null);
 
   // Notifications and Inbox States
   const [notifications, setNotifications] = useState(() => {
@@ -675,6 +677,94 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           Request Appointment
         </button>
       </div>
+
+      {/* Active Inpatient Hospital Stay Banner */}
+      {(() => {
+        const activeStay = admissions.find(a => 
+          a.patientId === (currentPatient?.id || "PT-80234") && 
+          (a.status === 'Admitted' || a.status === 'Fit for Discharge / Settle Billing' || a.status?.includes('Pending'))
+        );
+
+        if (!activeStay) return null;
+
+        const isFitForDischarge = activeStay.status === 'Fit for Discharge / Settle Billing';
+
+        return (
+          <div style={{
+            background: isFitForDischarge ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+            border: isFitForDischarge ? '2px solid #3b82f6' : '2px solid #10b981',
+            borderRadius: '12px',
+            padding: '20px 24px',
+            marginBottom: '24px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '10px',
+                background: isFitForDischarge ? '#2563eb' : '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '24px'
+              }}>
+                🏥
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', color: '#0f172a', fontWeight: '800' }}>
+                    {isFitForDischarge ? 'Discharge Clearance Authorized' : 'Currently Admitted Inpatient Stay'}
+                  </h3>
+                  <span style={{
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontWeight: '800',
+                    background: isFitForDischarge ? '#1e40af' : '#065f46',
+                    color: 'white'
+                  }}>
+                    {activeStay.status}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>
+                  Ward: <strong>{activeStay.ward}</strong> • Bed: <strong>{activeStay.bedNo || 'Pending Bed Allocation'}</strong> • Physician: <strong>{activeStay.doctorName}</strong>
+                </p>
+                {activeStay.attendant && (
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Registered Attendant: {activeStay.attendant.name} ({activeStay.attendant.relation}) • {activeStay.attendant.phone}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                onClick={() => navigateTab('admissions_billing')}
+                style={{
+                  padding: '10px 18px',
+                  background: isFitForDischarge ? '#2563eb' : '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                }}
+              >
+                View Inpatient Ledger & Care
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
 
 
@@ -2360,15 +2450,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     );
   };
 
-  const renderAdmissionsBilling = () => {
-    // Calculate Running Pharmacy Bill for an admission
-    const calculatePharmacyBill = (adm) => {
-      if (!adm.medications) return 0;
-      return adm.medications
-        .filter(m => m.status === 'Dispensed')
-        .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
-    };
+  const getWardRate = (wardName = '') => {
+    if (wardName.includes('ICU')) return 3500;
+    if (wardName.includes('Suite')) return 3000;
+    if (wardName.includes('Semi-Private')) return 1800;
+    if (wardName.includes('Pediatrics')) return 1200;
+    return 800;
+  };
 
+  const renderAdmissionsBilling = () => {
     const myAdmissions = admissions.filter(a => a.patientId === (currentPatient?.id || "PT-80234"));
 
     return (
@@ -2379,10 +2469,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             <line x1="12" y1="4" x2="12" y2="20"></line>
             <line x1="2" y1="10" x2="22" y2="10"></line>
           </svg>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Hospital Admissions & Pharmacy Billing</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Inpatient (IPD) Admissions & Expense Ledger</h2>
         </div>
         <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
-          Monitor your active hospital admissions, view medications administered by doctors, track your running pharmacy bill, and process payment.
+          Track active hospital ward stays, bedside medications administered by nurses, diagnostic tests, transparent running expense balance, and post-discharge recovery summaries.
         </p>
 
         {myAdmissions.length === 0 ? (
@@ -2390,23 +2480,45 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             No hospital admission records found for your account.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {myAdmissions.map(adm => {
-              const billTotal = calculatePharmacyBill(adm);
+              const todayStr = new Date().toISOString().split('T')[0];
+              const admissionDate = adm.admissionDate || todayStr;
+              const dischargeDate = adm.dischargeDate || todayStr;
+              const daysStayed = Math.max(1, Math.ceil((new Date(dischargeDate) - new Date(admissionDate)) / (1000 * 60 * 60 * 24)));
+              const wardRate = getWardRate(adm.ward || '');
+              const roomCharges = daysStayed * wardRate;
+              
+              const pharmacyTotal = (adm.medications || [])
+                .filter(m => m.status === 'Dispensed' || m.status === 'Delivered')
+                .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
+
+              const patientLabs = (labOrders || []).filter(l => l.status === 'Completed & Billed' || l.status === 'Completed');
+              const labTotal = patientLabs.reduce((sum, l) => sum + (parseFloat(l.cost) || 0), 0);
+
+              const grossTotal = roomCharges + pharmacyTotal + labTotal;
+              const advancePaid = parseFloat(adm.advanceDeposit) || 0;
+              const netDue = Math.max(0, grossTotal - advancePaid);
+
               return (
                 <div key={adm.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  {/* Card Header */}
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                       <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Admission ID</span>
-                      <h4 style={{ margin: 0, fontSize: '15px', color: '#0f172a' }}>{adm.id}</h4>
+                      <h4 style={{ margin: 0, fontSize: '16px', color: '#4338ca', fontWeight: '800' }}>{adm.id}</h4>
                     </div>
                     <div>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Ward / Room</span>
-                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.ward}</p>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Ward & Bed</span>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#0f172a', fontWeight: '700' }}>{adm.ward} {adm.bedNo ? `(${adm.bedNo})` : ''}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Physician</span>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.doctorName}</p>
                     </div>
                     <div>
                       <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Admission Date</span>
-                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.admissionDate}</p>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#334155' }}>{adm.admissionDate} ({daysStayed} Days)</p>
                     </div>
                     <div>
                       <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Status</span>
@@ -2415,10 +2527,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                           display: 'inline-block',
                           padding: '4px 10px',
                           borderRadius: '12px',
-                          fontSize: '11px',
+                          fontSize: '11.5px',
                           fontWeight: '700',
-                          backgroundColor: adm.status === 'Admitted' ? '#fee2e2' : '#d1fae5',
-                          color: adm.status === 'Admitted' ? '#ef4444' : '#065f46'
+                          backgroundColor: adm.status === 'Discharged' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#e0e7ff' : '#fee2e2',
+                          color: adm.status === 'Discharged' ? '#15803d' : adm.status?.includes('Discharge') ? '#4338ca' : '#b91c1c'
                         }}>
                           {adm.status}
                         </span>
@@ -2427,77 +2539,174 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
 
                   <div style={{ padding: '20px' }}>
-                    <div style={{ marginBottom: '16px' }}>
-                      <strong style={{ display: 'block', fontSize: '13px', color: '#475569', marginBottom: '8px' }}>Admitting Doctor Note:</strong>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#334155', background: '#f8fafc', padding: '12px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '4px solid #cbd5e1' }}>
-                        {adm.notes}
-                      </p>
+                    {/* Clinical Notes & Attendant */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '18px' }}>
+                      <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                        <strong style={{ display: 'block', fontSize: '12px', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>Clinical Indication / Diagnosis:</strong>
+                        <p style={{ margin: 0, fontSize: '13.5px', color: '#1e293b' }}>
+                          {adm.notes || 'Inpatient admission and bedside observation.'}
+                        </p>
+                      </div>
+
+                      {adm.attendant && (
+                        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
+                          <strong style={{ display: 'block', fontSize: '12px', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>Registered Attendant:</strong>
+                          <p style={{ margin: 0, fontSize: '13.5px', color: '#1e293b' }}>
+                            <strong>{adm.attendant.name}</strong> ({adm.attendant.relation}) • Phone: {adm.attendant.phone}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
+                    {/* Administered Medications Ledger */}
                     <div style={{ marginBottom: '20px' }}>
-                      <strong style={{ display: 'block', fontSize: '13px', color: '#475569', marginBottom: '8px' }}>Administered Medications:</strong>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '13.5px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>💊</span> Bedside Medications Administered (Nurse Dispensed)
+                      </h4>
                       {(!adm.medications || adm.medications.length === 0) ? (
-                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>No medications dispensed yet.</p>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', padding: '10px', borderRadius: '6px' }}>
+                          No medications administered yet.
+                        </p>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {adm.medications.map((med, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
                               <div>
-                                <strong style={{ fontSize: '14px', color: '#0f172a' }}>{med.name}</strong>
-                                <span style={{ marginLeft: '12px', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600', backgroundColor: med.status === 'Dispensed' ? '#d1fae5' : '#fee2e2', color: med.status === 'Dispensed' ? '#065f46' : '#b91c1c' }}>
-                                  {med.status}
+                                <strong style={{ color: '#0f172a' }}>{med.name}</strong>
+                                {med.instructions && <span style={{ color: '#64748b', fontSize: '11.5px', marginLeft: '8px' }}>({med.instructions})</span>}
+                                <span style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600', backgroundColor: med.status === 'Dispensed' || med.status === 'Delivered' ? '#d1fae5' : '#fee2e2', color: med.status === 'Dispensed' || med.status === 'Delivered' ? '#065f46' : '#b91c1c' }}>
+                                  {med.status || 'Dispensed'}
                                 </span>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                <span style={{ fontSize: '12px', color: '#64748b' }}>{med.date}</span>
-                                <strong style={{ fontSize: '14px', color: '#1e3a8a' }}>₹{parseFloat(med.cost).toFixed(2)}</strong>
-                              </div>
+                              <strong style={{ color: '#1e3a8a' }}>₹{parseFloat(med.cost || 0).toFixed(2)}</strong>
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                      <div>
-                        <span style={{ fontSize: '13px', color: '#64748b' }}>Total Pharmacy Cost:</span>
-                        <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#1e3a8a' }}>
-                          ₹{billTotal.toFixed(2)}
-                        </h3>
+                    {/* Financial Summary & Itemized Breakdown */}
+                    <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px' }}>
+                      <div style={{ background: '#f1f5f9', padding: '10px 14px', fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>
+                        Transparent Inpatient Expense & Deposit Ledger
                       </div>
-                      
-                      {adm.status === 'Admitted' ? (
+                      <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 14px', color: '#475569' }}>Room & Nursing Stay ({daysStayed} days @ ₹{wardRate}/day - {adm.ward})</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{roomCharges.toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 14px', color: '#475569' }}>Inpatient Pharmacy Dispensed Medications ({(adm.medications || []).length} items)</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{pharmacyTotal.toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 14px', color: '#475569' }}>Inpatient Diagnostic Labs ({patientLabs.length} tests)</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{labTotal.toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #cbd5e1', background: '#f8fafc', fontWeight: 'bold' }}>
+                            <td style={{ padding: '8px 14px' }}>Gross Total Inpatient Charges:</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right' }}>₹{grossTotal.toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#166534' }}>
+                            <td style={{ padding: '8px 14px' }}>Less: Advance Deposit Paid at Reception (-)</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '700' }}>- ₹{advancePaid.toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ background: adm.status === 'Discharged' ? '#f0fdf4' : '#fef2f2', fontWeight: 'bold', fontSize: '13.5px' }}>
+                            <td style={{ padding: '10px 14px', color: adm.status === 'Discharged' ? '#15803d' : '#991b1b' }}>
+                              {adm.status === 'Discharged' ? 'Final Settled & Paid Balance:' : 'Net Running Balance Due at Discharge:'}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', color: adm.status === 'Discharged' ? '#15803d' : '#b91c1c' }}>
+                              ₹{netDue.toFixed(2)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Post-Discharge Care & Summary */}
+                    {adm.status === 'Discharged' && adm.dischargeSummary && (
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <h4 style={{ margin: 0, fontSize: '14px', color: '#166534' }}>🏁 Post-Discharge Clinical Summary & Home Care</h4>
+                          <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                            {adm.dischargeSummary.condition}
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#14532d' }}>
+                          {adm.dischargeSummary.notes}
+                        </p>
+                        {adm.dischargeSummary.takeHomeMeds && (
+                          <div style={{ background: 'white', padding: '10px', borderRadius: '6px', border: '1px solid #dcfce7', fontSize: '12px', color: '#166534' }}>
+                            <strong>💊 Take-Home Medications Regimen:</strong>
+                            <pre style={{ margin: '4px 0 0 0', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}>{adm.dischargeSummary.takeHomeMeds}</pre>
+                            <div style={{ marginTop: '6px', color: '#1e40af', fontWeight: 'bold' }}>Follow-up: {adm.dischargeSummary.followUpDate}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <button
+                        onClick={() => {
+                          setPrintedPatientAdmissionPass({
+                            ...adm,
+                            admittedAtTime: '09:30 AM',
+                            advanceDepositAmount: `₹${advancePaid.toFixed(2)}`,
+                            paymentMode: 'Physical Cash / UPI'
+                          });
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#f8fafc',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          color: '#334155',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🎫 View Bed Admission Pass
+                      </button>
+
+                      {adm.status === 'Discharged' && (
                         <button
                           onClick={() => {
-                            if (billTotal <= 0) {
-                              alert("No outstanding bill to pay yet. Pharmacy has not dispensed any medication.");
-                              return;
-                            }
-                            setSelectedAdmissionForPay(adm);
-                            setShowCheckoutModal(true);
+                            setPrintedPatientReleaseCert({
+                              ...adm,
+                              ...(adm.finalSettlement || {}),
+                              daysStayed,
+                              wardRate,
+                              roomCharges,
+                              pharmacyTotal,
+                              labTotal,
+                              grossTotal,
+                              advanceDeducted: advancePaid,
+                              netAmountPaid: netDue,
+                              settledDate: adm.dischargeDate || todayStr,
+                              settledAt: adm.finalSettlement?.settledAt || '12:30 PM',
+                              invoiceId: adm.finalSettlement?.invoiceId || `INV-IPD-${Math.floor(1000 + Math.random() * 9000)}`,
+                              paymentMethod: adm.finalSettlement?.paymentMethod || 'Paid at Cash Counter'
+                            });
                           }}
                           style={{
-                            padding: '12px 24px',
+                            padding: '8px 18px',
                             background: '#10b981',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '8px',
+                            borderRadius: '6px',
+                            fontSize: '13px',
                             fontWeight: '700',
-                            fontSize: '14px',
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
-                            boxShadow: '0 4px 6px -1px rgba(16,185,129,0.2)'
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
                           }}
                         >
-                          Pay Pharmacy Bill & Discharge
+                          📄 Print Hospital Release Certificate
                         </button>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: '700', fontSize: '14px' }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}>
-                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-                          </svg>
-                          Discharged & Paid
-                        </div>
                       )}
                     </div>
                   </div>
@@ -3195,6 +3404,203 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 style={{ width: '100%' }}
               >
                 Mark as Read & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Inpatient Admission Pass Modal */}
+      {printedPatientAdmissionPass && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '560px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>🎫 Inpatient Admission Pass</h3>
+              <button onClick={() => setPrintedPatientAdmissionPass(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <div style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Inpatient Department (IPD) • Admission & Bed Allocation Pass</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>ADMISSION PASS NO</span>
+                  <strong style={{ fontSize: '16px', color: '#4338ca' }}>{printedPatientAdmissionPass.id}</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>ADMISSION DATE</span>
+                  <strong>{printedPatientAdmissionPass.admissionDate}</strong>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient Name:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right' }}>{printedPatientAdmissionPass.patientName} ({printedPatientAdmissionPass.patientId})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Attending Physician:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedPatientAdmissionPass.doctorName}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Allocated Ward:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#0369a1' }}>{printedPatientAdmissionPass.ward}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Assigned Bed No:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '800', textAlign: 'right', color: '#15803d', fontSize: '14px' }}>{printedPatientAdmissionPass.bedNo || 'Bed Allocated'}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Admitting Indication:</td>
+                    <td style={{ padding: '6px 0', textAlign: 'right' }}>{printedPatientAdmissionPass.notes || 'Inpatient Observation'}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {printedPatientAdmissionPass.attendant && (
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '12px' }}>
+                  <strong>Authorized Primary Attendant:</strong>
+                  <div style={{ marginTop: '2px', color: '#334155' }}>{printedPatientAdmissionPass.attendant.name} ({printedPatientAdmissionPass.attendant.relation}) • {printedPatientAdmissionPass.attendant.phone}</div>
+                </div>
+              )}
+
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '10px 14px', fontSize: '12.5px', color: '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Advance Security Deposit:</span>
+                <strong style={{ fontSize: '14px' }}>₹{parseFloat(printedPatientAdmissionPass.advanceDeposit || 0).toFixed(2)} (PAID)</strong>
+              </div>
+            </div>
+
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedPatientAdmissionPass(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
+              >
+                🖨️ Print Pass
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Inpatient Release Clearance Certificate Modal */}
+      {printedPatientReleaseCert && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '640px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>📄 Inpatient Release Clearance Certificate</h3>
+              <button onClick={() => setPrintedPatientReleaseCert(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <div style={{ padding: '24px 30px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Inpatient Department • Consolidated Bill & Hospital Release Certificate</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>CLEARANCE INVOICE ID</span>
+                  <strong style={{ fontSize: '16px', color: '#4338ca' }}>{printedPatientReleaseCert.invoiceId}</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>DISCHARGE DATE & TIME</span>
+                  <strong>{printedPatientReleaseCert.settledDate} • {printedPatientReleaseCert.settledAt}</strong>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient Name:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right' }}>{printedPatientReleaseCert.patientName} ({printedPatientReleaseCert.patientId})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Attending Physician:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedPatientReleaseCert.doctorName}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Ward & Bed:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#0369a1' }}>{printedPatientReleaseCert.ward} ({printedPatientReleaseCert.bedNo || 'Bed'})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Stay Duration:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedPatientReleaseCert.admissionDate} to {printedPatientReleaseCert.settledDate} ({printedPatientReleaseCert.daysStayed} Days)</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Discharge Condition:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#15803d' }}>
+                      {printedPatientReleaseCert.dischargeSummary?.condition || 'Stable / Cured'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Financial Ledger Table */}
+              <div style={{ marginBottom: '16px' }}>
+                <h5 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#334155', textTransform: 'uppercase' }}>Consolidated Financial Settlement:</h5>
+                <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', border: '1px solid #cbd5e1' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Room Charges ({printedPatientReleaseCert.daysStayed} days @ ₹{printedPatientReleaseCert.wardRate}):</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedPatientReleaseCert.roomCharges || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Inpatient Pharmacy Dispensed Medicines:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedPatientReleaseCert.pharmacyTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Inpatient Diagnostic Labs:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedPatientReleaseCert.labTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 'bold' }}>
+                      <td style={{ padding: '6px 10px' }}>Gross Total Charges:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>₹{parseFloat(printedPatientReleaseCert.grossTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#166534' }}>
+                      <td style={{ padding: '6px 10px' }}>Less: Advance Deposit Deducted:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '700' }}>- ₹{parseFloat(printedPatientReleaseCert.advanceDeducted || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ background: '#f0fdf4', fontWeight: 'bold', fontSize: '13.5px' }}>
+                      <td style={{ padding: '8px 10px', color: '#15803d' }}>Final Amount Paid ({printedPatientReleaseCert.paymentMethod}):</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#15803d' }}>₹{parseFloat(printedPatientReleaseCert.netAmountPaid || 0).toFixed(2)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Take-Home Care / Follow-Up */}
+              {printedPatientReleaseCert.dischargeSummary?.takeHomeMeds && (
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11.5px', color: '#475569', marginBottom: '16px' }}>
+                  <strong>💊 Prescribed Take-Home Regimen:</strong>
+                  <pre style={{ margin: '4px 0 0 0', fontFamily: 'inherit', whiteSpace: 'pre-wrap', fontSize: '11px' }}>{printedPatientReleaseCert.dischargeSummary.takeHomeMeds}</pre>
+                  <div style={{ marginTop: '6px', color: '#1e40af', fontWeight: 'bold' }}>Follow-up: {printedPatientReleaseCert.dischargeSummary.followUpDate}</div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '11.5px', color: '#64748b' }}>
+                <div>Cashier: <strong>{printedPatientReleaseCert.cashierName || 'Cash Counter'}</strong></div>
+                <div style={{ textAlign: 'right' }}>Official Medical Release Stamp</div>
+              </div>
+            </div>
+
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedPatientReleaseCert(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Clearance Certificate
               </button>
             </div>
           </div>

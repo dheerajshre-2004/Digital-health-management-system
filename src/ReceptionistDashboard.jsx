@@ -81,6 +81,23 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     return JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]');
   });
 
+  // Inpatient (IPD) Admissions State
+  const [admissions, setAdmissions] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+  });
+  const [selectedAdmForProcessing, setSelectedAdmForProcessing] = useState(null);
+  const [ipdForm, setIpdForm] = useState({
+    ward: 'General Ward A',
+    bedNo: 'Bed A-01',
+    attendantName: '',
+    attendantRelation: 'Family Member',
+    attendantPhone: '',
+    advanceDeposit: '5000.00',
+    depositPaymentMode: 'Physical Cash Payment'
+  });
+  const [printedAdmissionPass, setPrintedAdmissionPass] = useState(null);
+  const [ipdSubTab, setIpdSubTab] = useState('pending'); // 'pending' | 'admitted' | 'discharged'
+
   const [recAttendanceForm, setRecAttendanceForm] = useState({
     staffId: '',
     staffName: '',
@@ -96,6 +113,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     const handleStorageChange = () => {
       setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
       setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       const savedDocs = localStorage.getItem('dhms_doctors');
       if (savedDocs) {
         setDoctorsList(JSON.parse(savedDocs).map(d => ({
@@ -1498,6 +1516,308 @@ End of Generated Health Summary Report
     );
   };
 
+  const handleProcessAdmissionSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedAdmForProcessing) return;
+
+    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (ipdForm.attendantPhone && !indianPhoneRegex.test(ipdForm.attendantPhone.trim().replace(/[\s\-]/g, ''))) {
+      alert("Please enter a valid 10-digit mobile number for the attendant.");
+      return;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const advanceInvoiceId = `INV-ADV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const advanceAmountNum = parseFloat(ipdForm.advanceDeposit) || 0;
+
+    const updatedAdmission = {
+      ...selectedAdmForProcessing,
+      status: 'Admitted',
+      ward: ipdForm.ward,
+      bedNo: ipdForm.bedNo,
+      attendant: {
+        name: ipdForm.attendantName || 'Family Member',
+        relation: ipdForm.attendantRelation,
+        phone: ipdForm.attendantPhone || 'N/A'
+      },
+      advanceDeposit: advanceAmountNum,
+      advanceDepositPaid: advanceAmountNum > 0,
+      advanceInvoiceId: advanceAmountNum > 0 ? advanceInvoiceId : null,
+      admissionDate: selectedAdmForProcessing.admissionDate || todayStr,
+      processedBy: loggedInStaff?.name || 'Reception Staff'
+    };
+
+    // Update dhms_admissions
+    const allAdms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+    const admIndex = allAdms.findIndex(a => a.id === selectedAdmForProcessing.id);
+    let newAdmsList;
+    if (admIndex >= 0) {
+      newAdmsList = [...allAdms];
+      newAdmsList[admIndex] = updatedAdmission;
+    } else {
+      newAdmsList = [updatedAdmission, ...allAdms];
+    }
+    localStorage.setItem('dhms_admissions', JSON.stringify(newAdmsList));
+    setAdmissions(newAdmsList);
+
+    // If advance deposit collected, create paid invoice in central billing
+    if (advanceAmountNum > 0) {
+      const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+      const advanceInvoice = {
+        id: advanceInvoiceId,
+        patientId: updatedAdmission.patientId,
+        patientName: updatedAdmission.patientName,
+        date: todayStr,
+        paymentDate: todayStr,
+        amount: `₹${advanceAmountNum.toFixed(2)}`,
+        status: 'Paid',
+        type: `Inpatient Admission Advance Deposit (${ipdForm.ward} - ${ipdForm.bedNo})`,
+        paymentMethod: ipdForm.depositPaymentMode,
+        paymentRemarks: `Advance security deposit for Admission ${updatedAdmission.id}`
+      };
+      const updatedBilling = [advanceInvoice, ...currentBilling];
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+      setBillingList(updatedBilling);
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Prepare printable Admission Pass
+    setPrintedAdmissionPass({
+      ...updatedAdmission,
+      admittedAtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      advanceDepositAmount: `₹${advanceAmountNum.toFixed(2)}`,
+      paymentMode: ipdForm.depositPaymentMode
+    });
+
+    setSelectedAdmForProcessing(null);
+  };
+
+  const renderInpatientAdmissions = () => {
+    const pendingAdmissions = admissions.filter(a => a.status === 'Pending IPD Desk Admission' || a.status === 'Pending Reception Admission' || a.status === 'Advised');
+    const activeInpatients = admissions.filter(a => a.status === 'Admitted' || a.status === 'Fit for Discharge / Settle Billing');
+    const dischargedInpatients = admissions.filter(a => a.status === 'Discharged');
+
+    const displayedList = ipdSubTab === 'pending' 
+      ? pendingAdmissions 
+      : ipdSubTab === 'admitted' 
+      ? activeInpatients 
+      : dischargedInpatients;
+
+    return (
+      <div className="rd-view-container">
+        <div className="rd-header-banner">
+          <div>
+            <h2>Inpatient (IPD) Admission & Bed Desk</h2>
+            <p>Process doctor clinical admission recommendations, allocate ward beds, collect advance deposits, and manage inpatient admissions.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+              Pending: {pendingAdmissions.length}
+            </span>
+            <span style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+              Active Admitted: {activeInpatients.length}
+            </span>
+          </div>
+        </div>
+
+        <div className="rd-card">
+          {/* Sub-tab switcher */}
+          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+            <button
+              onClick={() => setIpdSubTab('pending')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: ipdSubTab === 'pending' ? '#3b82f6' : '#f1f5f9',
+                color: ipdSubTab === 'pending' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📥 Pending Admission Orders ({pendingAdmissions.length})
+            </button>
+            <button
+              onClick={() => setIpdSubTab('admitted')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: ipdSubTab === 'admitted' ? '#10b981' : '#f1f5f9',
+                color: ipdSubTab === 'admitted' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🛏️ Active Inpatient Registry ({activeInpatients.length})
+            </button>
+            <button
+              onClick={() => setIpdSubTab('discharged')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: ipdSubTab === 'discharged' ? '#64748b' : '#f1f5f9',
+                color: ipdSubTab === 'discharged' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🏁 Discharged History ({dischargedInpatients.length})
+            </button>
+          </div>
+
+          <div className="rd-table-responsive">
+            <table className="rd-table">
+              <thead>
+                <tr>
+                  <th>Admission ID</th>
+                  <th>Patient Details</th>
+                  <th>Admitting Doctor</th>
+                  <th>Ward & Bed Allocation</th>
+                  <th>Clinical Notes / Reason</th>
+                  <th>Advance Deposit</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedList.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', color: '#64748b', padding: '32px 0', fontStyle: 'italic' }}>
+                      {ipdSubTab === 'pending' 
+                        ? 'No pending doctor admission orders to process.' 
+                        : ipdSubTab === 'admitted' 
+                        ? 'No patients currently admitted in the hospital wards.' 
+                        : 'No discharged inpatient history.'}
+                    </td>
+                  </tr>
+                ) : (
+                  displayedList.map(adm => (
+                    <tr key={adm.id}>
+                      <td><strong style={{ color: '#4338ca' }}>{adm.id}</strong></td>
+                      <td>
+                        <strong>{adm.patientName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {adm.patientId}</div>
+                      </td>
+                      <td>
+                        <strong>{adm.doctorName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.admissionDate || 'Today'}</div>
+                      </td>
+                      <td>
+                        <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', color: '#1e293b' }}>
+                          {adm.ward || 'General Ward A'}
+                        </span>
+                        {adm.bedNo && (
+                          <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>
+                            ✓ {adm.bedNo}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ maxWidth: '200px' }}>
+                        <div style={{ fontSize: '12px', color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {adm.notes || 'Hospital care and inpatient monitoring.'}
+                        </div>
+                      </td>
+                      <td>
+                        {adm.advanceDeposit ? (
+                          <strong style={{ color: '#166534', fontSize: '13px' }}>₹{parseFloat(adm.advanceDeposit).toFixed(2)}</strong>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>-</span>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          backgroundColor: adm.status === 'Admitted' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#e0e7ff' : '#fef3c7',
+                          color: adm.status === 'Admitted' ? '#15803d' : adm.status?.includes('Discharge') ? '#4338ca' : '#b45309'
+                        }}>
+                          {adm.status}
+                        </span>
+                      </td>
+                      <td>
+                        {adm.status === 'Pending IPD Desk Admission' || adm.status === 'Pending Reception Admission' || adm.status === 'Advised' ? (
+                          <button
+                            onClick={() => {
+                              setSelectedAdmForProcessing(adm);
+                              setIpdForm({
+                                ward: adm.ward || 'General Ward A',
+                                bedNo: 'Bed A-01',
+                                attendantName: '',
+                                attendantRelation: 'Family Member',
+                                attendantPhone: '',
+                                advanceDeposit: '5000.00',
+                                depositPaymentMode: 'Physical Cash Payment'
+                              });
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🛏️ Admit Patient
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setPrintedAdmissionPass({
+                                ...adm,
+                                admittedAtTime: '09:30 AM',
+                                advanceDepositAmount: `₹${parseFloat(adm.advanceDeposit || 5000).toFixed(2)}`,
+                                paymentMode: 'Physical Cash / UPI'
+                              });
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              color: '#334155',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            📄 Admission Pass
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDoctors = () => {
     return (
       <div className="rd-view-container">
@@ -1578,6 +1898,15 @@ End of Generated Health Summary Report
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               Appointments
             </li>
+            <li className={activeTab === 'inpatient_admissions' ? 'active' : ''} onClick={() => setActiveTab('inpatient_admissions')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
+              Inpatient (IPD) Desk
+              {admissions.filter(a => a.status?.includes('Pending') || a.status === 'Advised').length > 0 && (
+                <span style={{ marginLeft: 'auto', background: '#ef4444', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                  {admissions.filter(a => a.status?.includes('Pending') || a.status === 'Advised').length}
+                </span>
+              )}
+            </li>
             <li className={activeTab === 'checkin_queue' ? 'active' : ''} onClick={() => { setActiveTab('checkin_queue'); setQueuePage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
               Check-In Queue
@@ -1609,6 +1938,7 @@ End of Generated Health Summary Report
           {activeTab === 'register_patient' && renderRegisterPatient()}
           {activeTab === 'patient_records' && renderPatientRecords()}
           {activeTab === 'appointments' && renderAppointments()}
+          {activeTab === 'inpatient_admissions' && renderInpatientAdmissions()}
           {activeTab === 'checkin_queue' && renderCheckInQueue()}
           {activeTab === 'billing' && renderBilling()}
           {activeTab === 'doctors' && renderDoctors()}
@@ -2160,6 +2490,247 @@ End of Generated Health Summary Report
                 style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 🖨️ Print Token Slip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IPD Admission Processing Modal */}
+      {selectedAdmForProcessing && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '560px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '700' }}>🛏️ Inpatient (IPD) Admission Desk</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Patient: <strong>{selectedAdmForProcessing.patientName}</strong> ({selectedAdmForProcessing.patientId})</span>
+              </div>
+              <button onClick={() => setSelectedAdmForProcessing(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleProcessAdmissionSubmit} style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px', fontSize: '12.5px', color: '#1e40af' }}>
+                <strong>👨‍⚕️ Admitting Doctor:</strong> {selectedAdmForProcessing.doctorName}
+                <div style={{ marginTop: '2px' }}><strong>Recommended Ward:</strong> {selectedAdmForProcessing.ward || 'General Ward A'}</div>
+                {selectedAdmForProcessing.notes && (
+                  <div style={{ marginTop: '4px', fontStyle: 'italic', color: '#1e3a8a' }}>
+                    "{selectedAdmForProcessing.notes}"
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Assign Ward / Unit <span style={{ color: 'red' }}>*</span></label>
+                  <select 
+                    required 
+                    value={ipdForm.ward} 
+                    onChange={e => setIpdForm({ ...ipdForm, ward: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="General Ward A">General Ward A (₹800/day)</option>
+                    <option value="General Ward B">General Ward B (₹800/day)</option>
+                    <option value="ICU (Intensive Care)">ICU (Intensive Care) (₹3,500/day)</option>
+                    <option value="Pediatrics Ward">Pediatrics Ward (₹1,200/day)</option>
+                    <option value="Semi-Private Ward C">Semi-Private Ward C (₹1,800/day)</option>
+                    <option value="Private Suite 101">Private Suite 101 (₹3,000/day)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Assign Bed Number <span style={{ color: 'red' }}>*</span></label>
+                  <select 
+                    required 
+                    value={ipdForm.bedNo} 
+                    onChange={e => setIpdForm({ ...ipdForm, bedNo: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="Bed A-01">Bed A-01 (Available)</option>
+                    <option value="Bed A-02">Bed A-02 (Available)</option>
+                    <option value="Bed A-03">Bed A-03 (Available)</option>
+                    <option value="Bed A-04">Bed A-04 (Available)</option>
+                    <option value="Bed B-01">Bed B-01 (Available)</option>
+                    <option value="ICU-01">ICU-01 (Available)</option>
+                    <option value="ICU-02">ICU-02 (Available)</option>
+                    <option value="Suite-101">Suite-101 (Available)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#334155' }}>Attendant / Next of Kin Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Attendant Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Ramesh Kumar"
+                      value={ipdForm.attendantName}
+                      onChange={e => setIpdForm({ ...ipdForm, attendantName: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Relationship</label>
+                    <select 
+                      value={ipdForm.attendantRelation}
+                      onChange={e => setIpdForm({ ...ipdForm, attendantRelation: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                    >
+                      <option value="Father">Father</option>
+                      <option value="Mother">Mother</option>
+                      <option value="Spouse">Spouse</option>
+                      <option value="Sibling">Sibling</option>
+                      <option value="Guardian">Guardian</option>
+                      <option value="Family Member">Family Member</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Attendant 10-Digit Mobile Number</label>
+                  <input 
+                    type="tel" 
+                    placeholder="e.g. 9876543210"
+                    value={ipdForm.attendantPhone}
+                    onChange={e => setIpdForm({ ...ipdForm, attendantPhone: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Upfront Advance Deposit Section */}
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Admission Advance / Security Deposit</span>
+                  <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>Adjusted at Final Discharge</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Advance Amount (₹)</label>
+                    <input 
+                      type="number" 
+                      value={ipdForm.advanceDeposit} 
+                      onChange={e => setIpdForm({ ...ipdForm, advanceDeposit: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box', fontWeight: '700', color: '#0f172a' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Deposit Payment Mode</label>
+                    <select 
+                      value={ipdForm.depositPaymentMode}
+                      onChange={e => setIpdForm({ ...ipdForm, depositPaymentMode: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                    >
+                      <option value="Physical Cash Payment">Physical Cash Payment</option>
+                      <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
+                      <option value="Online Card Payment">Online Card Payment</option>
+                      <option value="Insurance Cover / Authorization">Insurance Cover / Authorization</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setSelectedAdmForProcessing(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#64748b', cursor: 'pointer', fontWeight: '600' }}>
+                  Cancel
+                </button>
+                <button type="submit" style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
+                  Confirm Admission & Issue Pass
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Inpatient Admission Pass Modal */}
+      {printedAdmissionPass && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '580px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>🎫 Inpatient Admission Pass & Bed Slip</h3>
+              <button onClick={() => setPrintedAdmissionPass(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <div style={{ padding: '24px 30px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Inpatient Department • Admission & Bed Allocation Pass</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>ADMISSION ID</span>
+                  <strong style={{ fontSize: '16px', color: '#4338ca' }}>{printedAdmissionPass.id}</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>ADMISSION DATE</span>
+                  <strong>{printedAdmissionPass.admissionDate} • {printedAdmissionPass.admittedAtTime}</strong>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient Name:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right' }}>{printedAdmissionPass.patientName} ({printedAdmissionPass.patientId})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Admitting Physician:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedAdmissionPass.doctorName}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Assigned Ward & Unit:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#0369a1' }}>{printedAdmissionPass.ward}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Allocated Bed Number:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '800', textAlign: 'right', color: '#15803d', fontSize: '14px' }}>{printedAdmissionPass.bedNo}</td>
+                  </tr>
+                  {printedAdmissionPass.attendant && (
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 0', color: '#64748b' }}>Registered Attendant:</td>
+                      <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedAdmissionPass.attendant.name} ({printedAdmissionPass.attendant.relation}) • {printedAdmissionPass.attendant.phone}</td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Advance Deposit Collected:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '800', textAlign: 'right', color: '#166534' }}>
+                      {printedAdmissionPass.advanceDepositAmount} <small>({printedAdmissionPass.paymentMode})</small>
+                    </td>
+                  </tr>
+                  {printedAdmissionPass.advanceInvoiceId && (
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 0', color: '#64748b' }}>Advance Invoice Ref:</td>
+                      <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedAdmissionPass.advanceInvoiceId}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11px', color: '#475569' }}>
+                <strong>📌 Ward Entry Instructions:</strong>
+                <p style={{ margin: '4px 0 0 0' }}>1. Hand over this pass to the Nursing Station at {printedAdmissionPass.ward}.</p>
+                <p style={{ margin: '2px 0 0 0' }}>2. Only 1 attendant allowed per patient during non-visiting hours.</p>
+                <p style={{ margin: '2px 0 0 0' }}>3. Advance deposit will be adjusted against the final consolidated hospital invoice at discharge.</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '11.5px', color: '#64748b' }}>
+                <div>Processed by: <strong>{printedAdmissionPass.processedBy || 'Reception Desk'}</strong></div>
+                <div style={{ textAlign: 'right' }}>Authorized Admission Stamp</div>
+              </div>
+            </div>
+
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedAdmissionPass(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Admission Pass
               </button>
             </div>
           </div>

@@ -206,6 +206,18 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return [];
   });
 
+  // Inpatient (IPD) Admissions State for Doctors & Hospital
+  const [admissions, setAdmissions] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+  });
+  const [selectedAdmForDischarge, setSelectedAdmForDischarge] = useState(null);
+  const [dischargeForm, setDischargeForm] = useState({
+    condition: 'Stable / Cured',
+    notes: '',
+    takeHomeMeds: '',
+    followUpDate: 'In 7 Days (OPD Room 101)'
+  });
+
   // Doctor state
   const [activeDoctorId, setActiveDoctorId] = useState(() => {
     if (role === 'doctor' && loggedInDoctor) {
@@ -1331,7 +1343,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           dischargeDate: null,
           ward: admissionWard || 'General Ward A',
           notes: admissionNotes || 'Admitted from consultation.',
-          status: 'Admitted',
+          status: 'Pending IPD Desk Admission',
           medications: finalMeds.map(med => ({
             name: `${med.name} ${med.dose || ''}`,
             instructions: med.instructions || '',
@@ -1343,6 +1355,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         };
         const finalAdms = [newAdm, ...adms];
         localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
+        setAdmissions(finalAdms);
       }
 
       // Save laboratory requests
@@ -1709,6 +1722,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'overview', label: 'My Dashboard' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
+          { id: 'inpatient_ward', label: '🛏️ Inpatient (IPD) Ward' },
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
@@ -3465,9 +3479,168 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           </div>
         );
 
+      case 'inpatient_ward':
+        return renderInpatientWard();
+
       default:
         return null;
     }
+  };
+
+  const handleDoctorDischargeSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedAdmForDischarge) return;
+    const allAdms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const updated = allAdms.map(a => {
+      if (a.id === selectedAdmForDischarge.id) {
+        return {
+          ...a,
+          status: 'Fit for Discharge / Settle Billing',
+          clinicalDischargeDate: todayStr,
+          dischargeSummary: {
+            condition: dischargeForm.condition,
+            notes: dischargeForm.notes || 'Patient clinically evaluated and approved for discharge.',
+            takeHomeMeds: dischargeForm.takeHomeMeds || 'Continue maintenance therapy as instructed.',
+            followUpDate: dischargeForm.followUpDate || 'In 7 Days (OPD Room 101)',
+            doctorSign: activeDocObj.name
+          }
+        };
+      }
+      return a;
+    });
+
+    localStorage.setItem('dhms_admissions', JSON.stringify(updated));
+    setAdmissions(updated);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert(`✓ Clinical Discharge Authorized for ${selectedAdmForDischarge.patientName}!\n\nThe patient is marked "Fit for Discharge". The file is now transferred to the Cash Counter for consolidated room, pharmacy, and lab billing clearance.`);
+    setSelectedAdmForDischarge(null);
+  };
+
+  const renderInpatientWard = () => {
+    const admittedList = admissions.filter(a => a.status === 'Admitted' || a.status === 'Fit for Discharge / Settle Billing' || a.status?.includes('Pending'));
+
+    return (
+      <div className="module-content">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h2>🛏️ Inpatient Ward & Patient Bedside Care</h2>
+            <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor admitted inpatients under care, view bedside medication ledger, and perform clinical discharge sign-offs.</p>
+          </div>
+          <span style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+            Active Inpatients: {admittedList.filter(a => a.status === 'Admitted').length}
+          </span>
+        </div>
+
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Admission ID</th>
+              <th>Patient Name & ID</th>
+              <th>Ward & Bed Allocation</th>
+              <th>Admitted On</th>
+              <th>Clinical Indication / Diagnosis</th>
+              <th>Medications Administered</th>
+              <th>Status</th>
+              <th>Clinical Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {admittedList.length === 0 ? (
+              <tr>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontStyle: 'italic' }}>
+                  No patients currently in the Inpatient Ward.
+                </td>
+              </tr>
+            ) : (
+              admittedList.map(adm => {
+                const daysStayed = Math.max(1, Math.ceil((new Date() - new Date(adm.admissionDate || new Date().toISOString().split('T')[0])) / (1000 * 60 * 60 * 24)));
+                return (
+                  <tr key={adm.id}>
+                    <td><strong style={{ color: '#4338ca' }}>{adm.id}</strong></td>
+                    <td>
+                      <strong>{adm.patientName}</strong>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.patientId}</div>
+                    </td>
+                    <td>
+                      <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                        {adm.ward || 'General Ward A'}
+                      </span>
+                      {adm.bedNo && (
+                        <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>
+                          ✓ {adm.bedNo}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div>{adm.admissionDate || 'Today'}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>Day {daysStayed} of stay</div>
+                    </td>
+                    <td style={{ maxWidth: '200px' }}>
+                      <div style={{ fontSize: '12px', color: '#334155' }}>{adm.notes || 'Under clinical observation.'}</div>
+                    </td>
+                    <td>
+                      {adm.medications && adm.medications.length > 0 ? (
+                        <div style={{ fontSize: '12px', color: '#0f172a' }}>
+                          {adm.medications.length} items ({adm.medications.map(m => m.name).join(', ')})
+                        </div>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>No meds administered</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="status-badge" style={{
+                        backgroundColor: adm.status === 'Admitted' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#e0e7ff' : '#fef3c7',
+                        color: adm.status === 'Admitted' ? '#15803d' : adm.status?.includes('Discharge') ? '#4338ca' : '#b45309'
+                      }}>
+                        {adm.status}
+                      </span>
+                    </td>
+                    <td>
+                      {adm.status === 'Admitted' ? (
+                        <button
+                          onClick={() => {
+                            setSelectedAdmForDischarge(adm);
+                            setDischargeForm({
+                              condition: 'Stable / Cured',
+                              notes: `Patient hospitalized for ${adm.notes || 'clinical care'}. Vitals stable, symptom relief achieved. Safe for discharge.`,
+                              takeHomeMeds: adm.medications ? adm.medications.map(m => `${m.name} - ${m.instructions || 'Twice Daily after meals'}`).join('\n') : 'Paracetamol 500mg - As needed for pain',
+                              followUpDate: 'In 7 Days at OPD Room 101'
+                            });
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            background: '#4338ca',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          🏁 Discharge Sign-off
+                        </button>
+                      ) : adm.status?.includes('Discharge') ? (
+                        <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 'bold' }}>✓ Signed & At Billing</span>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>Awaiting IPD Desk</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const renderTelemedicineWorkspace = () => {
@@ -3880,6 +4053,84 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 🖨️ Print Prescription Slip
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Clinical Discharge Sign-Off Modal */}
+      {selectedAdmForDischarge && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '600px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '700' }}>🏁 Doctor Clinical Discharge Sign-Off</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Patient: <strong>{selectedAdmForDischarge.patientName}</strong> ({selectedAdmForDischarge.patientId}) • {selectedAdmForDischarge.ward}</span>
+              </div>
+              <button onClick={() => setSelectedAdmForDischarge(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleDoctorDischargeSubmit} style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Discharge Condition / Outcome</label>
+                <select 
+                  value={dischargeForm.condition} 
+                  onChange={e => setDischargeForm({ ...dischargeForm, condition: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                >
+                  <option value="Stable / Cured">Stable / Cured (Standard Discharge)</option>
+                  <option value="Relieved / Improved">Relieved / Improved (Home Care)</option>
+                  <option value="Discharge on Request (DOR)">Discharge on Request (DOR)</option>
+                  <option value="Transferred to Higher Medical Center">Transferred to Higher Medical Center</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Clinical Summary & Inpatient Course Notes</label>
+                <textarea 
+                  required
+                  rows="3"
+                  value={dischargeForm.notes} 
+                  onChange={e => setDischargeForm({ ...dischargeForm, notes: e.target.value })}
+                  placeholder="Document clinical evolution during hospital stay, recovery status, and discharge clearance rationale..."
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Take-Home Medications & Regimen</label>
+                <textarea 
+                  rows="3"
+                  value={dischargeForm.takeHomeMeds} 
+                  onChange={e => setDischargeForm({ ...dischargeForm, takeHomeMeds: e.target.value })}
+                  placeholder="List medications patient should continue at home (Drug, Dosage, Frequency, Duration)..."
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>Follow-Up Appointment Instructions</label>
+                <input 
+                  type="text" 
+                  value={dischargeForm.followUpDate} 
+                  onChange={e => setDischargeForm({ ...dischargeForm, followUpDate: e.target.value })}
+                  placeholder="e.g. In 7 Days at OPD Room 101"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11.5px', color: '#475569' }}>
+                ℹ️ <strong>Next Step:</strong> Signing off will transition the patient to <em>"Fit for Discharge"</em> and alert the Cash Counter to generate the consolidated room, medicine, and diagnostic clearance invoice.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setSelectedAdmForDischarge(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#64748b', cursor: 'pointer', fontWeight: '600' }}>
+                  Cancel
+                </button>
+                <button type="submit" style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
+                  ✓ Authorize Clinical Discharge
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

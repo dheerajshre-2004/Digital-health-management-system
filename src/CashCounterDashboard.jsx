@@ -17,6 +17,20 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     return JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
   });
 
+  // Inpatient (IPD) Admissions & Lab Records for Final Settlement
+  const [admissions, setAdmissions] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+  });
+
+  const [labRequests, setLabRequests] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+  });
+
+  const [selectedAdmForSettlement, setSelectedAdmForSettlement] = useState(null);
+  const [settlementPaymentMethod, setSettlementPaymentMethod] = useState('Physical Cash Payment');
+  const [settlementRemarks, setSettlementRemarks] = useState('');
+  const [printedDischargeClearance, setPrintedDischargeClearance] = useState(null);
+
   // Filter & Search States
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -167,6 +181,8 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
       setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
       setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
       setAttendanceRecords(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'));
+      setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+      setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -889,6 +905,309 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     );
   };
 
+  const getWardRate = (wardName = '') => {
+    if (wardName.includes('ICU')) return 3500;
+    if (wardName.includes('Suite')) return 3000;
+    if (wardName.includes('Semi-Private')) return 1800;
+    if (wardName.includes('Pediatrics')) return 1200;
+    return 800;
+  };
+
+  const calculateAdmissionFinances = (adm) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const admissionDate = adm.admissionDate || todayStr;
+    const dischargeDate = adm.dischargeDate || todayStr;
+    const daysStayed = Math.max(1, Math.ceil((new Date(dischargeDate) - new Date(admissionDate)) / (1000 * 60 * 60 * 24)));
+    const wardRate = getWardRate(adm.ward || '');
+    const roomCharges = daysStayed * wardRate;
+    
+    const pharmacyTotal = (adm.medications || [])
+      .filter(m => m.status === 'Dispensed' || m.status === 'Delivered')
+      .reduce((sum, m) => sum + (parseFloat(m.cost) || 0), 0);
+
+    const patientLabs = (labRequests || []).filter(l => l.patientId === adm.patientId && (l.status === 'Completed & Billed' || l.status === 'Completed'));
+    const labTotal = patientLabs.reduce((sum, l) => sum + (parseFloat(l.cost) || 0), 0);
+
+    const grossTotal = roomCharges + pharmacyTotal + labTotal;
+    const advancePaid = parseFloat(adm.advanceDeposit) || 0;
+    const netDue = Math.max(0, grossTotal - advancePaid);
+    const refund = grossTotal < advancePaid ? (advancePaid - grossTotal) : 0;
+
+    return {
+      daysStayed,
+      wardRate,
+      roomCharges,
+      pharmacyTotal,
+      labTotal,
+      patientLabs,
+      grossTotal,
+      advancePaid,
+      netDue,
+      refund
+    };
+  };
+
+  const handleFinalizeDischargeSettlementSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedAdmForSettlement) return;
+
+    const fin = calculateAdmissionFinances(selectedAdmForSettlement);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const finalInvoiceId = `INV-IPD-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const finalSettlementData = {
+      roomCharges: fin.roomCharges,
+      daysStayed: fin.daysStayed,
+      wardRate: fin.wardRate,
+      pharmacyTotal: fin.pharmacyTotal,
+      labTotal: fin.labTotal,
+      grossTotal: fin.grossTotal,
+      advanceDeducted: fin.advancePaid,
+      netAmountPaid: fin.netDue,
+      refundAmount: fin.refund,
+      invoiceId: finalInvoiceId,
+      settledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      settledDate: todayStr,
+      paymentMethod: settlementPaymentMethod,
+      cashierName: loggedInStaff?.name || 'Cash Desk Specialist'
+    };
+
+    // Update dhms_admissions
+    const allAdms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+    const updatedAdms = allAdms.map(a => {
+      if (a.id === selectedAdmForSettlement.id) {
+        return {
+          ...a,
+          status: 'Discharged',
+          dischargeDate: todayStr,
+          pharmacyBillPaid: true,
+          finalSettlement: finalSettlementData
+        };
+      }
+      return a;
+    });
+    localStorage.setItem('dhms_admissions', JSON.stringify(updatedAdms));
+    setAdmissions(updatedAdms);
+
+    // Create Paid Invoice in dhms_billing
+    const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const finalInvoice = {
+      id: finalInvoiceId,
+      patientId: selectedAdmForSettlement.patientId,
+      patientName: selectedAdmForSettlement.patientName,
+      date: todayStr,
+      paymentDate: todayStr,
+      amount: `₹${fin.netDue.toFixed(2)}`,
+      status: 'Paid',
+      type: `IPD Final Discharge Bill & Clearance (${selectedAdmForSettlement.ward || 'Ward'})`,
+      paymentMethod: settlementPaymentMethod,
+      paymentRemarks: `Final settlement after ₹${fin.advancePaid.toFixed(2)} advance adjustment. ${settlementRemarks || ''}`
+    };
+    const updatedBilling = [finalInvoice, ...currentBilling];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Set printable discharge clearance certificate
+    setPrintedDischargeClearance({
+      ...selectedAdmForSettlement,
+      ...finalSettlementData,
+      patientLabs: fin.patientLabs
+    });
+
+    setSelectedAdmForSettlement(null);
+  };
+
+  const renderIpdSettlement = () => {
+    const readyForDischarge = admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing');
+    const activeAdmitted = admissions.filter(a => a.status === 'Admitted');
+    const dischargedHistory = admissions.filter(a => a.status === 'Discharged');
+
+    return (
+      <div className="cc-view-container">
+        <div className="cc-header-banner">
+          <div>
+            <h2>Inpatient (IPD) Final Billing & Discharge Clearance</h2>
+            <p>Generate consolidated itemized inpatient bills, reconcile advance deposits with room & pharmacy costs, and issue official release clearance.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <span style={{ background: '#eff6ff', color: '#1e40af', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+              Fit for Discharge: {readyForDischarge.length}
+            </span>
+            <span style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+              Active Inpatients: {activeAdmitted.length}
+            </span>
+          </div>
+        </div>
+
+        {readyForDischarge.length > 0 && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '18px 20px', marginBottom: '24px' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🔔</span> Clinical Discharge Clearance Queue (Doctor Signed Off)
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+              {readyForDischarge.map(adm => {
+                const fin = calculateAdmissionFinances(adm);
+                return (
+                  <div key={adm.id} style={{ background: 'white', border: '1px solid #93c5fd', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '15px', color: '#1e293b' }}>{adm.patientName}</strong>
+                      <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{adm.id}</span>
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#475569' }}>
+                      Ward: <strong>{adm.ward}</strong> • Bed: <strong>{adm.bedNo || 'N/A'}</strong>
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#475569' }}>
+                      Admitted: <strong>{adm.admissionDate}</strong> ({fin.daysStayed} Days)
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Advance Paid: ₹{fin.advancePaid.toFixed(2)}</span>
+                      <strong style={{ fontSize: '14px', color: '#b91c1c' }}>Net Due: ₹{fin.netDue.toFixed(2)}</strong>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedAdmForSettlement(adm);
+                        setSettlementPaymentMethod('Physical Cash Payment');
+                        setSettlementRemarks('');
+                      }}
+                      style={{
+                        marginTop: '8px',
+                        padding: '8px 16px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      💳 Settle Bill & Issue Clearance
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="cc-card">
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '17px', color: '#1e293b' }}>All Hospital Inpatient Admissions & Settlement Registry</h3>
+          <table className="cc-table">
+            <thead>
+              <tr>
+                <th>Admission ID</th>
+                <th>Patient Details</th>
+                <th>Ward & Bed</th>
+                <th>Stay Duration</th>
+                <th>Gross Charges</th>
+                <th>Advance Paid</th>
+                <th>Net Balance</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {admissions.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontStyle: 'italic' }}>
+                    No inpatient admission records found in the system.
+                  </td>
+                </tr>
+              ) : (
+                admissions.map(adm => {
+                  const fin = calculateAdmissionFinances(adm);
+                  return (
+                    <tr key={adm.id}>
+                      <td><strong style={{ color: '#4338ca' }}>{adm.id}</strong></td>
+                      <td>
+                        <strong>{adm.patientName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.patientId}</div>
+                      </td>
+                      <td>
+                        <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }}>
+                          {adm.ward || 'General Ward A'}
+                        </span>
+                        {adm.bedNo && <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>✓ {adm.bedNo}</div>}
+                      </td>
+                      <td>
+                        <div>{fin.daysStayed} Day(s)</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.admissionDate}</div>
+                      </td>
+                      <td><strong>₹{fin.grossTotal.toFixed(2)}</strong></td>
+                      <td><span style={{ color: '#166534', fontWeight: '600' }}>₹{fin.advancePaid.toFixed(2)}</span></td>
+                      <td>
+                        <strong style={{ color: fin.netDue > 0 ? '#b91c1c' : '#15803d' }}>
+                          ₹{fin.netDue.toFixed(2)}
+                        </strong>
+                      </td>
+                      <td>
+                        <span className="cc-status-badge" style={{
+                          backgroundColor: adm.status === 'Discharged' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#e0e7ff' : '#fef3c7',
+                          color: adm.status === 'Discharged' ? '#15803d' : adm.status?.includes('Discharge') ? '#4338ca' : '#b45309'
+                        }}>
+                          {adm.status}
+                        </span>
+                      </td>
+                      <td>
+                        {adm.status !== 'Discharged' ? (
+                          <button
+                            onClick={() => {
+                              setSelectedAdmForSettlement(adm);
+                              setSettlementPaymentMethod('Physical Cash Payment');
+                              setSettlementRemarks('');
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: adm.status?.includes('Discharge') ? '#3b82f6' : '#f1f5f9',
+                              color: adm.status?.includes('Discharge') ? 'white' : '#334155',
+                              border: adm.status?.includes('Discharge') ? 'none' : '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💳 Settle Bill
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setPrintedDischargeClearance({
+                                ...adm,
+                                ...(adm.finalSettlement || {}),
+                                patientLabs: fin.patientLabs
+                              });
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              color: '#334155',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            📄 Release Cert
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   const renderReceiptEditor = () => {
     const paidInvoices = billingList.filter(b => b.status === 'Paid');
 
@@ -1097,6 +1416,15 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 Collect Payments
               </li>
             )}
+            <li className={activeTab === 'ipd_settlement' ? 'active' : ''} onClick={() => setActiveTab('ipd_settlement')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
+              IPD Final Settlement
+              {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length > 0 && (
+                <span style={{ marginLeft: 'auto', background: '#4338ca', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                  {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length}
+                </span>
+              )}
+            </li>
             <li className={activeTab === 'transactions' ? 'active' : ''} onClick={() => { setActiveTab('transactions'); setCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
@@ -1116,6 +1444,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
         <main className="cc-main">
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'unpaid' && renderUnpaidInvoices()}
+          {activeTab === 'ipd_settlement' && renderIpdSettlement()}
           {activeTab === 'transactions' && renderTransactions()}
           {activeTab === 'receipts' && renderReceiptEditor()}
           {activeTab === 'attendance' && renderAttendance()}
@@ -1270,6 +1599,231 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 onClick={() => window.print()}
               >
                 Print Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inpatient (IPD) Final Settlement Modal */}
+      {selectedAdmForSettlement && (() => {
+        const fin = calculateAdmissionFinances(selectedAdmForSettlement);
+        return (
+          <div className="cc-modal-overlay no-print" style={{ zIndex: 9999 }}>
+            <div className="cc-modal-content" style={{ maxWidth: '640px', width: '92vw', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="cc-modal-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b' }}>💳 Settle Inpatient Final Bill</h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Patient: <strong>{selectedAdmForSettlement.patientName}</strong> ({selectedAdmForSettlement.patientId}) • {selectedAdmForSettlement.ward}</span>
+                </div>
+                <button className="cc-btn-close" onClick={() => setSelectedAdmForSettlement(null)}>&times;</button>
+              </div>
+
+              <form onSubmit={handleFinalizeDischargeSettlementSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="cc-modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Doctor Discharge Note */}
+                  {selectedAdmForSettlement.dischargeSummary && (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', fontSize: '12.5px', color: '#166534' }}>
+                      <strong>✓ Doctor Discharge Sign-Off:</strong> {selectedAdmForSettlement.dischargeSummary.condition}
+                      <div style={{ marginTop: '2px', color: '#14532d' }}>{selectedAdmForSettlement.dischargeSummary.notes}</div>
+                    </div>
+                  )}
+
+                  {/* Consolidated Itemized Breakdown */}
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ background: '#f8fafc', padding: '10px 14px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', fontSize: '13px', color: '#334155' }}>
+                      Itemized Expense Breakdown
+                    </div>
+                    <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse' }}>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 14px', color: '#475569' }}>
+                            Room & Nursing Stay ({fin.daysStayed} days @ ₹{fin.wardRate}/day)
+                          </td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{fin.roomCharges.toFixed(2)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 14px', color: '#475569' }}>
+                            Inpatient Pharmacy Medications ({(selectedAdmForSettlement.medications || []).length} items)
+                          </td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{fin.pharmacyTotal.toFixed(2)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 14px', color: '#475569' }}>
+                            Inpatient Diagnostic Labs ({fin.patientLabs.length} tests)
+                          </td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>₹{fin.labTotal.toFixed(2)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '2px solid #cbd5e1', background: '#f8fafc', fontWeight: 'bold' }}>
+                          <td style={{ padding: '8px 14px' }}>Gross Inpatient Charges:</td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right' }}>₹{fin.grossTotal.toFixed(2)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#166534' }}>
+                          <td style={{ padding: '8px 14px' }}>Less: Advance Deposit Paid at Admission (-)</td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '700' }}>- ₹{fin.advancePaid.toFixed(2)}</td>
+                        </tr>
+                        <tr style={{ background: '#fef2f2', fontWeight: 'bold', fontSize: '14px' }}>
+                          <td style={{ padding: '10px 14px', color: '#991b1b' }}>Net Amount Due for Clearance:</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'right', color: '#b91c1c' }}>₹{fin.netDue.toFixed(2)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Payment Collection Details */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="cc-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Payment Method</label>
+                      <select 
+                        value={settlementPaymentMethod} 
+                        onChange={e => setSettlementPaymentMethod(e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                      >
+                        <option value="Physical Cash Payment">Physical Cash Payment</option>
+                        <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
+                        <option value="Online Card Payment">Online Card Payment</option>
+                        <option value="Insurance Cover / Claim">Insurance Cover / Claim</option>
+                      </select>
+                    </div>
+
+                    <div className="cc-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Settlement Notes / Remarks</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Cleared full balance at counter" 
+                        value={settlementRemarks} 
+                        onChange={e => setSettlementRemarks(e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="cc-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                  <button type="button" className="cc-btn-secondary" onClick={() => setSelectedAdmForSettlement(null)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="cc-btn-primary" style={{ background: '#10b981', padding: '10px 20px' }}>
+                    ✓ Settle Bill & Issue Discharge Certificate
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Official Inpatient Release Clearance Certificate & Consolidated Bill Modal */}
+      {printedDischargeClearance && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '640px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>📄 Inpatient Release Clearance Certificate</h3>
+              <button onClick={() => setPrintedDischargeClearance(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <div style={{ padding: '24px 30px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Inpatient Department • Consolidated Bill & Hospital Release Certificate</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>CLEARANCE INVOICE ID</span>
+                  <strong style={{ fontSize: '16px', color: '#4338ca' }}>{printedDischargeClearance.invoiceId}</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>DISCHARGE DATE & TIME</span>
+                  <strong>{printedDischargeClearance.settledDate} • {printedDischargeClearance.settledAt}</strong>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient Name:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right' }}>{printedDischargeClearance.patientName} ({printedDischargeClearance.patientId})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Attending Physician:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedDischargeClearance.doctorName}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Ward & Bed:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#0369a1' }}>{printedDischargeClearance.ward} ({printedDischargeClearance.bedNo || 'Bed'})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Stay Duration:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedDischargeClearance.admissionDate} to {printedDischargeClearance.settledDate} ({printedDischargeClearance.daysStayed} Days)</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Discharge Condition:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#15803d' }}>
+                      {printedDischargeClearance.dischargeSummary?.condition || 'Stable / Cured'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Financial Ledger Table */}
+              <div style={{ marginBottom: '16px' }}>
+                <h5 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#334155', textTransform: 'uppercase' }}>Consolidated Financial Settlement:</h5>
+                <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', border: '1px solid #cbd5e1' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Room Charges ({printedDischargeClearance.daysStayed} days @ ₹{printedDischargeClearance.wardRate}):</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedDischargeClearance.roomCharges || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Inpatient Pharmacy Dispensed Medicines:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedDischargeClearance.pharmacyTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', color: '#475569' }}>Inpatient Diagnostic Labs:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '600' }}>₹{parseFloat(printedDischargeClearance.labTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 'bold' }}>
+                      <td style={{ padding: '6px 10px' }}>Gross Total Charges:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>₹{parseFloat(printedDischargeClearance.grossTotal || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#166534' }}>
+                      <td style={{ padding: '6px 10px' }}>Less: Advance Deposit Deducted:</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: '700' }}>- ₹{parseFloat(printedDischargeClearance.advanceDeducted || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr style={{ background: '#f0fdf4', fontWeight: 'bold', fontSize: '13.5px' }}>
+                      <td style={{ padding: '8px 10px', color: '#15803d' }}>Final Amount Paid ({printedDischargeClearance.paymentMethod}):</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#15803d' }}>₹{parseFloat(printedDischargeClearance.netAmountPaid || 0).toFixed(2)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Take-Home Care / Follow-Up */}
+              {printedDischargeClearance.dischargeSummary?.takeHomeMeds && (
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11.5px', color: '#475569', marginBottom: '16px' }}>
+                  <strong>💊 Prescribed Take-Home Regimen:</strong>
+                  <pre style={{ margin: '4px 0 0 0', fontFamily: 'inherit', whiteSpace: 'pre-wrap', fontSize: '11px' }}>{printedDischargeClearance.dischargeSummary.takeHomeMeds}</pre>
+                  <div style={{ marginTop: '6px', color: '#1e40af', fontWeight: 'bold' }}>Follow-up: {printedDischargeClearance.dischargeSummary.followUpDate}</div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '11.5px', color: '#64748b' }}>
+                <div>Cashier: <strong>{printedDischargeClearance.cashierName || 'Cash Counter'}</strong></div>
+                <div style={{ textAlign: 'right' }}>Official Medical Release Stamp</div>
+              </div>
+            </div>
+
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedDischargeClearance(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Clearance Certificate
               </button>
             </div>
           </div>
