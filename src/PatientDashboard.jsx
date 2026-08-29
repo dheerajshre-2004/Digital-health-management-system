@@ -1020,105 +1020,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </div>
         </div>
       </div>
-
-      {/* Physical Appointment Request Modal */}
-      {showRequestApptModal && (
-        <div className="pd-modal-overlay" onClick={() => setShowRequestApptModal(false)}>
-          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
-            <form onSubmit={handleRequestApptSubmit}>
-              <div className="pd-modal-header">
-                <h2>Request Clinic Appointment</h2>
-                <button className="pd-modal-close" type="button" onClick={() => setShowRequestApptModal(false)}>&times;</button>
-              </div>
-              <div className="pd-modal-body">
-                <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Doctor</label>
-                    <select 
-                      required
-                      value={newApptDoctor} 
-                      onChange={(e) => {
-                        const docId = e.target.value;
-                        setNewApptDoctor(docId);
-                        const doc = doctorsList.find(d => d.id === docId);
-                        if (doc) setNewApptDept(doc.specialty || doc.department || 'Primary Care');
-                      }}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                    >
-                      <option value="" disabled hidden>Select Doctor</option>
-                      {doctorsList.map(doc => (
-                        <option key={doc.id} value={doc.id}>{doc.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Department</label>
-                    <input 
-                      type="text"
-                      disabled
-                      value={newApptDept}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9' }}
-                    />
-                  </div>
-                </div>
-
-                <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Date</label>
-                    <input 
-                      type="date" 
-                      required 
-                      value={newApptDate} 
-                      onChange={(e) => setNewApptDate(e.target.value)} 
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                    />
-                  </div>
-                  <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Time Slot</label>
-                    <select 
-                      required 
-                      value={newApptTime} 
-                      onChange={(e) => setNewApptTime(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                    >
-                      <option value="" disabled>Select a Slot</option>
-                      {(() => {
-                        const avail = getSlotAvailability(newApptDoctor, newApptDate);
-                        return (
-                          <>
-                            <option value="Slot 1" disabled={avail.slot1.isFull}>
-                              Slot 1 (Morning: 9 AM - 1 PM) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
-                            </option>
-                            <option value="Slot 2" disabled={avail.slot2.isFull}>
-                              Slot 2 (Afternoon: 2 PM - 6 PM) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
-                            </option>
-                          </>
-                        );
-                      })()}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Reason for Visit</label>
-                  <textarea 
-                    required 
-                    value={newApptReason} 
-                    onChange={(e) => setNewApptReason(e.target.value)} 
-                    placeholder="Describe symptoms or reasons for visit..."
-                    rows="3"
-                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical' }}
-                  />
-                </div>
-              </div>
-              <div className="pd-modal-footer">
-                <button className="pd-btn-primary" type="submit">Submit Request</button>
-                <button className="pd-btn-outline" type="button" onClick={() => setShowRequestApptModal(false)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   );
 
@@ -1452,24 +1353,33 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
             ) : (
               filteredDoctors.map(doc => {
-                const pastVisitsWithDoc = visitHistoryData.filter(v => v.doctor?.toLowerCase().includes(doc.name?.toLowerCase()));
+                const cleanName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                const pastVisitsWithDoc = visitHistoryData.filter(v => v.doctor?.toLowerCase().includes(doc.name?.toLowerCase()) || (doc.name && doc.name.toLowerCase().includes(v.doctor?.toLowerCase())));
                 const feeVal = doc.consultationFee || (doc.specialty === 'Cardiology' || doc.specialty === 'Neurology' ? '500.00' : '300.00');
 
                 return (
                   <div key={doc.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold' }}>
-                        👨‍⚕️
-                      </div>
+                      {doc.image || doc.avatar || doc.photo ? (
+                        <img 
+                          src={doc.image || doc.avatar || doc.photo} 
+                          alt={cleanName} 
+                          style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #cbd5e1', background: '#f8fafc' }} 
+                        />
+                      ) : (
+                        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold', border: '1px solid #bfdbfe' }}>
+                          👨‍⚕️
+                        </div>
+                      )}
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>{doc.name}</h3>
+                        <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: '700' }}>{cleanName}</h3>
                         <span style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: '600' }}>{doc.specialty || doc.department || 'Primary Care'}</span>
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           Room: <strong>{doc.room || 'Room 101'}</strong> • Shift: <strong>{doc.shift || '09:00 AM - 05:00 PM'}</strong>
                         </div>
                       </div>
                       <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
-                        {doc.status || 'On Duty'}
+                        {doc.status || 'Available'}
                       </span>
                     </div>
 
@@ -1486,48 +1396,52 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
                       <button
+                        type="button"
                         onClick={() => {
-                          setNewApptDoctor(doc.id);
+                          setNewApptDoctor(doc.id || doc.name);
                           setNewApptDept(doc.specialty || doc.department || 'Primary Care');
+                          if (!newApptDate) setNewApptDate(new Date().toISOString().split('T')[0]);
                           openModal(setShowRequestApptModal, true);
                         }}
                         style={{
-                          padding: '9px 12px',
+                          padding: '10px 12px',
                           background: '#2563eb',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           fontWeight: '700',
-                          fontSize: '12px',
+                          fontSize: '12.5px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '4px'
+                          gap: '6px'
                         }}
                       >
                         📅 Book Appt
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
-                          setNewTeleDoctor(doc.id);
+                          setNewTeleDoctor(doc.id || doc.name);
                           setNewTeleDept(doc.specialty || doc.department || 'Primary Care');
-                          setShowScheduleTeleModal(true);
+                          if (!newTeleDate) setNewTeleDate(new Date().toISOString().split('T')[0]);
+                          openModal(setShowScheduleTeleModal, true);
                         }}
                         style={{
-                          padding: '9px 12px',
+                          padding: '10px 12px',
                           background: '#7c3aed',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           fontWeight: '700',
-                          fontSize: '12px',
+                          fontSize: '12.5px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '4px'
+                          gap: '6px'
                         }}
                       >
                         📹 Telemedicine
@@ -1536,17 +1450,18 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
                     {pastVisitsWithDoc.length > 0 && (
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedDoctorFilter(doc.name);
                           setVisitSubTab('visits');
                         }}
                         style={{
-                          padding: '6px',
-                          background: 'transparent',
+                          padding: '8px',
+                          background: '#eff6ff',
                           border: '1px dashed #93c5fd',
-                          color: '#2563eb',
+                          color: '#1d4ed8',
                           borderRadius: '6px',
-                          fontSize: '11.5px',
+                          fontSize: '12px',
                           fontWeight: '600',
                           cursor: 'pointer',
                           textAlign: 'center'
@@ -2065,16 +1980,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
             ) : (
               filteredDoctors.map(doc => {
-                const signedDocsCount = ehrRecords.filter(r => r.author?.toLowerCase().includes(doc.name?.toLowerCase())).length;
+                const cleanName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                const signedDocsCount = ehrRecords.filter(r => r.author?.toLowerCase().includes(doc.name?.toLowerCase()) || (doc.name && doc.name.toLowerCase().includes(r.author?.toLowerCase()))).length;
 
                 return (
                   <div key={doc.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold' }}>
-                        🩺
-                      </div>
+                      {doc.image || doc.avatar || doc.photo ? (
+                        <img 
+                          src={doc.image || doc.avatar || doc.photo} 
+                          alt={cleanName} 
+                          style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #cbd5e1', background: '#f8fafc' }} 
+                        />
+                      ) : (
+                        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold', border: '1px solid #ddd6fe' }}>
+                          🩺
+                        </div>
+                      )}
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>{doc.name}</h3>
+                        <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: '700' }}>{cleanName}</h3>
                         <span style={{ fontSize: '12.5px', color: '#7c3aed', fontWeight: '600' }}>{doc.specialty || doc.department || 'Clinical Specialist'}</span>
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           Room: <strong>{doc.room || 'Room 101'}</strong> • Shift: <strong>{doc.shift || '09:00 AM - 05:00 PM'}</strong>
@@ -2098,19 +2022,21 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <button
+                        type="button"
                         onClick={() => {
-                          setNewApptDoctor(doc.id);
+                          setNewApptDoctor(doc.id || doc.name);
                           setNewApptDept(doc.specialty || doc.department || 'Primary Care');
+                          if (!newApptDate) setNewApptDate(new Date().toISOString().split('T')[0]);
                           openModal(setShowRequestApptModal, true);
                         }}
                         style={{
-                          padding: '9px 12px',
+                          padding: '10px 12px',
                           background: '#2563eb',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           fontWeight: '700',
-                          fontSize: '12px',
+                          fontSize: '12.5px',
                           cursor: 'pointer'
                         }}
                       >
@@ -2118,18 +2044,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedDoctorFilter(doc.name);
                           setEhrSubTab('vault');
                         }}
                         style={{
-                          padding: '9px 12px',
+                          padding: '10px 12px',
                           background: '#7c3aed',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '8px',
                           fontWeight: '700',
-                          fontSize: '12px',
+                          fontSize: '12.5px',
                           cursor: 'pointer'
                         }}
                       >
@@ -2580,105 +2507,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             )}
           </div>
         </div>
-
-        {/* Schedule Telemedicine Modal */}
-        {showScheduleTeleModal && (
-          <div className="pd-modal-overlay" onClick={() => setShowScheduleTeleModal(false)}>
-            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
-              <form onSubmit={handleScheduleTeleSubmit}>
-                <div className="pd-modal-header">
-                  <h2>Schedule Video Consultation</h2>
-                  <button className="pd-modal-close" type="button" onClick={() => setShowScheduleTeleModal(false)}>&times;</button>
-                </div>
-                <div className="pd-modal-body">
-                  <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                    <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Doctor</label>
-                      <select 
-                        required
-                        value={newTeleDoctor} 
-                        onChange={(e) => {
-                          const docId = e.target.value;
-                          setNewTeleDoctor(docId);
-                          const doc = doctorsList.find(d => d.id === docId);
-                          if (doc) setNewTeleDept(doc.specialty || doc.department || 'Primary Care');
-                        }}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                      >
-                        <option value="" disabled hidden>Select Doctor</option>
-                        {doctorsList.map(doc => (
-                          <option key={doc.id} value={doc.id}>{doc.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Department</label>
-                      <input 
-                        type="text"
-                        disabled
-                        value={newTeleDept}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rd-form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                    <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Date</label>
-                      <input 
-                        type="date" 
-                        required 
-                        value={newTeleDate} 
-                        onChange={(e) => setNewTeleDate(e.target.value)} 
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                    </div>
-                    <div className="rd-form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Preferred Time Slot</label>
-                      <select 
-                        required 
-                        value={newTeleTime} 
-                        onChange={(e) => setNewTeleTime(e.target.value)}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                      >
-                        <option value="" disabled>Select a Slot</option>
-                        {(() => {
-                          const avail = getSlotAvailability(newTeleDoctor, newTeleDate);
-                          return (
-                            <>
-                              <option value="Slot 1" disabled={avail.slot1.isFull}>
-                                Slot 1 (Morning: 9 AM - 1 PM) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
-                              </option>
-                              <option value="Slot 2" disabled={avail.slot2.isFull}>
-                                Slot 2 (Afternoon: 2 PM - 6 PM) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
-                              </option>
-                            </>
-                          );
-                        })()}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Reason for Consultation</label>
-                    <textarea 
-                      required 
-                      value={newTeleReason} 
-                      onChange={(e) => setNewTeleReason(e.target.value)} 
-                      placeholder="Briefly state symptoms or clinical concerns..."
-                      rows="3"
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical' }}
-                    />
-                  </div>
-                </div>
-                <div className="pd-modal-footer">
-                  <button className="pd-btn-primary" type="submit">Schedule Appointment</button>
-                  <button className="pd-btn-outline" type="button" onClick={() => setShowScheduleTeleModal(false)}>Cancel</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -3965,6 +3793,189 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 🖨️ Print Clearance Certificate
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Physical Appointment Request Modal */}
+      {showRequestApptModal && (
+        <div className="pd-modal-overlay" onClick={() => setShowRequestApptModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <form onSubmit={handleRequestApptSubmit}>
+              <div className="pd-modal-header">
+                <h2>📅 Request Clinic Appointment</h2>
+                <button className="pd-modal-close" type="button" onClick={() => setShowRequestApptModal(false)}>&times;</button>
+              </div>
+              <div className="pd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Attending Doctor</label>
+                    <select 
+                      required
+                      value={newApptDoctor} 
+                      onChange={(e) => {
+                        const docId = e.target.value;
+                        setNewApptDoctor(docId);
+                        const doc = doctorsList.find(d => d.id === docId || d.name === docId);
+                        if (doc) setNewApptDept(doc.specialty || doc.department || 'Primary Care');
+                      }}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
+                    >
+                      <option value="" disabled hidden>Select Doctor</option>
+                      {doctorsList.map(doc => {
+                        const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                        return (
+                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department})</option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Specialty Department</label>
+                    <input 
+                      type="text"
+                      disabled
+                      value={newApptDept}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', fontSize: '13px', fontWeight: '600', color: '#1e293b' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Preferred Date</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={newApptDate || new Date().toISOString().split('T')[0]} 
+                      onChange={(e) => setNewApptDate(e.target.value)} 
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Time Slot</label>
+                    <select 
+                      required 
+                      value={newApptTime || 'Slot 1'} 
+                      onChange={(e) => setNewApptTime(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
+                    >
+                      <option value="Slot 1">Slot 1 (Morning: 9 AM - 1 PM)</option>
+                      <option value="Slot 2">Slot 2 (Afternoon: 2 PM - 6 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Reason for Visit / Symptoms</label>
+                  <textarea 
+                    required 
+                    value={newApptReason} 
+                    onChange={(e) => setNewApptReason(e.target.value)} 
+                    placeholder="Briefly state your symptoms or consultation purpose..."
+                    rows="3"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical', fontSize: '13px' }}
+                  />
+                </div>
+              </div>
+              <div className="pd-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#f8fafc' }}>
+                <button className="pd-btn-outline" type="button" onClick={() => setShowRequestApptModal(false)}>Cancel</button>
+                <button className="pd-btn-primary" type="submit">Submit Request</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Global Telemedicine Video Consultation Modal */}
+      {showScheduleTeleModal && (
+        <div className="pd-modal-overlay" onClick={() => setShowScheduleTeleModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <form onSubmit={handleScheduleTeleSubmit}>
+              <div className="pd-modal-header" style={{ background: '#7c3aed', color: 'white' }}>
+                <h2 style={{ color: 'white', margin: 0 }}>📹 Schedule Video Teleconsultation</h2>
+                <button className="pd-modal-close" type="button" onClick={() => setShowScheduleTeleModal(false)} style={{ color: 'white' }}>&times;</button>
+              </div>
+              <div className="pd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Attending Doctor</label>
+                    <select 
+                      required
+                      value={newTeleDoctor} 
+                      onChange={(e) => {
+                        const docId = e.target.value;
+                        setNewTeleDoctor(docId);
+                        const doc = doctorsList.find(d => d.id === docId || d.name === docId);
+                        if (doc) setNewTeleDept(doc.specialty || doc.department || 'Primary Care');
+                      }}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
+                    >
+                      <option value="" disabled hidden>Select Doctor</option>
+                      {doctorsList.map(doc => {
+                        const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                        return (
+                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department})</option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Specialty Department</label>
+                    <input 
+                      type="text"
+                      disabled
+                      value={newTeleDept}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', fontSize: '13px', fontWeight: '600', color: '#1e293b' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Date</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={newTeleDate || new Date().toISOString().split('T')[0]} 
+                      onChange={(e) => setNewTeleDate(e.target.value)} 
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Preferred Time Slot</label>
+                    <select 
+                      required 
+                      value={newTeleTime || '11:00 AM'} 
+                      onChange={(e) => setNewTeleTime(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
+                    >
+                      <option value="09:30 AM">09:30 AM</option>
+                      <option value="11:00 AM">11:00 AM</option>
+                      <option value="02:30 PM">02:30 PM</option>
+                      <option value="04:00 PM">04:00 PM</option>
+                      <option value="05:30 PM">05:30 PM</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Reason for Tele-Consultation</label>
+                  <textarea 
+                    required 
+                    value={newTeleReason} 
+                    onChange={(e) => setNewTeleReason(e.target.value)} 
+                    placeholder="Briefly describe your symptoms or reason for video consultation..."
+                    rows="3"
+                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical', fontSize: '13px' }}
+                  />
+                </div>
+              </div>
+              <div className="pd-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#f8fafc' }}>
+                <button className="pd-btn-outline" type="button" onClick={() => setShowScheduleTeleModal(false)}>Cancel</button>
+                <button className="pd-btn-primary" type="submit" style={{ background: '#7c3aed' }}>Schedule Consultation</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
