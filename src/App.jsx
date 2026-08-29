@@ -396,43 +396,10 @@ function App() {
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
     if (userRole === 'patient') {
-      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
-      if (patientsList.some(p => p.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('An account already exists with this email address.');
-        return;
-      }
-      const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
-      const newPatient = {
-        id: newId,
-        firstName,
-        lastName,
-        email: emailVal,
-        password: passwordVal,
-        dob: '1990-01-01',
-        gender: 'other',
-        phone: '',
-        reports: []
-      };
-      const updated = [newPatient, ...patientsList];
-      localStorage.setItem('dhms_patients', JSON.stringify(updated));
-      
-      // Dispatch Welcome Email with Credentials & Thank You Message
-      await sendPatientWelcomeEmail({
-        patientName: nameVal,
-        email: emailVal,
-        patientId: newId,
-        password: passwordVal,
-        phone: ''
-      });
-
-      setRegistrationSuccessData({
-        role: 'patient',
-        name: nameVal,
-        email: emailVal,
-        id: newId,
-        password: passwordVal
-      });
+      alert('Patient Registration Notice: Self-registration for patients is disabled. Patient accounts and Unique Health IDs can only be registered through the Hospital Reception Desk. Please visit Reception or call +91 1800-425-DHMS.');
       clearAuthFields();
+      setActiveTab('signin');
+      return;
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
@@ -665,10 +632,11 @@ function App() {
               className={`tab ${activeTab === 'register' ? 'active' : ''}`}
               onClick={() => {
                 clearAuthFields();
+                if (userRole === 'patient') setUserRole('doctor');
                 setActiveTab('register');
               }}
             >
-              Register Account
+              Staff Registration
             </button>
           </div>
         )}
@@ -838,6 +806,12 @@ function App() {
             <button type="submit" className="btn-submit">
               {isPatientPortal ? "Sign In to Patient Portal" : "Secure Sign In"}
             </button>
+
+            {(isPatientPortal || userRole === 'patient') && (
+              <div style={{ marginTop: '16px', padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12.5px', color: '#475569', textAlign: 'center', lineHeight: 1.5 }}>
+                🏥 <strong>New Patient?</strong> Patient accounts & Unique Health IDs are issued exclusively through the <strong>Hospital Reception Desk</strong>. Upon registration, your access credentials and welcome email are automatically sent to your inbox.
+              </div>
+            )}
           </form>
         ) : (
           <form className="auth-form" onSubmit={handleRegisterSubmit}>
@@ -850,7 +824,7 @@ function App() {
                 </svg>
                 <input 
                   type="text" 
-                  placeholder="Enter your full name" 
+                  placeholder="Enter staff full name" 
                   required 
                   value={regFullName}
                   onChange={(e) => setRegFullName(e.target.value)}
@@ -867,7 +841,7 @@ function App() {
                 </svg>
                 <input 
                   type="email" 
-                  placeholder="Enter email address" 
+                  placeholder="Enter official email address" 
                   required 
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
@@ -884,7 +858,7 @@ function App() {
                 </svg>
                 <input 
                   type={showPassword ? "text" : "password"} 
-                  placeholder="Enter password" 
+                  placeholder="Enter secure password" 
                   required 
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
@@ -912,11 +886,10 @@ function App() {
 
             {(!isPatientPortal && !isMobileOrPWA) && (
               <div className="form-group">
-                <label>System Role</label>
+                <label>Staff Department / Role</label>
                 <div className="select-wrapper">
                   <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
-                    <option value="" disabled hidden>Select a role</option>
-                    <option value="patient">Patient Portal</option>
+                    <option value="" disabled hidden>Select staff role</option>
                     <option value="doctor">Doctor Portal</option>
                     <option value="laboratory">Laboratory Portal</option>
                     <option value="pharmacist">Pharmacist Portal</option>
@@ -933,7 +906,7 @@ function App() {
             )}
 
             <button type="submit" className="btn-submit">
-              {isPatientPortal ? "Create Patient Account" : "Create Encrypted Account"}
+              Register Hospital Staff Account
             </button>
           </form>
         )}
