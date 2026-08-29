@@ -149,24 +149,36 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
 
-    // Indian phone number validation (starts with 6-9, 10 digits total, optional prefix +91/91/0)
-    const cleanPhone = patientData.phone.replace(/[\s\-\(\)]/g, '');
+    // Indian contact / phone number validation (starts with 6-9, 10 digits total, optional prefix +91/91/0)
+    const cleanPhone = (patientData.phone || '').replace(/[\s\-\(\)]/g, '');
     const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (!indianPhoneRegex.test(cleanPhone)) {
-      alert("Invalid Indian Phone Number. Please enter a valid 10-digit number (starts with 6-9, optionally prefixed with +91, 91, or 0).");
+      alert("Invalid Contact Number: Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 98765 43210).");
       return;
+    }
+
+    // Check if phone number is already registered
+    const digitsOnly = cleanPhone.replace(/^\+?91|^0/, '');
+    const existingPatient = patients.find(p => {
+      const pDigits = (p.phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^91|^0/, '');
+      return pDigits && pDigits === digitsOnly;
+    });
+
+    if (existingPatient) {
+      const proceed = window.confirm(`A patient (${existingPatient.firstName} ${existingPatient.lastName || ''} - ID: ${existingPatient.id}) is already registered with this phone number.\n\nDo you want to proceed with registering this profile?`);
+      if (!proceed) return;
     }
 
     const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
     const randomPassword = `pass_${Math.floor(1000 + Math.random() * 9000)}`;
     const newPatient = {
       id: newId,
-      firstName: patientData.firstName,
-      lastName: patientData.lastName,
+      firstName: patientData.firstName.trim(),
+      lastName: (patientData.lastName || '').trim(),
       dob: patientData.dob,
       gender: patientData.gender,
-      phone: patientData.phone,
-      email: patientData.email || 'N/A',
+      phone: patientData.phone.trim(),
+      email: patientData.email ? patientData.email.trim() : 'N/A',
       password: randomPassword
     };
 
@@ -397,7 +409,31 @@ End of Generated Health Summary Report
             <div className="rd-form-row">
               <div className="rd-form-group">
                 <label>Phone Number <span style={{ color: 'red' }}>*</span></label>
-                <input type="tel" required value={patientData.phone} onChange={e => setPatientData({...patientData, phone: e.target.value})} placeholder="e.g. +91 98765 43210 or 9876543210" />
+                <input 
+                  type="tel" 
+                  required 
+                  maxLength={16}
+                  value={patientData.phone} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9\+\s\-]/g, '');
+                    setPatientData({...patientData, phone: val});
+                  }} 
+                  placeholder="e.g. 9876543210 or +91 98765 43210" 
+                  style={{
+                    borderColor: patientData.phone 
+                      ? (/^(?:\+91|91|0)?[6-9]\d{9}$/.test(patientData.phone.replace(/[\s\-\(\)]/g, '')) ? '#10b981' : '#ef4444')
+                      : undefined
+                  }}
+                />
+                {patientData.phone && (
+                  <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                    {/^(?:\+91|91|0)?[6-9]\d{9}$/.test(patientData.phone.replace(/[\s\-\(\)]/g, '')) ? (
+                      <span style={{ color: '#10b981', fontWeight: '500' }}>✓ Valid 10-digit contact number</span>
+                    ) : (
+                      <span style={{ color: '#ef4444', fontWeight: '500' }}>⚠️ Must be a valid 10-digit mobile number (starts with 6-9)</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="rd-form-group">
                 <label>Email Address <span style={{ color: 'red' }}>*</span></label>

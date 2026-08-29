@@ -32,12 +32,22 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const handleEditProfileSubmit = (e) => {
     e.preventDefault();
+
+    if (editPhone && editPhone.trim()) {
+      const cleanPhone = editPhone.replace(/[\s\-\(\)]/g, '');
+      const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+      if (!indianPhoneRegex.test(cleanPhone)) {
+        alert("Invalid Contact Number: Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 98765 43210).");
+        return;
+      }
+    }
+
     const updatedPatient = {
       ...currentPatient,
       dob: editDob,
       gender: editGender,
       bloodType: editBloodType,
-      phone: editPhone,
+      phone: editPhone ? editPhone.trim() : '',
       allergies: editAllergies,
       chronicConditions: editChronic
     };
