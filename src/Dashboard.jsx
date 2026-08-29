@@ -1106,8 +1106,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem('dhms_appointments', JSON.stringify(updated));
   };
 
-  const handleOpenCheckupModal = (appt) => {
-    setSelectedApptForCheckup(appt);
+  const resetClinicalForm = () => {
+    setSelectedApptForCheckup(null);
+    setIsVideoCallActive(false);
+    setActiveCallAppt(null);
     setDiagnosisNote('');
     setVitalBP('120/80');
     setVitalHR('72');
@@ -1125,8 +1127,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setIsAdmitted(false);
     setAdmissionNotes('');
     setAdmissionWard('General Ward A');
-    
-    // Reset detailed states
     setSymptomsNote('');
     setExamNote('');
     setPlanNote('');
@@ -1136,6 +1136,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setReferralDept('Cardiology');
     setReferralDoc('Dr. Gregory House');
     setReferralReason('');
+  };
+
+  const handleOpenCheckupModal = (appt) => {
+    resetClinicalForm();
+    setSelectedApptForCheckup(appt);
   };
 
   const handleSendCallMessage = (e) => {
@@ -1151,161 +1156,179 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   };
 
   const handleCheckupSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const apptToComplete = selectedApptForCheckup || activeCallAppt;
-    if (!apptToComplete) return;
-
-    const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
-    let finalMeds = [...prescribedMeds];
-    if (rxDrugName.trim()) {
-      finalMeds.push({
-        id: `MED-${Math.floor(100 + Math.random() * 900)}`,
-        name: rxDrugName,
-        dose: rxDose,
-        frequency: rxFrequency,
-        duration: rxDuration,
-        instructions: rxInstructions,
-        cost: rxCost
-      });
+    if (!apptToComplete) {
+      resetClinicalForm();
+      return;
     }
 
-    let finalLabs = [...prescribedLabs];
-    if (labTestName.trim()) {
-      finalLabs.push({
-        testName: labTestName,
-        priority: labPriority,
-        cost: labCost
-      });
-    }
+    try {
+      const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+      const todayStr = new Date().toISOString().split('T')[0];
 
-    const updatedAppts = appointments.map(appt => {
-      if (appt.id === apptToComplete.id) {
-        return { 
-          ...appt, 
-          status: 'Completed',
-          diagnosis: diagnosisNote || 'Routine consultation completed.',
-          vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 }
-        };
+      // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
+      let finalMeds = [...prescribedMeds];
+      if (rxDrugName && rxDrugName.trim()) {
+        finalMeds.push({
+          id: `MED-${Math.floor(100 + Math.random() * 900)}`,
+          name: rxDrugName.trim(),
+          dose: rxDose || '500mg',
+          frequency: rxFrequency || 'Once Daily (QD)',
+          duration: rxDuration || '7 Days',
+          instructions: rxInstructions || 'Take with meals',
+          cost: parseFloat(rxCost) || 25.00
+        });
       }
-      return appt;
-    });
-    setAppointments(updatedAppts);
-    localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
 
-    const updatedPatients = patients.map(p => {
-      if (p.id === apptToComplete.patientId) {
-        const historyEntry = {
+      let finalLabs = [...prescribedLabs];
+      if (labTestName && labTestName.trim()) {
+        finalLabs.push({
+          testName: labTestName.trim(),
+          priority: labPriority || 'Routine',
+          cost: parseFloat(labCost) || 85.00
+        });
+      }
+
+      const updatedAppts = appointments.map(appt => {
+        if (appt.id === apptToComplete.id) {
+          return { 
+            ...appt, 
+            status: 'Completed',
+            diagnosis: diagnosisNote || 'Routine consultation completed.',
+            vitals: { bp: vitalBP || '120/80', hr: vitalHR || '72', temp: vitalTemp || '98.6', spo2: vitalSpO2 || '98' }
+          };
+        }
+        return appt;
+      });
+      setAppointments(updatedAppts);
+      localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+
+      const updatedPatients = patients.map(p => {
+        if (p.id === apptToComplete.patientId || p.name === apptToComplete.patientName) {
+          const historyEntry = {
+            date: todayStr,
+            doctor: currentDoc.name,
+            diagnosis: diagnosisNote || 'Routine checkup completed.',
+            reason: apptToComplete.reason || 'Checkup',
+            vitals: { bp: vitalBP || '120/80', hr: vitalHR || '72', temp: vitalTemp || '98.6', spo2: vitalSpO2 || '98' },
+            symptoms: symptomsNote || 'None reported',
+            physicalExam: examNote || 'Normal findings',
+            plan: planNote || 'Follow up as needed',
+            prescriptions: finalMeds.map(m => `${m.name} ${m.dose || ''} - ${m.frequency || ''} (${m.duration || ''})`),
+            labs: finalLabs.map(l => `${l.testName} [${l.priority || 'Routine'}]`),
+            isAdmitted: !!isAdmitted,
+            admissionWard: isAdmitted ? admissionWard : null,
+            isReferred: !!isReferred,
+            referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
+          };
+          return {
+            ...p,
+            clinicalHistory: [historyEntry, ...(p.clinicalHistory || [])]
+          };
+        }
+        return p;
+      });
+      setPatients(updatedPatients);
+      localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+
+      // Save prescriptions to dhms_prescriptions
+      if (finalMeds.length > 0) {
+        const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+        const newRxs = finalMeds.map(med => ({
+          id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: apptToComplete.patientId || 'PT-GEN',
+          patientName: apptToComplete.patientName || 'Patient',
+          medication: `${med.name} ${med.dose || ''} (${med.frequency || ''}, ${med.duration || ''})`,
+          doctorName: currentDoc.name,
           date: todayStr,
-          doctor: currentDoc.name,
-          diagnosis: diagnosisNote || 'Routine checkup completed.',
-          reason: apptToComplete.reason,
-          vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 },
-          symptoms: symptomsNote || 'None reported',
-          physicalExam: examNote || 'Normal findings',
-          plan: planNote || 'Follow up as needed',
-          prescriptions: finalMeds.map(m => `${m.name} ${m.dose} - ${m.frequency} (${m.duration})`),
-          labs: finalLabs.map(l => `${l.testName} [${l.priority}]`),
-          isAdmitted: isAdmitted,
-          admissionWard: isAdmitted ? admissionWard : null,
-          isReferred: isReferred,
-          referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
-        };
-        return {
-          ...p,
-          clinicalHistory: [historyEntry, ...(p.clinicalHistory || [])]
-        };
+          cost: `${parseFloat(med.cost || 25.00).toFixed(2)}`,
+          status: isAdmitted ? 'Advised' : 'Pending',
+          instructions: med.instructions || 'Take as advised',
+          type: isAdmitted ? 'Inpatient' : 'Outpatient'
+        }));
+        const finalRx = [...newRxs, ...rxList];
+        localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
+        setPrescriptions(finalRx);
       }
-      return p;
-    });
-    setPatients(updatedPatients);
-    localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
-    // Save prescriptions to dhms_prescriptions
-    if (finalMeds.length > 0) {
-      const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
-      const newRxs = finalMeds.map(med => ({
-        id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: apptToComplete.patientId,
-        patientName: apptToComplete.patientName,
-        medication: `${med.name} ${med.dose} (${med.frequency}, ${med.duration})`,
-        doctorName: currentDoc.name,
+      // Save Admission details if admitted
+      if (isAdmitted) {
+        const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+        const newAdm = {
+          id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: apptToComplete.patientId || 'PT-GEN',
+          patientName: apptToComplete.patientName || 'Patient',
+          doctorName: currentDoc.name,
+          admissionDate: todayStr,
+          dischargeDate: null,
+          ward: admissionWard || 'General Ward A',
+          notes: admissionNotes || 'Admitted from consultation.',
+          status: 'Admitted',
+          medications: finalMeds.map(med => ({
+            name: `${med.name} ${med.dose || ''}`,
+            instructions: med.instructions || '',
+            cost: parseFloat(med.cost) || 0.00,
+            status: 'Advised',
+            date: todayStr
+          })),
+          pharmacyBillPaid: false
+        };
+        const finalAdms = [newAdm, ...adms];
+        localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
+      }
+
+      // Save laboratory requests
+      if (finalLabs.length > 0) {
+        const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+        const newLabs = finalLabs.map(lab => ({
+          id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: apptToComplete.patientId || 'PT-GEN',
+          patientName: apptToComplete.patientName || 'Patient',
+          testName: `${lab.testName} (${lab.priority || 'Routine'} Priority)`,
+          doctorName: currentDoc.name,
+          date: todayStr,
+          cost: `${parseFloat(lab.cost || 85.00).toFixed(2)}`,
+          status: 'Pending'
+        }));
+        const finalLab = [...newLabs, ...labList];
+        localStorage.setItem('dhms_lab_requests', JSON.stringify(finalLab));
+        setLabRequests(finalLab);
+      }
+
+      // Create billing invoice for consultation
+      const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+      const newConsultationInvoice = {
+        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: apptToComplete.patientId || 'PT-GEN',
+        patientName: apptToComplete.patientName || 'Patient',
         date: todayStr,
-        cost: `${parseFloat(med.cost || 25.00).toFixed(2)}`,
-        status: isAdmitted ? 'Advised' : 'Pending',
-        instructions: med.instructions,
-        type: isAdmitted ? 'Inpatient' : 'Outpatient'
-      }));
-      const finalRx = [...newRxs, ...rxList];
-      localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
-      setPrescriptions(finalRx);
-    }
-
-    // Save Admission details if admitted
-    if (isAdmitted) {
-      const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
-      const newAdm = {
-        id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: apptToComplete.patientId,
-        patientName: apptToComplete.patientName,
-        doctorName: currentDoc.name,
-        admissionDate: todayStr,
-        dischargeDate: null,
-        ward: admissionWard,
-        notes: admissionNotes || 'Admitted from consultation.',
-        status: 'Admitted',
-        medications: finalMeds.map(med => ({
-          name: `${med.name} ${med.dose}`,
-          instructions: med.instructions,
-          cost: parseFloat(med.cost) || 0.00,
-          status: 'Advised',
-          date: todayStr
-        })),
-        pharmacyBillPaid: false
+        amount: '₹150.00',
+        status: 'Unpaid',
+        type: 'Consultation Fee'
       };
-      const finalAdms = [newAdm, ...adms];
-      localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
+      const updatedBillingList = [newConsultationInvoice, ...billing];
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
+      setBillingList(updatedBillingList);
+
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (err) {
+      console.error("Error saving checkup:", err);
+    } finally {
+      resetClinicalForm();
+      if (window.Swal) {
+        window.Swal.fire({
+          title: 'Checkup Completed',
+          text: 'Checkup clinical log completed and billed successfully.',
+          icon: 'success',
+          confirmButtonColor: '#10b981'
+        });
+      } else {
+        alert('Checkup clinical log completed and billed successfully.');
+      }
     }
-
-    // Save laboratory requests
-    if (finalLabs.length > 0) {
-      const labList = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
-      const newLabs = finalLabs.map(lab => ({
-        id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: apptToComplete.patientId,
-        patientName: apptToComplete.patientName,
-        testName: `${lab.testName} (${lab.priority} Priority)`,
-        doctorName: currentDoc.name,
-        date: todayStr,
-        cost: `${parseFloat(lab.cost || 85.00).toFixed(2)}`,
-        status: 'Pending'
-      }));
-      const finalLab = [...newLabs, ...labList];
-      localStorage.setItem('dhms_lab_requests', JSON.stringify(finalLab));
-      setLabRequests(finalLab);
-    }
-
-    // Create billing invoice for consultation
-    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-    const newConsultationInvoice = {
-      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-      patientId: apptToComplete.patientId,
-      patientName: apptToComplete.patientName,
-      date: todayStr,
-      amount: '₹150.00',
-      status: 'Unpaid',
-      type: 'Consultation Fee'
-    };
-    const updatedBillingList = [newConsultationInvoice, ...billing];
-    localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
-    setBillingList(updatedBillingList);
-
-    setSelectedApptForCheckup(null);
-    setIsVideoCallActive(false);
-    setActiveCallAppt(null);
-    alert('Checkup clinical log completed and billed successfully.');
   };
 
   const handleUpdateEhrMetadata = (e) => {
@@ -3631,7 +3654,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               {renderClinicalForm(false)}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                <button type="button" onClick={() => setSelectedApptForCheckup(null)} className="btn-action-cancel" style={{ padding: '10px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel Checkup</button>
+                <button type="button" onClick={resetClinicalForm} className="btn-action-cancel" style={{ padding: '10px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel Checkup</button>
                 <button type="submit" className="btn-action-submit" style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>Complete Checkup & Bill</button>
               </div>
             </form>
