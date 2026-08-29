@@ -518,22 +518,24 @@ function App() {
       </div>
 
       <div className="auth-card">
-        <div className="tabs-container">
-          <button 
-            className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
-            onClick={() => setActiveTab('signin')}
-          >
-            Sign In
-          </button>
-          <button 
-            className={`tab ${activeTab === 'register' ? 'active' : ''}`}
-            onClick={() => setActiveTab('register')}
-          >
-            {isPatientPortal ? "Register as Patient" : "Register Account"}
-          </button>
-        </div>
+        {!isPatientPortal && !isMobileOrPWA && (
+          <div className="tabs-container">
+            <button 
+              className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
+              onClick={() => setActiveTab('signin')}
+            >
+              Sign In
+            </button>
+            <button 
+              className={`tab ${activeTab === 'register' ? 'active' : ''}`}
+              onClick={() => setActiveTab('register')}
+            >
+              Register Account
+            </button>
+          </div>
+        )}
 
-        {activeTab === 'signin' ? (
+        {(isPatientPortal || activeTab === 'signin') ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
               <label>{(isPatientPortal || userRole === 'patient') ? 'Patient ID, Email or Phone' : 'Email Address'}</label>
