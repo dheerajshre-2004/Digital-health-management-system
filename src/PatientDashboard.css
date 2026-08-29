@@ -1724,44 +1724,98 @@
   }
 
   .pd-topbar {
-    padding: 0 16px !important;
+    padding: 0 12px !important;
     padding-top: env(safe-area-inset-top, 0px) !important;
-    height: calc(64px + env(safe-area-inset-top, 0px)) !important;
+    height: calc(60px + env(safe-area-inset-top, 0px)) !important;
+    display: flex !important;
     flex-direction: row !important;
     justify-content: space-between !important;
     align-items: center !important;
+    flex-wrap: nowrap !important;
     box-sizing: border-box;
     width: 100% !important;
     position: sticky;
     top: 0;
     z-index: 1001;
-    background-color: #ffffff !important; /* Ensure solid white background */
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0;
   }
 
   .pd-logo-area {
     display: flex !important;
+    flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
     gap: 8px !important;
-    height: 100% !important;
+    height: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pd-logo-icon {
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pd-logo-text {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #5c6bc0 !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
   }
 
   .pd-logo-divider, .pd-logo-sub {
-    display: none;
+    display: none !important;
   }
 
   .pd-topbar-right {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
     width: auto !important;
-    gap: 12px;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
   }
 
   .pd-profile-info {
-    border-right: none;
-    padding-right: 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border-right: none !important;
+    padding-right: 0 !important;
   }
 
   .pd-profile-info .pd-user-details {
-    display: none; /* Hide details on mobile header to save space */
+    display: none !important; /* Hide long user details on mobile header */
+  }
+
+  .pd-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 14px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pd-role-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    margin-left: 2px !important;
+    display: inline-block !important;
+  }
+
+  .pd-signout-btn {
+    width: 34px !important;
+    height: 34px !important;
+    flex-shrink: 0 !important;
+    padding: 0 !important;
+  }
+
+  .pd-signout-btn svg {
+    width: 16px !important;
+    height: 16px !important;
   }
 
   .pd-body {
@@ -1839,17 +1893,34 @@
   }
 
   .pd-welcome-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    text-align: left;
-    margin-bottom: 20px;
-    padding: 20px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+    text-align: left !important;
+    margin-bottom: 20px !important;
+    padding: 16px !important;
+    border-radius: 12px !important;
   }
 
   .pd-welcome-banner h1 {
-    font-size: 22px !important;
+    font-size: 20px !important;
     line-height: 1.3 !important;
+    margin: 0 0 6px 0 !important;
+    word-break: break-word !important;
+  }
+
+  .pd-welcome-banner p {
+    font-size: 13px !important;
+    color: #64748b !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .pd-welcome-banner .pd-btn-primary {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
   }
 
   /* Vitals: Force 1 column on mobile to prevent squishing */
@@ -1906,11 +1977,6 @@
     box-sizing: border-box;
   }
 
-  /* Give sign-out button right padding away from the edge */
-  .pd-topbar-right {
-    margin-right: 12px !important;
-  }
-
   /* Prevent text overlapping or stretching inside cards */
   .pd-section-card, .pd-vital-card, .rd-card, .pd-lab-item, .visit-item, .billing-card {
     white-space: normal !important;
@@ -1921,8 +1987,7 @@
   .pd-vital-card-header, 
   .pd-lab-item, 
   .visit-item-header, 
-  .billing-card-header,
-  .pd-logo-area {
+  .billing-card-header {
     flex-wrap: wrap !important;
     gap: 8px !important;
   }
