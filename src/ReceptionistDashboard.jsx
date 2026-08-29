@@ -198,13 +198,38 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     reason: ''
   });
   const [appointmentSuccess, setAppointmentSuccess] = useState(false);
+  const [patientSearchFocus, setPatientSearchFocus] = useState(false);
+  const [selectedBookPatient, setSelectedBookPatient] = useState(null);
+
+  const handleSelectPatientForBooking = (patient) => {
+    setSelectedBookPatient(patient);
+    setAppointmentData({
+      ...appointmentData,
+      patientId: `${patient.id} - ${patient.firstName} ${patient.lastName || ''}`.trim()
+    });
+    setPatientSearchFocus(false);
+  };
 
   const handleAppointmentSubmit = (e) => {
     e.preventDefault();
     
-    // Find patient name from ID/Name search
-    const matchedPatient = patients.find(p => p.id === appointmentData.patientId || `${p.firstName} ${p.lastName}`.toLowerCase().includes(appointmentData.patientId.toLowerCase()));
-    const patientName = matchedPatient ? `${matchedPatient.firstName} ${matchedPatient.lastName}` : appointmentData.patientId;
+    // Find patient from ID, Name, Phone or explicit Selection
+    const query = (appointmentData.patientId || '').toLowerCase().trim();
+    let matchedPatient = selectedBookPatient;
+    if (!matchedPatient) {
+      matchedPatient = patients.find(p => {
+        const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+        const pPhone = (p.phone || '').replace(/[\s\-\+]/g, '');
+        const cleanQuery = query.replace(/[\s\-\+]/g, '');
+        return p.id.toLowerCase() === query || 
+               query.includes(p.id.toLowerCase()) || 
+               fullName === query || 
+               fullName.includes(query) ||
+               (cleanQuery && pPhone.includes(cleanQuery));
+      });
+    }
+
+    const patientName = matchedPatient ? `${matchedPatient.firstName} ${matchedPatient.lastName || ''}`.trim() : appointmentData.patientId;
     const patientId = matchedPatient ? matchedPatient.id : `PT-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const matchedDoc = doctorsList.find(d => d.id === appointmentData.doctorId);
@@ -233,6 +258,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
 
     setAppointmentSuccess(true);
     setTimeout(() => setAppointmentSuccess(false), 3000);
+    setSelectedBookPatient(null);
     setAppointmentData({
       patientId: '',
       doctorId: '',
@@ -616,9 +642,171 @@ End of Generated Health Summary Report
               </div>
             )}
             <form className="rd-form mt-4" onSubmit={handleAppointmentSubmit}>
-              <div className="rd-form-group">
-                <label>Patient ID / Name</label>
-                <input type="text" required value={appointmentData.patientId} onChange={e => setAppointmentData({...appointmentData, patientId: e.target.value})} placeholder="e.g. PT-12345 or John Doe" />
+              <div className="rd-form-group" style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label>Patient ID / Name <span style={{ color: 'red' }}>*</span></label>
+                  {selectedBookPatient && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setSelectedBookPatient(null);
+                        setAppointmentData({ ...appointmentData, patientId: '' });
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}
+                    >
+                      ✕ Clear / Change Patient
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    required 
+                    value={appointmentData.patientId} 
+                    onFocus={() => setPatientSearchFocus(true)}
+                    onChange={e => {
+                      setAppointmentData({...appointmentData, patientId: e.target.value});
+                      setSelectedBookPatient(null);
+                      setPatientSearchFocus(true);
+                    }} 
+                    placeholder="Search by Patient ID (e.g., PT-101), Name, or Phone..." 
+                    style={{
+                      paddingRight: '36px',
+                      borderColor: selectedBookPatient ? '#10b981' : undefined,
+                      background: selectedBookPatient ? '#f0fdf4' : 'white'
+                    }}
+                  />
+                  <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}>
+                    🔍
+                  </div>
+                </div>
+
+                {/* Selected Patient Confirmation Box */}
+                {selectedBookPatient && (
+                  <div style={{
+                    marginTop: '6px',
+                    padding: '8px 12px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: '#166534'
+                  }}>
+                    <div>
+                      <strong>✓ {selectedBookPatient.firstName} {selectedBookPatient.lastName}</strong>
+                      <span style={{ marginLeft: '8px', padding: '2px 6px', background: '#dcfce7', borderRadius: '4px', fontWeight: '700', fontSize: '11px' }}>{selectedBookPatient.id}</span>
+                      {selectedBookPatient.phone && <span style={{ marginLeft: '8px', color: '#15803d' }}>📞 {selectedBookPatient.phone}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Instant Suggestions Dropdown List */}
+                {patientSearchFocus && !selectedBookPatient && (
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      background: 'white',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)',
+                      zIndex: 100,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      marginTop: '4px'
+                    }}
+                  >
+                    {(() => {
+                      const query = (appointmentData.patientId || '').toLowerCase().trim();
+                      const filtered = patients.filter(p => {
+                        const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+                        const pPhone = (p.phone || '').replace(/[\s\-\+]/g, '');
+                        const cleanQuery = query.replace(/[\s\-\+]/g, '');
+                        return !query || 
+                               p.id.toLowerCase().includes(query) || 
+                               fullName.includes(query) ||
+                               (cleanQuery && pPhone.includes(cleanQuery));
+                      }).slice(0, 10);
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ padding: '12px', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
+                            No registered patients found matching "{appointmentData.patientId}".
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <div style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '700', color: '#64748b', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', textTransform: 'uppercase' }}>
+                            {query ? "Matching Patients" : "Registered Patients (Click to Select)"}
+                          </div>
+                          {filtered.map(p => (
+                            <div 
+                              key={p.id}
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // Prevent input onBlur before click registers
+                                handleSelectPatientForBooking(p);
+                              }}
+                              style={{
+                                padding: '10px 12px',
+                                borderBottom: '1px solid #f1f5f9',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                transition: 'background-color 0.15s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '50%',
+                                  background: '#6366f1',
+                                  color: 'white',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '13px',
+                                  fontWeight: 'bold'
+                                }}>
+                                  {(p.firstName?.[0] || 'P').toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b' }}>
+                                    {p.firstName} {p.lastName}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                    {p.phone ? `📞 ${p.phone}` : (p.email || 'No contact')}
+                                  </div>
+                                </div>
+                              </div>
+                              <span style={{
+                                background: '#e0e7ff',
+                                color: '#4338ca',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '700'
+                              }}>
+                                {p.id}
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               <div className="rd-form-group">
