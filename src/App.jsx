@@ -557,8 +557,8 @@ function App() {
                   required 
                   onInput={(e) => {
                     if (isPatientPortal || userRole === 'patient') {
-                      // If it looks like a patient ID (PT-xxx), uppercase it
-                      if (e.target.value.toUpperCase().startsWith('PT-')) {
+                      // Convert to uppercase for Patient ID (unless typing an email)
+                      if (!e.target.value.includes('@')) {
                         e.target.value = e.target.value.toUpperCase();
                       }
                     }
