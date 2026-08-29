@@ -32,8 +32,8 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const [paymentRemarks, setPaymentRemarks] = useState('');
   const [printedInvoiceData, setPrintedInvoiceData] = useState(null);
 
-  // Edit Invoice States
-  const [isEditingReceipt, setIsEditingReceipt] = useState(false);
+  // Edit Receipt Tab States
+  const [selectedReceiptForEdit, setSelectedReceiptForEdit] = useState(null);
   const [editHospitalName, setEditHospitalName] = useState('DHMS CENTRAL CLINICAL CENTER');
   const [editHospitalAddress, setEditHospitalAddress] = useState('100 Hospital Road, Medical City');
   const [editHospitalContact, setEditHospitalContact] = useState('Phone: +1 (555) 019-2000 | Email: billing@dhms.org');
@@ -44,30 +44,41 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const [editPatientName, setEditPatientName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editAmount, setEditAmount] = useState('');
-  const [editPaymentMethod, setEditPaymentMethod] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('Physical Cash Payment');
   const [editPaymentRemarks, setEditPaymentRemarks] = useState('');
 
-  useEffect(() => {
-    if (printedInvoiceData) {
-      setEditHospitalName(printedInvoiceData.hospitalName || 'DHMS CENTRAL CLINICAL CENTER');
-      setEditHospitalAddress(printedInvoiceData.hospitalAddress || '100 Hospital Road, Medical City');
-      setEditHospitalContact(printedInvoiceData.hospitalContact || 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org');
-      setEditRefId(printedInvoiceData.id || '');
-      setEditBillingDate(printedInvoiceData.date || '');
-      setEditPaymentDate(printedInvoiceData.paymentDate || new Date().toISOString().split('T')[0]);
-      setEditPatientId(printedInvoiceData.patientId || '');
-      setEditPatientName(printedInvoiceData.patientName || '');
-      setEditDescription(printedInvoiceData.type || '');
-      setEditAmount(printedInvoiceData.amount ? printedInvoiceData.amount.replace('₹', '') : '');
-      setEditPaymentMethod(printedInvoiceData.paymentMethod || 'Physical Cash Payment');
-      setEditPaymentRemarks(printedInvoiceData.paymentRemarks || '');
-    }
-  }, [printedInvoiceData]);
+  const loadInvoiceForEdit = (inv) => {
+    setSelectedReceiptForEdit(inv);
+    setEditHospitalName(inv.hospitalName || 'DHMS CENTRAL CLINICAL CENTER');
+    setEditHospitalAddress(inv.hospitalAddress || '100 Hospital Road, Medical City');
+    setEditHospitalContact(inv.hospitalContact || 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org');
+    setEditRefId(inv.id || '');
+    setEditBillingDate(inv.date || '');
+    setEditPaymentDate(inv.paymentDate || new Date().toISOString().split('T')[0]);
+    setEditPatientId(inv.patientId || '');
+    setEditPatientName(inv.patientName || '');
+    setEditDescription(inv.type || '');
+    setEditAmount(inv.amount ? String(inv.amount).replace(/[^0-9.]/g, '') : '');
+    setEditPaymentMethod(inv.paymentMethod || 'Physical Cash Payment');
+    setEditPaymentRemarks(inv.paymentRemarks || '');
+    setActiveTab('receipts');
+  };
 
-  const handleSaveInvoiceEdits = () => {
+  useEffect(() => {
+    const paidList = billingList.filter(b => b.status === 'Paid');
+    if (!selectedReceiptForEdit && paidList.length > 0) {
+      loadInvoiceForEdit(paidList[0]);
+    }
+  }, [billingList]);
+
+  const handleSaveInvoiceEdits = (e) => {
+    if (e) e.preventDefault();
     const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const targetId = selectedReceiptForEdit ? selectedReceiptForEdit.id : editRefId;
+    const formattedAmount = editAmount.startsWith('₹') ? editAmount : `₹${parseFloat(editAmount || 0).toFixed(2)}`;
+    
     const updatedBilling = currentBilling.map(inv => {
-      if (inv.id === printedInvoiceData.id) {
+      if (inv.id === targetId || inv.id === editRefId) {
         return {
           ...inv,
           id: editRefId,
@@ -76,38 +87,61 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
           patientId: editPatientId,
           patientName: editPatientName,
           type: editDescription,
-          amount: editAmount.startsWith('₹') ? editAmount : `₹${editAmount}`,
+          amount: formattedAmount,
           paymentMethod: editPaymentMethod,
-          paymentRemarks: editPaymentRemarks
+          paymentRemarks: editPaymentRemarks,
+          hospitalName: editHospitalName,
+          hospitalAddress: editHospitalAddress,
+          hospitalContact: editHospitalContact
         };
       }
       return inv;
     });
     localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
     
     // Also trigger update to billing central list
     if (window.dispatchEvent) {
       window.dispatchEvent(new Event('storage'));
     }
 
-    setPrintedInvoiceData({
-      ...printedInvoiceData,
+    const updatedObj = {
       id: editRefId,
       date: editBillingDate,
       paymentDate: editPaymentDate,
       patientId: editPatientId,
       patientName: editPatientName,
       type: editDescription,
-      amount: editAmount.startsWith('₹') ? editAmount : `₹${editAmount}`,
+      amount: formattedAmount,
       paymentMethod: editPaymentMethod,
       paymentRemarks: editPaymentRemarks,
       hospitalName: editHospitalName,
       hospitalAddress: editHospitalAddress,
-      hospitalContact: editHospitalContact
+      hospitalContact: editHospitalContact,
+      status: 'Paid'
+    };
+
+    setSelectedReceiptForEdit(updatedObj);
+    alert("Receipt details updated and saved successfully!");
+  };
+
+  const handlePrintFromEditor = () => {
+    const formattedAmount = editAmount.startsWith('₹') ? editAmount : `₹${parseFloat(editAmount || 0).toFixed(2)}`;
+    setPrintedInvoiceData({
+      id: editRefId,
+      date: editBillingDate,
+      paymentDate: editPaymentDate,
+      patientId: editPatientId,
+      patientName: editPatientName,
+      type: editDescription,
+      amount: formattedAmount,
+      paymentMethod: editPaymentMethod,
+      paymentRemarks: editPaymentRemarks,
+      hospitalName: editHospitalName,
+      hospitalAddress: editHospitalAddress,
+      hospitalContact: editHospitalContact,
+      status: 'Paid'
     });
-    
-    setIsEditingReceipt(false);
-    alert("Invoice updated successfully!");
   };
 
   // Attendance Tracker States
@@ -667,16 +701,22 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                               <div style={{ fontSize: '11px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <div>Mode: <strong>{inv.paymentMethod}</strong></div>
                                 <div style={{ color: '#64748b', fontSize: '10px' }}>Ref: {inv.paymentRemarks || 'None'}</div>
-                                <button 
-                                  className="cc-btn-small outline" 
-                                  style={{ marginTop: '4px', alignSelf: 'flex-start' }} 
-                                  onClick={() => {
-                                    setPrintedInvoiceData(inv);
-                                    setIsEditingReceipt(false);
-                                  }}
-                                >
-                                  View / Edit Receipt
-                                </button>
+                                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                                  <button 
+                                    className="cc-btn-small" 
+                                    style={{ padding: '4px 8px', fontSize: '11px' }}
+                                    onClick={() => setPrintedInvoiceData(inv)}
+                                  >
+                                    Print Receipt
+                                  </button>
+                                  <button 
+                                    className="cc-btn-small outline" 
+                                    style={{ padding: '4px 8px', fontSize: '11px' }}
+                                    onClick={() => loadInvoiceForEdit(inv)}
+                                  >
+                                    Edit Details
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <button className="cc-btn-small outline" onClick={() => setPaymentModalData(inv)}>Collect Now</button>
@@ -849,6 +889,167 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     );
   };
 
+  const renderReceiptEditor = () => {
+    const paidInvoices = billingList.filter(b => b.status === 'Paid');
+
+    return (
+      <div className="cc-view-container">
+        <div className="cc-header-banner">
+          <div>
+            <h2>Receipt & Invoice Customizer</h2>
+            <p>Customize hospital letterhead, modify invoice details, and preview or reprint official receipts.</p>
+          </div>
+        </div>
+
+        <div className="cc-grid-layout" style={{ gridTemplateColumns: '1fr 2fr', gap: '20px', alignItems: 'start' }}>
+          {/* Left Column: Select a Receipt */}
+          <div className="cc-card">
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#1e293b' }}>Select Paid Receipt</h3>
+            <p style={{ color: '#64748b', fontSize: '12.5px', marginBottom: '12px' }}>
+              Choose a paid invoice below to customize its receipt details:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '520px', overflowY: 'auto' }}>
+              {paidInvoices.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                  No paid invoices available to edit.
+                </div>
+              ) : (
+                paidInvoices.map(inv => {
+                  const isSelected = selectedReceiptForEdit?.id === inv.id || editRefId === inv.id;
+                  return (
+                    <div 
+                      key={inv.id}
+                      onClick={() => loadInvoiceForEdit(inv)}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                        background: isSelected ? '#f5f3ff' : 'white',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <strong style={{ fontSize: '13.5px', color: '#1e293b' }}>{inv.id}</strong>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#166534' }}>{inv.amount}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500' }}>{inv.patientName}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                        <span>{inv.type}</span>
+                        <span>{inv.date}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Edit Receipt Form */}
+          <div className="cc-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>
+                Editing Receipt: <span style={{ color: '#6366f1' }}>{editRefId || 'New/Custom'}</span>
+              </h3>
+              <button 
+                type="button" 
+                className="cc-btn-primary" 
+                onClick={handlePrintFromEditor}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                Preview & Print Receipt
+              </button>
+            </div>
+
+            <form className="cc-form" onSubmit={handleSaveInvoiceEdits}>
+              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase' }}>Hospital Letterhead Info</h4>
+                <div className="cc-form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '12px' }}>Hospital / Clinic Name</label>
+                  <input type="text" value={editHospitalName} onChange={e => setEditHospitalName(e.target.value)} required />
+                </div>
+                <div className="cc-form-row">
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Hospital Address</label>
+                    <input type="text" value={editHospitalAddress} onChange={e => setEditHospitalAddress(e.target.value)} required />
+                  </div>
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Contact Details & Email</label>
+                    <input type="text" value={editHospitalContact} onChange={e => setEditHospitalContact(e.target.value)} required />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase' }}>Invoice & Patient Details</h4>
+                <div className="cc-form-row">
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Invoice ID / Reference</label>
+                    <input type="text" value={editRefId} onChange={e => setEditRefId(e.target.value)} required />
+                  </div>
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Patient ID</label>
+                    <input type="text" value={editPatientId} onChange={e => setEditPatientId(e.target.value)} required />
+                  </div>
+                </div>
+                <div className="cc-form-row">
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Patient Full Name</label>
+                    <input type="text" value={editPatientName} onChange={e => setEditPatientName(e.target.value)} required />
+                  </div>
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Billing Date</label>
+                    <input type="date" value={editBillingDate} onChange={e => setEditBillingDate(e.target.value)} required />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase' }}>Billing Breakdown & Payment Mode</h4>
+                <div className="cc-form-row">
+                  <div className="cc-form-group" style={{ flex: 2 }}>
+                    <label style={{ fontSize: '12px' }}>Service / Billing Description</label>
+                    <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)} required />
+                  </div>
+                  <div className="cc-form-group" style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px' }}>Total Amount (₹)</label>
+                    <input type="number" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} required />
+                  </div>
+                </div>
+                <div className="cc-form-row">
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Payment Method</label>
+                    <select value={editPaymentMethod} onChange={e => setEditPaymentMethod(e.target.value)} style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', background: 'white' }}>
+                      <option value="Physical Cash Payment">Physical Cash Payment</option>
+                      <option value="Online Card Payment">Online Card Payment</option>
+                      <option value="Insurance Cover / Claim">Insurance Cover / Claim</option>
+                      <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
+                    </select>
+                  </div>
+                  <div className="cc-form-group">
+                    <label style={{ fontSize: '12px' }}>Payment Date</label>
+                    <input type="date" value={editPaymentDate} onChange={e => setEditPaymentDate(e.target.value)} required />
+                  </div>
+                </div>
+                <div className="cc-form-group" style={{ marginTop: '8px' }}>
+                  <label style={{ fontSize: '12px' }}>Reference Remarks</label>
+                  <input type="text" value={editPaymentRemarks} onChange={e => setEditPaymentRemarks(e.target.value)} placeholder="e.g. Transaction ID, Cash Desk Note" />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+                <button type="submit" className="cc-btn-primary" style={{ backgroundColor: '#10b981', padding: '10px 24px', fontSize: '14px' }}>
+                  💾 Save Receipt Updates
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`cc-container ${embedMode ? 'embedded' : ''}`}>
       {/* Topbar */}
@@ -882,7 +1083,6 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
         </header>
       )}
 
-
       <div className="cc-body">
         {/* Sidebar */}
         <aside className="cc-sidebar no-print">
@@ -901,6 +1101,10 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
             </li>
+            <li className={activeTab === 'receipts' ? 'active' : ''} onClick={() => setActiveTab('receipts')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              Receipt Editor
+            </li>
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               {adminMode ? 'Cashier Shift Log' : 'Shift Attendance'}
@@ -913,6 +1117,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'unpaid' && renderUnpaidInvoices()}
           {activeTab === 'transactions' && renderTransactions()}
+          {activeTab === 'receipts' && renderReceiptEditor()}
           {activeTab === 'attendance' && renderAttendance()}
         </main>
       </div>
@@ -970,7 +1175,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
         </div>
       )}
 
-      {/* Print Receipt Modal overlay */}
+      {/* Print Receipt Modal overlay - Clean without edit interruptions */}
       {printedInvoiceData && (
         <div className="cc-modal-overlay">
           <div className="cc-modal-content print-modal" style={{ maxWidth: '540px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -979,239 +1184,93 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
               <button className="cc-btn-close" onClick={() => setPrintedInvoiceData(null)}>&times;</button>
             </div>
             <div className="cc-modal-body print-area" id="printable-receipt" style={{ padding: '32px', backgroundColor: 'white', color: '#1e293b', fontFamily: 'Courier New, Courier, monospace', overflowY: 'auto', flex: 1 }}>
-              {isEditingReceipt ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
-                  <div style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '10px' }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>HOSPITAL INFORMATION</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <input 
-                        type="text" 
-                        value={editHospitalName} 
-                        onChange={(e) => setEditHospitalName(e.target.value)} 
-                        placeholder="Hospital Name"
-                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                      />
-                      <input 
-                        type="text" 
-                        value={editHospitalAddress} 
-                        onChange={(e) => setEditHospitalAddress(e.target.value)} 
-                        placeholder="Hospital Address"
-                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                      />
-                      <input 
-                        type="text" 
-                        value={editHospitalContact} 
-                        onChange={(e) => setEditHospitalContact(e.target.value)} 
-                        placeholder="Hospital Contact Info"
-                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                      />
-                    </div>
-                  </div>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>{printedInvoiceData.hospitalName || "DHMS CENTRAL CLINICAL CENTER"}</h2>
+                <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalAddress || "100 Hospital Road, Medical City"}</p>
+                <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalContact || "Phone: +1 (555) 019-2000 | Email: billing@dhms.org"}</p>
+              </div>
 
-                  <div style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '10px' }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>INVOICE & PATIENT INFO</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Invoice ID / Ref ID</label>
-                        <input 
-                          type="text" 
-                          value={editRefId} 
-                          onChange={(e) => setEditRefId(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Patient ID</label>
-                        <input 
-                          type="text" 
-                          value={editPatientId} 
-                          onChange={(e) => setEditPatientId(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Patient Name</label>
-                        <input 
-                          type="text" 
-                          value={editPatientName} 
-                          onChange={(e) => setEditPatientName(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Billing Date</label>
-                        <input 
-                          type="date" 
-                          value={editBillingDate} 
-                          onChange={(e) => setEditBillingDate(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '10px' }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>PAYMENT DETAILS</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Payment Date</label>
-                        <input 
-                          type="date" 
-                          value={editPaymentDate} 
-                          onChange={(e) => setEditPaymentDate(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Payment Method</label>
-                        <select 
-                          value={editPaymentMethod} 
-                          onChange={(e) => setEditPaymentMethod(e.target.value)}
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', background: 'white' }}
-                        >
-                          <option value="Physical Cash Payment">Physical Cash Payment</option>
-                          <option value="Online Card Payment">Online Card Payment</option>
-                          <option value="Insurance Cover / Claim">Insurance Cover / Claim</option>
-                          <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
-                        </select>
-                      </div>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Reference Remarks</label>
-                        <input 
-                          type="text" 
-                          value={editPaymentRemarks} 
-                          onChange={(e) => setEditPaymentRemarks(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', fontWeight: 'bold' }}>LINE ITEMS & CHARGES</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Billing Type / Description</label>
-                        <input 
-                          type="text" 
-                          value={editDescription} 
-                          onChange={(e) => setEditDescription(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Amount (₹)</label>
-                        <input 
-                          type="number" 
-                          value={editAmount} 
-                          onChange={(e) => setEditAmount(e.target.value)} 
-                          style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+              <div style={{ marginBottom: '20px', fontSize: '13px' }}>
+                <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Invoice Information</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Invoice ID:</span>
+                  <strong>{printedInvoiceData.id}</strong>
                 </div>
-              ) : (
-                <>
-                  <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
-                    <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>{printedInvoiceData.hospitalName || "DHMS CENTRAL CLINICAL CENTER"}</h2>
-                    <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalAddress || "100 Hospital Road, Medical City"}</p>
-                    <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalContact || "Phone: +1 (555) 019-2000 | Email: billing@dhms.org"}</p>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Billing Date:</span>
+                  <span>{printedInvoiceData.date}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Payment Date:</span>
+                  <span>{printedInvoiceData.paymentDate || new Date().toISOString().split('T')[0]}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Payment Status:</span>
+                  <strong style={{ color: '#15803d' }}>PAID / RECEIVED</strong>
+                </div>
+              </div>
 
-                  <div style={{ marginBottom: '20px', fontSize: '13px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Invoice Information</h4>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Invoice ID:</span>
-                      <strong>{printedInvoiceData.id}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Billing Date:</span>
-                      <span>{printedInvoiceData.date}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Payment Date:</span>
-                      <span>{printedInvoiceData.paymentDate || new Date().toISOString().split('T')[0]}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Payment Status:</span>
-                      <strong style={{ color: '#15803d' }}>PAID / RECEIVED</strong>
-                    </div>
-                  </div>
+              <div style={{ marginBottom: '20px', fontSize: '13px' }}>
+                <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Patient Information</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Patient ID:</span>
+                  <span>{printedInvoiceData.patientId}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                  <span>Patient Name:</span>
+                  <strong>{printedInvoiceData.patientName}</strong>
+                </div>
+              </div>
 
-                  <div style={{ marginBottom: '20px', fontSize: '13px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Patient Information</h4>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Patient ID:</span>
-                      <span>{printedInvoiceData.patientId}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                      <span>Patient Name:</span>
-                      <strong>{printedInvoiceData.patientName}</strong>
-                    </div>
-                  </div>
+              <div style={{ marginBottom: '24px', fontSize: '13px' }}>
+                <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Billing Breakdown</h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                      <th style={{ textAlign: 'left', padding: '6px 0' }}>Description</th>
+                      <th style={{ textAlign: 'right', padding: '6px 0' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '10px 0' }}>{printedInvoiceData.type}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 0', fontWeight: 'bold' }}>{printedInvoiceData.amount}</td>
+                    </tr>
+                    <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 'bold' }}>
+                      <td style={{ padding: '10px 0', fontSize: '15px' }}>AMOUNT PAID:</td>
+                      <td style={{ textAlign: 'right', padding: '10px 0', fontSize: '15px', color: '#15803d' }}>{printedInvoiceData.amount}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                  <div style={{ marginBottom: '24px', fontSize: '13px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', textTransform: 'uppercase' }}>Billing Breakdown</h4>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid #1e293b' }}>
-                          <th style={{ textAlign: 'left', padding: '6px 0' }}>Description</th>
-                          <th style={{ textAlign: 'right', padding: '6px 0' }}>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={{ padding: '10px 0' }}>{printedInvoiceData.type}</td>
-                          <td style={{ textAlign: 'right', padding: '10px 0', fontWeight: 'bold' }}>{printedInvoiceData.amount}</td>
-                        </tr>
-                        <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 'bold' }}>
-                          <td style={{ padding: '10px 0', fontSize: '15px' }}>AMOUNT PAID:</td>
-                          <td style={{ textAlign: 'right', padding: '10px 0', fontSize: '15px', color: '#15803d' }}>{printedInvoiceData.amount}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+              <div style={{ fontSize: '12px', borderTop: '1px solid #cbd5e1', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span>Method of Payment:</span>
+                  <strong>{printedInvoiceData.paymentMethod}</strong>
+                </div>
+                {printedInvoiceData.paymentRemarks && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>Remarks:</span>
+                    <span>{printedInvoiceData.paymentRemarks}</span>
                   </div>
+                )}
+              </div>
 
-                  <div style={{ fontSize: '12px', borderTop: '1px solid #cbd5e1', paddingTop: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                      <span>Method of Payment:</span>
-                      <strong>{printedInvoiceData.paymentMethod}</strong>
-                    </div>
-                    {printedInvoiceData.paymentRemarks && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                        <span>Remarks:</span>
-                        <span>{printedInvoiceData.paymentRemarks}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '11px', color: '#64748b', borderTop: '1px dashed #cbd5e1', paddingTop: '16px' }}>
-                    <p style={{ margin: '0 0 4px 0' }}>Thank you for your payment.</p>
-                    <p style={{ margin: 0 }}>This is a computer generated official billing receipt.</p>
-                  </div>
-                </>
-              )}
+              <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '11px', color: '#64748b', borderTop: '1px dashed #cbd5e1', paddingTop: '16px' }}>
+                <p style={{ margin: '0 0 4px 0' }}>Thank you for your payment.</p>
+                <p style={{ margin: 0 }}>This is a computer generated official billing receipt.</p>
+              </div>
             </div>
             <div className="cc-modal-footer no-print">
-              {isEditingReceipt ? (
-                <>
-                  <button type="button" className="cc-btn-secondary" onClick={() => setIsEditingReceipt(false)}>Cancel</button>
-                  <button type="button" className="cc-btn-primary" onClick={handleSaveInvoiceEdits} style={{ backgroundColor: '#10b981' }}>Save Changes</button>
-                </>
-              ) : (
-                <>
-                  <button type="button" className="cc-btn-secondary" onClick={() => setPrintedInvoiceData(null)}>Close</button>
-                  <button type="button" className="cc-btn-secondary" onClick={() => setIsEditingReceipt(true)} style={{ color: '#5c6bc0', borderColor: '#5c6bc0' }}>Edit Receipt Details</button>
-                  <button 
-                    type="button" 
-                    className="cc-btn-primary" 
-                    onClick={() => window.print()}
-                  >
-                    Print Receipt
-                  </button>
-                </>
-              )}
+              <button type="button" className="cc-btn-secondary" onClick={() => setPrintedInvoiceData(null)}>Close</button>
+              <button 
+                type="button" 
+                className="cc-btn-primary" 
+                onClick={() => window.print()}
+              >
+                Print Receipt
+              </button>
             </div>
           </div>
         </div>
