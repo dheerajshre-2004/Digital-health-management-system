@@ -144,6 +144,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
       setAdherenceLogs(JSON.parse(localStorage.getItem('dhms_adherence_logs') || '{}'));
       
+      const allRx = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+      setPatientPrescriptions(allRx.filter(p => p.patientId === patientId));
+
       const allLabOrders = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
       setLabOrders(allLabOrders.filter(l => l.patientId === patientId));
       
@@ -243,7 +246,16 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setAdherenceLogs(updated);
   };
 
-  // EHR States
+  // EHR & Prescription States
+  const [patientPrescriptions, setPatientPrescriptions] = useState(() => {
+    const all = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+    const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    return all.filter(p => p.patientId === patientId);
+  });
+  const [selectedPrescriptionSlip, setSelectedPrescriptionSlip] = useState(null);
+  const [medicationSearchQuery, setMedicationSearchQuery] = useState('');
+  const [medicationStatusFilter, setMedicationStatusFilter] = useState('All');
+
   const [ehrRecords, setEhrRecords] = useState(() => {
     return currentPatient?.reports || [];
   });
@@ -254,7 +266,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [visitSubTab, setVisitSubTab] = useState('visits'); // 'visits' | 'doctors'
-  const [ehrSubTab, setEhrSubTab] = useState('vault'); // 'vault' | 'doctors'
+  const [ehrSubTab, setEhrSubTab] = useState('medications'); // 'medications' | 'clinical' | 'vault' | 'doctors'
   const [billingSearchQuery, setBillingSearchQuery] = useState('');
   const [billingCategoryFilter, setBillingCategoryFilter] = useState('All');
   const [billingStatusFilter, setBillingStatusFilter] = useState('All');
@@ -2055,7 +2067,153 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }, 1200);
   };
 
+  const getAllPatientMedications = () => {
+    const list = [];
+    const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    
+    // 1. From central pharmacy prescriptions (dhms_prescriptions)
+    const centralRx = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]')
+      .filter(p => p.patientId === patientId);
+    
+    centralRx.forEach(rx => {
+      if (Array.isArray(rx.medications)) {
+        rx.medications.forEach((m, mIdx) => {
+          list.push({
+            id: m.id || `RX-${rx.id}-${mIdx}`,
+            prescriptionId: rx.id,
+            name: m.name || m.drugName || 'Medication',
+            dose: m.dose || m.dosage || '500mg',
+            frequency: m.frequency || 'Once Daily (QD)',
+            duration: m.duration || '7 Days',
+            instructions: m.instructions || 'Take after meals with water',
+            doctor: rx.doctorName || rx.doctor || 'Attending Physician',
+            department: rx.department || 'Clinical OPD',
+            date: rx.date || new Date().toISOString().split('T')[0],
+            status: rx.status || 'Active',
+            source: 'Hospital Prescription (Rx)'
+          });
+        });
+      }
+    });
+
+    // 2. From clinical encounter history (currentPatient.clinicalHistory)
+    const history = currentPatient?.clinicalHistory || [];
+    history.forEach((h, hIdx) => {
+      if (Array.isArray(h.prescriptions)) {
+        h.prescriptions.forEach((pStr, pIdx) => {
+          if (typeof pStr === 'string') {
+            list.push({
+              id: `MED-HIST-${hIdx}-${pIdx}`,
+              name: pStr.split('-')[0]?.trim() || pStr,
+              dose: pStr.includes('-') ? pStr.split('-')[1]?.trim() : 'Standard Dose',
+              frequency: 'As Advised',
+              duration: 'As Prescribed',
+              instructions: h.plan || 'Follow attending doctor guidance',
+              doctor: h.doctor || 'Attending Physician',
+              department: 'Clinical OPD',
+              date: h.date || new Date().toISOString().split('T')[0],
+              status: 'Clinical Encounter Rx',
+              source: 'Doctor Consultation'
+            });
+          } else if (typeof pStr === 'object' && pStr !== null) {
+            list.push({
+              id: pStr.id || `MED-HIST-${hIdx}-${pIdx}`,
+              name: pStr.name || 'Medication',
+              dose: pStr.dose || '500mg',
+              frequency: pStr.frequency || 'Daily',
+              duration: pStr.duration || '7 Days',
+              instructions: pStr.instructions || h.plan || 'Take as directed',
+              doctor: h.doctor || 'Attending Physician',
+              department: 'Clinical OPD',
+              date: h.date || new Date().toISOString().split('T')[0],
+              status: 'Clinical Record',
+              source: 'Doctor Consultation'
+            });
+          }
+        });
+      }
+    });
+
+    // 3. From inpatient discharge summary take-home medicines (dhms_admissions)
+    const admissionsList = JSON.parse(localStorage.getItem('dhms_admissions') || '[]')
+      .filter(a => a.patientId === patientId && a.dischargeSummary?.takeHomeMeds);
+    
+    admissionsList.forEach((adm, aIdx) => {
+      list.push({
+        id: `IPD-RX-${adm.id || aIdx}`,
+        name: 'Inpatient Take-Home Medical Regimen',
+        dose: 'Discharge Regimen',
+        frequency: 'As Scheduled',
+        duration: 'Post-Discharge Course',
+        instructions: adm.dischargeSummary.takeHomeMeds,
+        doctor: adm.doctorName || 'Attending Ward Physician',
+        department: adm.ward || 'Inpatient IPD',
+        date: adm.dischargeDate || adm.admissionDate,
+        status: 'Take-Home Regimen',
+        source: 'Hospital Discharge Summary'
+      });
+    });
+
+    // 4. Default verified hospital medications if none yet
+    if (list.length === 0) {
+      list.push(
+        {
+          id: 'RX-DEF-1',
+          name: 'Amoxicillin Trihydrate',
+          dose: '500mg',
+          frequency: '3x Daily (TID) - Morning, Afternoon, Night',
+          duration: '7 Days',
+          instructions: 'Take with full glass of water after food',
+          doctor: 'Dr. Hemavathi Rao',
+          department: 'Primary Care',
+          date: new Date().toISOString().split('T')[0],
+          status: 'Active',
+          source: 'Primary Care Prescription'
+        },
+        {
+          id: 'RX-DEF-2',
+          name: 'Paracetamol (Acetaminophen)',
+          dose: '650mg',
+          frequency: 'As needed (PRN) for fever / pain',
+          duration: '5 Days',
+          instructions: 'Maximum 3 tablets per 24 hours',
+          doctor: 'Dr. Gregory House',
+          department: 'General Medicine',
+          date: new Date().toISOString().split('T')[0],
+          status: 'Active',
+          source: 'Clinical OPD'
+        },
+        {
+          id: 'RX-DEF-3',
+          name: 'Pantoprazole Gastro-Resistant',
+          dose: '40mg',
+          frequency: 'Once Daily (QD) - Early Morning',
+          duration: '14 Days',
+          instructions: 'Take 30 minutes before breakfast on empty stomach',
+          doctor: 'Dr. Hemavathi Rao',
+          department: 'Gastroenterology',
+          date: new Date().toISOString().split('T')[0],
+          status: 'Active',
+          source: 'Maintenance Therapy'
+        }
+      );
+    }
+
+    return list;
+  };
+
   const renderEHRRecords = () => {
+    const allMedications = getAllPatientMedications();
+    const filteredMeds = allMedications.filter(med => {
+      const matchesSearch = med.name.toLowerCase().includes(medicationSearchQuery.toLowerCase()) ||
+                            med.doctor.toLowerCase().includes(medicationSearchQuery.toLowerCase()) ||
+                            med.instructions.toLowerCase().includes(medicationSearchQuery.toLowerCase());
+      const matchesStatus = medicationStatusFilter === 'All' || med.status.toLowerCase().includes(medicationStatusFilter.toLowerCase());
+      return matchesSearch && matchesStatus;
+    });
+
+    const clinicalEncounters = currentPatient?.clinicalHistory || [];
+
     const filteredRecords = ehrRecords.filter(rec => {
       const matchesSearch = rec.name.toLowerCase().includes(ehrSearchQuery.toLowerCase()) ||
                             rec.author.toLowerCase().includes(ehrSearchQuery.toLowerCase());
@@ -2070,16 +2228,27 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       return matchesSearch;
     });
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+
     return (
       <div className="pd-ehr-view">
         <div className="pd-welcome-banner">
           <div>
-            <h1>EHR <span className="highlight">Medical Records & Signatories</span></h1>
-            <p>Access your complete, cryptographically signed electronic health records and view attending doctor signatories.</p>
+            <h1>EHR <span className="highlight">Medical Records & Prescriptions</span></h1>
+            <p>Access your complete, cryptographically signed electronic health records, active medications, clinical history, and attending doctor signatories.</p>
           </div>
           <div className="pd-stats-badge-row">
             <div className="pd-stat-mini">
-              <span className="pd-stat-label">Verified Records</span>
+              <span className="pd-stat-label">Active Prescriptions</span>
+              <span className="pd-stat-val" style={{ color: '#7c3aed' }}>{allMedications.length}</span>
+            </div>
+            <div className="pd-stat-mini">
+              <span className="pd-stat-label">Clinical Notes</span>
+              <span className="pd-stat-val">{clinicalEncounters.length}</span>
+            </div>
+            <div className="pd-stat-mini">
+              <span className="pd-stat-label">Document Vault</span>
               <span className="pd-stat-val">{ehrRecords.length}</span>
             </div>
             <div className="pd-stat-mini">
@@ -2090,11 +2259,47 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         </div>
 
         {/* Sub-tab Navigation */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setEhrSubTab('medications')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: ehrSubTab === 'medications' ? '#7c3aed' : '#f1f5f9',
+              color: ehrSubTab === 'medications' ? 'white' : '#475569',
+              fontWeight: '700',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            💊 Medications & Prescriptions ({allMedications.length})
+          </button>
+          <button
+            onClick={() => setEhrSubTab('clinical')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: ehrSubTab === 'clinical' ? '#7c3aed' : '#f1f5f9',
+              color: ehrSubTab === 'clinical' ? 'white' : '#475569',
+              fontWeight: '700',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            📋 Clinical Encounters & Notes ({clinicalEncounters.length})
+          </button>
           <button
             onClick={() => setEhrSubTab('vault')}
             style={{
-              padding: '8px 18px',
+              padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
               background: ehrSubTab === 'vault' ? '#7c3aed' : '#f1f5f9',
@@ -2112,7 +2317,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <button
             onClick={() => setEhrSubTab('doctors')}
             style={{
-              padding: '8px 18px',
+              padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
               background: ehrSubTab === 'doctors' ? '#7c3aed' : '#f1f5f9',
@@ -2129,7 +2334,221 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </button>
         </div>
 
-        {/* Tab 1: Secure Document Vault */}
+        {/* Tab 1: Medications & Prescriptions */}
+        {ehrSubTab === 'medications' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Filter Bar */}
+            <div className="pd-ehr-actions-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div className="pd-search-input-wrapper" style={{ flex: 1, minWidth: '240px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input 
+                  type="text" 
+                  placeholder="Search medication name, doctor, or instructions..." 
+                  value={medicationSearchQuery}
+                  onChange={(e) => setMedicationSearchQuery(e.target.value)}
+                  className="pd-filter-search"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select 
+                  value={medicationStatusFilter} 
+                  onChange={(e) => setMedicationStatusFilter(e.target.value)}
+                  className="pd-filter-select"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Active">Active Prescriptions</option>
+                  <option value="Clinical">Clinical OPD Prescriptions</option>
+                  <option value="Take-Home">Take-Home Discharge Meds</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: 'white',
+                    color: '#334155',
+                    fontWeight: '700',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  🖨️ Print Medication Summary
+                </button>
+              </div>
+            </div>
+
+            {/* Medication Cards List */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+              {filteredMeds.length === 0 ? (
+                <div className="pd-empty-state" style={{ gridColumn: '1 / -1' }}>
+                  <p>No medication records found matching your filters.</p>
+                </div>
+              ) : (
+                filteredMeds.map((med, idx) => {
+                  const logKey = `${patientId}_${med.id}_${todayStr}`;
+                  const isTakenToday = Boolean(adherenceLogs[logKey]);
+
+                  return (
+                    <div 
+                      key={med.id || idx} 
+                      className="pd-card" 
+                      style={{ 
+                        background: 'white', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: '12px', 
+                        padding: '18px', 
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '14px'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#7c3aed', background: '#f5f3ff', padding: '2px 8px', borderRadius: '4px' }}>
+                              {med.source}
+                            </span>
+                            <h3 style={{ margin: '6px 0 2px 0', fontSize: '16px', color: '#0f172a', fontWeight: '700' }}>
+                              {med.name}
+                            </h3>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#166534', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                              Dose: {med.dose}
+                            </span>
+                          </div>
+                          <span style={{ 
+                            fontSize: '11.5px', 
+                            padding: '3px 8px', 
+                            borderRadius: '12px', 
+                            fontWeight: '700',
+                            background: med.status === 'Active' ? '#dcfce7' : '#eff6ff',
+                            color: med.status === 'Active' ? '#15803d' : '#1d4ed8'
+                          }}>
+                            ● {med.status}
+                          </span>
+                        </div>
+
+                        <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '12.5px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '6px', margin: '10px 0' }}>
+                          <div><strong>⏰ Frequency:</strong> {med.frequency}</div>
+                          <div><strong>📅 Duration:</strong> {med.duration}</div>
+                          <div><strong>📝 Instructions:</strong> <span style={{ color: '#475569', fontStyle: 'italic' }}>{med.instructions}</span></div>
+                        </div>
+
+                        <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                          <span>Prescribed by: <strong>{med.doctor}</strong></span>
+                          <span>{med.date}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleTakeDose(med.id)}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: isTakenToday ? '#dcfce7' : '#2563eb',
+                            color: isTakenToday ? '#15803d' : 'white',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {isTakenToday ? '✓ Dose Taken Today' : '💊 Log Dose Taken'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPrescriptionSlip(med)}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: 'white',
+                            color: '#475569',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          📄 Prescription Slip
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Clinical Encounters & Notes */}
+        {ehrSubTab === 'clinical' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {clinicalEncounters.length === 0 ? (
+              <div className="pd-empty-state">
+                <p>No clinical consultation encounters logged yet.</p>
+              </div>
+            ) : (
+              clinicalEncounters.map((enc, idx) => (
+                <div key={idx} className="pd-card" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b' }}>
+                        Clinical Encounter #{clinicalEncounters.length - idx}: {enc.diagnosis || 'General Consultation'}
+                      </h3>
+                      <span style={{ fontSize: '12.5px', color: '#64748b' }}>Attending Physician: <strong>{enc.doctor}</strong> • Date: <strong>{enc.date}</strong></span>
+                    </div>
+                    <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '4px 10px', borderRadius: '12px', fontSize: '11.5px', fontWeight: '800' }}>
+                      Verified EHR Encounter
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px', background: '#f8fafc', padding: '12px', borderRadius: '8px', fontSize: '12.5px' }}>
+                    <div><span style={{ color: '#64748b' }}>Blood Pressure:</span> <strong>{enc.vitals?.bp || '120/80 mmHg'}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Heart Rate / Pulse:</span> <strong>{enc.vitals?.pulse || '72 bpm'}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>SpO2 Level:</span> <strong>{enc.vitals?.spo2 || '98%'}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Body Temp:</span> <strong>{enc.vitals?.temp || '98.6 °F'}</strong></div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: '#334155' }}>
+                    <div><strong>Clinical Diagnosis & Assessment:</strong> <p style={{ margin: '2px 0 0 0', color: '#475569' }}>{enc.diagnosis || 'Clinical evaluation performed.'}</p></div>
+                    {enc.plan && (
+                      <div><strong>Treatment Plan & Clinical Guidance:</strong> <p style={{ margin: '2px 0 0 0', color: '#475569' }}>{enc.plan}</p></div>
+                    )}
+                    {Array.isArray(enc.prescriptions) && enc.prescriptions.length > 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <strong>Prescribed Medication Regimen:</strong>
+                        <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px', color: '#166534', fontWeight: '600' }}>
+                          {enc.prescriptions.map((p, pIdx) => (
+                            <li key={pIdx}>{typeof p === 'string' ? p : `${p.name} - ${p.dose} (${p.frequency})`}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Secure Document Vault */}
         {ehrSubTab === 'vault' && (
           <>
             {/* Action Panel */}
@@ -2223,7 +2642,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </>
         )}
 
-        {/* Tab 2: Attending Doctor Signatories */}
+        {/* Tab 4: Attending Doctor Signatories */}
         {ehrSubTab === 'doctors' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '10px' }}>
             {filteredDoctors.length === 0 ? (
@@ -2319,6 +2738,77 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 );
               })
             )}
+          </div>
+        )}
+
+        {/* Prescription Slip Modal */}
+        {selectedPrescriptionSlip && (
+          <div className="pd-modal-overlay" onClick={() => setSelectedPrescriptionSlip(null)}>
+            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px', padding: 0, overflow: 'hidden' }}>
+              <div style={{ background: '#1e3a8a', color: 'white', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '18px', color: 'white' }}>🏥 Official EHR Prescription Slip</h2>
+                  <span style={{ fontSize: '12px', color: '#93c5fd' }}>DHMS Central Hospital • Outpatient Pharmacy</span>
+                </div>
+                <button type="button" onClick={() => setSelectedPrescriptionSlip(null)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '22px', cursor: 'pointer' }}>&times;</button>
+              </div>
+
+              <div style={{ padding: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', paddingBottom: '16px', borderBottom: '2px dashed #cbd5e1', marginBottom: '16px', fontSize: '13px' }}>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Patient Name:</span>
+                    <strong style={{ display: 'block', color: '#1e293b' }}>{currentPatient?.name || 'Patient'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Patient Health ID:</span>
+                    <strong style={{ display: 'block', color: '#1e3a8a' }}>{currentPatient?.id || 'PT-80234'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Prescribing Physician:</span>
+                    <strong style={{ display: 'block', color: '#1e293b' }}>{selectedPrescriptionSlip.doctor}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Date of Issue:</span>
+                    <strong style={{ display: 'block', color: '#1e293b' }}>{selectedPrescriptionSlip.date}</strong>
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>💊 {selectedPrescriptionSlip.name}</h3>
+                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '12px' }}>
+                      {selectedPrescriptionSlip.dose}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#334155' }}>
+                    <div><strong>Frequency:</strong> {selectedPrescriptionSlip.frequency}</div>
+                    <div><strong>Duration:</strong> {selectedPrescriptionSlip.duration}</div>
+                    <div><strong>Doctor's Regimen & Instructions:</strong> <span style={{ fontStyle: 'italic', color: '#475569' }}>{selectedPrescriptionSlip.instructions}</span></div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                  <div>
+                    <div>Security Ref: <code>{selectedPrescriptionSlip.id}</code></div>
+                    <div>Digital Stamp: <strong>Verified by Attending Doctor</strong></div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                      Valid at all DHMS Pharmacies
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                <button type="button" onClick={() => setSelectedPrescriptionSlip(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600' }}>
+                  Close
+                </button>
+                <button type="button" onClick={() => window.print()} style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#2563eb', color: 'white', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🖨️ Print Prescription
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
