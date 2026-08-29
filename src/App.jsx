@@ -7,6 +7,7 @@ import LaboratoryDashboard from './LaboratoryDashboard';
 import PharmacistDashboard from './PharmacistDashboard';
 import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
+import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 
 function App() {
   const isPatientPortal = 
@@ -27,6 +28,7 @@ function App() {
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
   const [loggedInStaff, setLoggedInStaff] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [registrationSuccessData, setRegistrationSuccessData] = useState(null);
 
   // Controlled Input States for Sign In and Registration
   const [signInIdentifier, setSignInIdentifier] = useState('');
@@ -383,7 +385,7 @@ function App() {
     }
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     const nameVal = regFullName.trim();
     const emailVal = regEmail.trim();
@@ -396,7 +398,7 @@ function App() {
     if (userRole === 'patient') {
       const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
       if (patientsList.some(p => p.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email address.');
         return;
       }
       const newId = `PT-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -406,20 +408,35 @@ function App() {
         lastName,
         email: emailVal,
         password: passwordVal,
-        dob: '1990-01-01', // Default, can be updated in dashboard
+        dob: '1990-01-01',
         gender: 'other',
         phone: '',
         reports: []
       };
       const updated = [newPatient, ...patientsList];
       localStorage.setItem('dhms_patients', JSON.stringify(updated));
-      alert(`Patient account created successfully! Your ID is ${newId}. Please sign in to access your portal.`);
+      
+      // Dispatch Welcome Email with Credentials & Thank You Message
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'patient',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email.');
         return;
       }
       const newId = `dr_${firstName.toLowerCase()}_${Math.floor(100 + Math.random() * 900)}`;
@@ -434,13 +451,27 @@ function App() {
       };
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
-      alert(`Doctor account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+
+      await sendPatientWelcomeEmail({
+        patientName: `Dr. ${firstName} ${lastName}`,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'doctor',
+        name: `Dr. ${firstName} ${lastName}`,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else if (userRole === 'receptionist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email.');
         return;
       }
       const newId = `REC-${Math.floor(100 + Math.random() * 900)}`;
@@ -454,13 +485,27 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
-      alert(`Receptionist account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'receptionist',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else if (userRole === 'laboratory') {
       const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email.');
         return;
       }
       const newId = `LAB-${Math.floor(100 + Math.random() * 900)}`;
@@ -474,13 +519,27 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
-      alert(`Laboratory staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'laboratory',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else if (userRole === 'pharmacist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email.');
         return;
       }
       const newId = `PHR-${Math.floor(100 + Math.random() * 900)}`;
@@ -494,13 +553,27 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
-      alert(`Pharmacy staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'pharmacist',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else if (userRole === 'cash_counter') {
       const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
-        alert('Account already exists with this email.');
+        alert('An account already exists with this email.');
         return;
       }
       const newId = `CSH-${Math.floor(100 + Math.random() * 900)}`;
@@ -514,9 +587,23 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
-      alert(`Cash counter staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'cash_counter',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
-      setActiveTab('signin');
     } else {
       alert('Registration successful! Please sign in using your account credentials.');
       clearAuthFields();
@@ -586,7 +673,80 @@ function App() {
           </div>
         )}
 
-        {(isPatientPortal || activeTab === 'signin') ? (
+        {registrationSuccessData ? (
+          <div style={{ textAlign: 'center', padding: '10px 0', animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', margin: '0 auto 16px auto' }}>
+              ✓
+            </div>
+            
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>Registration Successful!</h2>
+            
+            {/* Heartfelt Hospital Message */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 18px', margin: '14px 0', textAlign: 'left' }}>
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#14532d', lineHeight: 1.5 }}>
+                ❤️ <strong>Thank you for choosing our hospital.</strong> We are honored to serve you and our medical team will always take the utmost care of you and your family.
+              </p>
+            </div>
+
+            {/* Email Dispatch Notice */}
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', textAlign: 'left' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#1e40af' }}>
+                📧 <strong>Credentials Dispatched:</strong> A welcome email containing your Digital Patient ID and portal access password has been sent to <strong>{registrationSuccessData.email}</strong>.
+              </p>
+            </div>
+
+            {/* Credentials Card */}
+            <div style={{ background: '#f8fafc', border: '2px dashed #93c5fd', borderRadius: '10px', padding: '16px 20px', textAlign: 'left', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13.5px' }}>
+                <span style={{ color: '#64748b' }}>Patient ID:</span>
+                <strong style={{ color: '#1e3a8a', fontSize: '16px' }}>{registrationSuccessData.id}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px' }}>
+                <span style={{ color: '#64748b' }}>Access Password:</span>
+                <strong style={{ color: '#15803d', fontSize: '16px', fontFamily: 'monospace' }}>{registrationSuccessData.password}</strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-submit"
+                onClick={() => {
+                  setSignInIdentifier(registrationSuccessData.id);
+                  setSignInPassword(registrationSuccessData.password);
+                  setRegistrationSuccessData(null);
+                  setActiveTab('signin');
+                }}
+              >
+                🚀 Auto-Fill & Proceed to Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  openDefaultMailClient({
+                    patientName: registrationSuccessData.name,
+                    email: registrationSuccessData.email,
+                    patientId: registrationSuccessData.id,
+                    password: registrationSuccessData.password
+                  });
+                }}
+                style={{
+                  padding: '10px 16px',
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  color: '#334155',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✉️ Open in Mail Client
+              </button>
+            </div>
+          </div>
+        ) : (isPatientPortal || activeTab === 'signin') ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
               <label>{(isPatientPortal || userRole === 'patient') ? 'Patient ID, Email or Phone' : 'Email Address'}</label>

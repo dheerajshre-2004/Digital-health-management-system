@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './ReceptionistDashboard.css';
+import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 
 export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('register_patient');
@@ -205,6 +206,17 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
     setGeneratedId(newId);
     setGeneratedPassword(randomPassword);
+
+    // Automatically dispatch welcome email with ID, password, and heartfelt care message
+    if (newPatient.email && newPatient.email !== 'N/A' && newPatient.email.includes('@')) {
+      sendPatientWelcomeEmail({
+        patientName: `${newPatient.firstName} ${newPatient.lastName}`.trim(),
+        email: newPatient.email,
+        patientId: newId,
+        password: randomPassword,
+        phone: newPatient.phone
+      });
+    }
   };
 
   // Helper to calculate doctor consultation fee
@@ -479,21 +491,88 @@ End of Generated Health Summary Report
 
       <div className="rd-card">
         {generatedId ? (
-          <div className="rd-success-message">
-            <div className="rd-success-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <div className="rd-success-message" style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+            <div className="rd-success-icon" style={{ background: '#dcfce7', color: '#16a34a', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             </div>
-            <h3>Registration Successful!</h3>
-            <p>The patient has been added to the DHMS network.</p>
-            <div className="rd-id-display" style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', width: 'fit-content', margin: '16px auto' }}>
-              <div>Patient ID: <strong style={{ color: '#1e293b', fontSize: '18px' }}>{generatedId}</strong></div>
-              <div>Portal Password: <strong style={{ color: '#4f46e5', fontSize: '18px' }}>{generatedPassword}</strong></div>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 6px 0' }}>Patient Registered Successfully!</h3>
+            <p style={{ color: '#64748b', fontSize: '13.5px', margin: '0 0 14px 0' }}>The patient record is now active across all hospital systems.</p>
+
+            {/* Warm Hospital Message */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 18px', margin: '14px 0', textAlign: 'left' }}>
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#14532d', lineHeight: 1.5 }}>
+                ❤️ <strong>Hospital Message to Patient:</strong> <em>"Thank you for choosing our hospital and we will always take care of you."</em>
+              </p>
             </div>
-            <button className="rd-btn-primary mt-4" onClick={() => {
-              setGeneratedId(null);
-              setGeneratedPassword(null);
-              setPatientData({firstName: '', lastName: '', dob: '', gender: '', phone: '', email: ''});
-            }}>Register Another Patient</button>
+
+            {/* Email Dispatch Alert */}
+            {patientData.email && patientData.email !== 'N/A' && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 16px', margin: '12px 0 16px 0', textAlign: 'left' }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#1e40af', lineHeight: 1.4 }}>
+                  📧 <strong>Email Notification Dispatched:</strong> A welcome email containing the Patient ID (<strong>{generatedId}</strong>) and password (<strong>{generatedPassword}</strong>) has been automatically sent to <strong>{patientData.email}</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Credentials Card */}
+            <div className="rd-id-display" style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '18px 24px', borderRadius: '10px', border: '2px dashed #93c5fd', width: '100%', boxSizing: 'border-box', margin: '16px auto', textAlign: 'left' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '13.5px' }}>Unique Health ID:</span>
+                <strong style={{ color: '#1e3a8a', fontSize: '18px' }}>{generatedId}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '13.5px' }}>Portal Password:</span>
+                <strong style={{ color: '#166534', fontSize: '18px', fontFamily: 'monospace' }}>{generatedPassword}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                <span style={{ color: '#64748b', fontSize: '12.5px' }}>Patient Name:</span>
+                <span style={{ fontWeight: '600', color: '#334155', fontSize: '13px' }}>{patientData.firstName} {patientData.lastName}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
+              <button 
+                type="button" 
+                className="rd-btn-primary" 
+                onClick={() => {
+                  setGeneratedId(null);
+                  setGeneratedPassword(null);
+                  setPatientData({firstName: '', lastName: '', dob: '', gender: '', phone: '', email: ''});
+                }}
+              >
+                ➕ Register Another Patient
+              </button>
+
+              <button 
+                type="button" 
+                className="rd-btn-secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(`DHMS Hospital Credentials\nPatient Name: ${patientData.firstName} ${patientData.lastName}\nID: ${generatedId}\nPassword: ${generatedPassword}\nPortal: https://dhms.org`);
+                  alert("Credentials copied to clipboard!");
+                }}
+                style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '9px 16px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
+              >
+                📋 Copy Credentials
+              </button>
+
+              {patientData.email && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    openDefaultMailClient({
+                      patientName: `${patientData.firstName} ${patientData.lastName}`.trim(),
+                      email: patientData.email,
+                      patientId: generatedId,
+                      password: generatedPassword,
+                      phone: patientData.phone
+                    });
+                  }}
+                  style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', padding: '9px 16px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  ✉️ Open Email Draft
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <form className="rd-form" onSubmit={handleRegisterSubmit}>
