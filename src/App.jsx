@@ -43,9 +43,31 @@ function App() {
     setRegPassword('');
   };
 
+  const saveTabSession = (sessionData) => {
+    sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
+    sessionStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
+    try {
+      localStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
+    } catch (e) {}
+  };
+
+  const clearTabSession = () => {
+    sessionStorage.removeItem('dhms_tab_session');
+    sessionStorage.removeItem('dhms_active_session');
+    try {
+      localStorage.removeItem('dhms_active_session');
+    } catch (e) {}
+  };
+
   useEffect(() => {
-    // Restore active session if it exists in localStorage
-    const savedSession = localStorage.getItem('dhms_active_session');
+    // Check URL parameters for explicit role testing (e.g. ?role=receptionist, ?role=doctor, etc.)
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleParam = urlParams.get('role');
+    const hashParam = window.location.hash.replace('#', '');
+
+    // Prefer tab-isolated session from sessionStorage
+    const savedSession = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+    
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
@@ -81,6 +103,9 @@ function App() {
       } catch (err) {
         console.error("Failed to restore session:", err);
       }
+    } else if (roleParam || hashParam) {
+      const targetRole = roleParam || hashParam;
+      setUserRole(targetRole);
     } else if (isPatientPortal || isMobileOrPWA) {
       setUserRole('patient');
     }
@@ -192,50 +217,6 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const savedSession = localStorage.getItem('dhms_active_session');
-      if (savedSession) {
-        try {
-          const session = JSON.parse(savedSession);
-          if (isMobileOrPWA) {
-            if (session.role === 'patient') {
-              setUserRole('patient');
-              setLoggedInPatient(session.user);
-              setIsAuthenticated(true);
-            } else {
-              setUserRole('patient');
-              setIsAuthenticated(false);
-              setLoggedInPatient(null);
-            }
-          } else {
-            setUserRole(session.role);
-            if (session.role === 'patient') {
-              setLoggedInPatient(session.user);
-            } else if (session.role === 'doctor') {
-              setLoggedInDoctor(session.user);
-            } else if (session.user) {
-              setLoggedInStaff(session.user);
-            }
-            setIsAuthenticated(true);
-          }
-        } catch (err) {
-          console.error("Failed to restore session on storage change:", err);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setLoggedInPatient(null);
-        setLoggedInDoctor(null);
-        setLoggedInStaff(null);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [isMobileOrPWA]);
-
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     const emailVal = signInIdentifier.trim();
@@ -259,7 +240,7 @@ function App() {
         clearAuthFields();
         setLoggedInPatient(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'patient', user: matched }));
+        saveTabSession({ role: 'patient', user: matched });
       } else {
         alert('Patient account not found. Please verify your Patient ID.');
         setSignInPassword('');
@@ -280,7 +261,7 @@ function App() {
         clearAuthFields();
         setLoggedInDoctor(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'doctor', user: matched }));
+        saveTabSession({ role: 'doctor', user: matched });
       } else {
         alert('Doctor account not found. Please register first.');
         setSignInPassword('');
@@ -301,7 +282,7 @@ function App() {
         clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'receptionist', user: matched }));
+        saveTabSession({ role: 'receptionist', user: matched });
       } else {
         alert('Receptionist account not found. Please register first.');
         setSignInPassword('');
@@ -322,7 +303,7 @@ function App() {
         clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'laboratory', user: matched }));
+        saveTabSession({ role: 'laboratory', user: matched });
       } else {
         alert('Laboratory staff account not found. Please register first.');
         setSignInPassword('');
@@ -343,7 +324,7 @@ function App() {
         clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'pharmacist', user: matched }));
+        saveTabSession({ role: 'pharmacist', user: matched });
       } else {
         alert('Pharmacy staff account not found. Please register first.');
         setSignInPassword('');
@@ -364,7 +345,7 @@ function App() {
         clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'cash_counter', user: matched }));
+        saveTabSession({ role: 'cash_counter', user: matched });
       } else {
         alert('Cash counter staff account not found. Please register first.');
         setSignInPassword('');
@@ -376,7 +357,7 @@ function App() {
         if (adminObj.email.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
           clearAuthFields();
           setIsAuthenticated(true);
-          localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: { name: 'System Administrator', email: emailVal } }));
+          saveTabSession({ role: 'admin', user: { name: 'System Administrator', email: emailVal } });
         } else {
           alert('Incorrect Administrator credentials. Access denied.');
           setSignInPassword('');
@@ -392,13 +373,13 @@ function App() {
         localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
         clearAuthFields();
         setIsAuthenticated(true);
-        localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: newAdmin }));
+        saveTabSession({ role: 'admin', user: newAdmin });
       }
     } else {
       // Allow other roles (like insurance_agent) to log in directly
       clearAuthFields();
       setIsAuthenticated(true);
-      localStorage.setItem('dhms_active_session', JSON.stringify({ role: userRole, user: { email: emailVal } }));
+      saveTabSession({ role: userRole, user: { email: emailVal } });
     }
   };
 
@@ -544,7 +525,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('dhms_active_session');
+    clearTabSession();
     clearAuthFields();
     setIsAuthenticated(false);
     setLoggedInPatient(null);

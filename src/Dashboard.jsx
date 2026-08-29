@@ -1171,6 +1171,22 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return updated;
   });
 
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
+      setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
+      setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+      setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
+      setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+      setDoctorsRoster(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
+      setDepartmentsList(JSON.parse(localStorage.getItem('dhms_departments') || '[]'));
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const handleUpdateApptStatus = (apptId, newStatus) => {
     const updated = appointments.map(appt => {
       if (appt.id === apptId) {

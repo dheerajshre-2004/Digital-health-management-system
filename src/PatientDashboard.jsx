@@ -86,9 +86,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     const updatedPatients = patients.map(p => p.id === updatedPatient.id ? updatedPatient : p);
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
-    const session = JSON.parse(localStorage.getItem('dhms_active_session') || '{}');
+    const sessionStr = sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_active_session') || '{}';
+    const session = JSON.parse(sessionStr);
     if (session.user && session.user.id === updatedPatient.id) {
       session.user = updatedPatient;
+      sessionStorage.setItem('dhms_active_session', JSON.stringify(session));
+      sessionStorage.setItem('dhms_tab_session', JSON.stringify(session));
       localStorage.setItem('dhms_active_session', JSON.stringify(session));
     }
 
@@ -628,9 +631,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     });
     localStorage.setItem('dhms_patients', JSON.stringify(updated));
     
-    const activeSession = JSON.parse(localStorage.getItem('dhms_active_session') || '{}');
+    const activeSessionStr = sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_active_session') || '{}';
+    const activeSession = JSON.parse(activeSessionStr);
     if (activeSession.user && activeSession.user.id === currentPatient.id) {
       activeSession.user.password = newPasswordVal;
+      sessionStorage.setItem('dhms_active_session', JSON.stringify(activeSession));
+      sessionStorage.setItem('dhms_tab_session', JSON.stringify(activeSession));
       localStorage.setItem('dhms_active_session', JSON.stringify(activeSession));
     }
     
