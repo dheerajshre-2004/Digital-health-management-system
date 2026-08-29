@@ -2091,7 +2091,10 @@ End of Generated Health Summary Report
           user_id: emailJsConfig.publicKey.trim(),
           template_params: {
             to_name: 'Test Patient (Reception Test)',
+            name: 'Test Patient (Reception Test)',
+            patient_name: 'Test Patient (Reception Test)',
             to_email: testEmailAddress.trim(),
+            email: testEmailAddress.trim(),
             patient_id: 'PT-TEST99',
             password: 'pass_test123',
             phone: '+91 9876543210',

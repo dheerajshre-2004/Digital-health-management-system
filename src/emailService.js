@@ -149,20 +149,28 @@ export const sendPatientWelcomeEmail = async ({ patientName, email, patientId, p
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          service_id: emailJsConfig.serviceId,
-          template_id: emailJsConfig.templateId,
-          user_id: emailJsConfig.publicKey,
+          service_id: emailJsConfig.serviceId.trim(),
+          template_id: emailJsConfig.templateId.trim(),
+          user_id: emailJsConfig.publicKey.trim(),
           template_params: {
             to_name: patientName,
+            name: patientName,
+            patient_name: patientName,
             to_email: email,
+            email: email,
             patient_id: patientId,
             password: password,
             phone: phone || 'N/A',
-            message: "Thank you for choosing our hospital. We will always take the best care of you."
+            message: "Thank you for choosing our hospital and we will always take care of you."
           }
         })
       });
-      emailRecord.deliveryMode = 'EmailJS Live SMTP';
+      if (res.ok) {
+        emailRecord.deliveryMode = 'EmailJS Live SMTP (Delivered)';
+      } else {
+        const err = await res.text();
+        console.warn("EmailJS response error:", err);
+      }
     } catch (err) {
       console.warn("EmailJS delivery failed, falling back to simulated dispatch:", err);
     }
