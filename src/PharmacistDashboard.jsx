@@ -56,6 +56,10 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const [selectedMedForStock, setSelectedMedForStock] = useState(null);
   const [stockToUpdate, setStockToUpdate] = useState(0);
 
+  // Dispensing sub-filter & search
+  const [dispenseFilter, setDispenseFilter] = useState('All');
+  const [dispenseSearch, setDispenseSearch] = useState('');
+
   // Load from LocalStorage on mount and listen for storage updates
   useEffect(() => {
     const loadFromStorage = () => {
@@ -866,8 +870,50 @@ Thank you for using DHMS Hospital.
               <h1 className="pane-title">Prescription Dispensing Hub</h1>
               
               <div className="section-card">
-                <h2>Pending Outpatient & Inpatient Medication Advise</h2>
-                <p className="section-desc">Dispense doctor-prescribed medications. Outpatient orders generate central invoices, inpatient orders bill to active admission profiles.</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Medication Dispense Queue</h2>
+                    <p className="section-desc" style={{ margin: '4px 0 0 0' }}>
+                      Deliver inpatient medicines directly to wards or dispense walk-in outpatient prescriptions.
+                    </p>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setDispenseFilter('All')} 
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: dispenseFilter === 'All' ? '#6366f1' : 'transparent', color: dispenseFilter === 'All' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      All Prescriptions
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setDispenseFilter('Inpatient')} 
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: dispenseFilter === 'Inpatient' ? '#0284c7' : 'transparent', color: dispenseFilter === 'Inpatient' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      🏥 Inpatient Ward Queue
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setDispenseFilter('Outpatient')} 
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: dispenseFilter === 'Outpatient' ? '#10b981' : 'transparent', color: dispenseFilter === 'Outpatient' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      🛍️ Outpatient Prescriptions
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div style={{ marginBottom: '16px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="🔍 Search by Patient Name, ID (e.g. PT-101), or Medication Name..." 
+                    value={dispenseSearch} 
+                    onChange={(e) => setDispenseSearch(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
                 
                 <div className="table-wrapper">
                   <table className="dashboard-table">
@@ -876,7 +922,7 @@ Thank you for using DHMS Hospital.
                         <th>Rx Code</th>
                         <th>Patient Details</th>
                         <th>Prescribed Medication</th>
-                        <th>Type</th>
+                        <th>Encounter / Ward</th>
                         <th>Prescribed By</th>
                         <th>Cost</th>
                         <th>Status</th>
@@ -884,7 +930,23 @@ Thank you for using DHMS Hospital.
                       </tr>
                     </thead>
                     <tbody>
-                      {prescriptions.filter(rx => rx.status === 'Pending' || rx.status === 'Advised').map(rx => (
+                      {prescriptions.filter(rx => {
+                        const isPending = rx.status === 'Pending' || rx.status === 'Advised' || rx.status === 'Pending Ward Delivery' || rx.status === 'Given to Patient (OPD)';
+                        if (!isPending) return false;
+
+                        if (dispenseFilter === 'Inpatient' && rx.type !== 'Inpatient') return false;
+                        if (dispenseFilter === 'Outpatient' && rx.type === 'Inpatient') return false;
+
+                        if (dispenseSearch.trim()) {
+                          const q = dispenseSearch.toLowerCase();
+                          const pName = (rx.patientName || '').toLowerCase();
+                          const pId = (rx.patientId || '').toLowerCase();
+                          const med = (rx.medication || '').toLowerCase();
+                          return pName.includes(q) || pId.includes(q) || med.includes(q);
+                        }
+
+                        return true;
+                      }).map(rx => (
                         <tr key={rx.id}>
                           <td><strong>{rx.id}</strong></td>
                           <td>
@@ -897,13 +959,13 @@ Thank you for using DHMS Hospital.
                           </td>
                           <td>
                             <span className={`type-badge ${rx.type === 'Inpatient' ? 'inpatient' : 'outpatient'}`}>
-                              {rx.type || 'Outpatient'}
+                              {rx.type === 'Inpatient' ? `🏥 Ward: ${rx.ward || 'General Ward A'}` : '🛍️ Outpatient'}
                             </span>
                           </td>
                           <td>{rx.doctorName}</td>
                           <td><strong>₹{parseFloat(rx.cost).toFixed(2)}</strong></td>
                           <td>
-                            <span className="status-badge surgery">
+                            <span className="status-badge surgery" style={{ background: rx.type === 'Inpatient' ? '#e0f2fe' : '#fef3c7', color: rx.type === 'Inpatient' ? '#0369a1' : '#b45309' }}>
                               {rx.status}
                             </span>
                           </td>
@@ -911,16 +973,30 @@ Thank you for using DHMS Hospital.
                             <button 
                               onClick={() => handleDispense(rx)} 
                               className="btn-action-dispense"
+                              style={{ background: rx.type === 'Inpatient' ? '#0284c7' : '#10b981' }}
                             >
-                              Dispense Medicine
+                              {rx.type === 'Inpatient' ? '🚀 Send to Ward Bed' : 'Dispense OTC'}
                             </button>
                           </td>
                         </tr>
                       ))}
-                      {prescriptions.filter(rx => rx.status === 'Pending' || rx.status === 'Advised').length === 0 && (
+                      {prescriptions.filter(rx => {
+                        const isPending = rx.status === 'Pending' || rx.status === 'Advised' || rx.status === 'Pending Ward Delivery' || rx.status === 'Given to Patient (OPD)';
+                        if (!isPending) return false;
+                        if (dispenseFilter === 'Inpatient' && rx.type !== 'Inpatient') return false;
+                        if (dispenseFilter === 'Outpatient' && rx.type === 'Inpatient') return false;
+                        if (dispenseSearch.trim()) {
+                          const q = dispenseSearch.toLowerCase();
+                          const pName = (rx.patientName || '').toLowerCase();
+                          const pId = (rx.patientId || '').toLowerCase();
+                          const med = (rx.medication || '').toLowerCase();
+                          return pName.includes(q) || pId.includes(q) || med.includes(q);
+                        }
+                        return true;
+                      }).length === 0 && (
                         <tr>
-                          <td colSpan="8" style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '20px' }}>
-                            No pending prescriptions to dispense at this moment.
+                          <td colSpan="8" style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '24px' }}>
+                            No pending prescriptions in this queue matching your criteria.
                           </td>
                         </tr>
                       )}

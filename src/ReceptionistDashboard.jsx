@@ -189,7 +189,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     setGeneratedPassword(randomPassword);
   };
 
-  // State for Appointment Booking
+  // State for Appointment Booking & Upfront Consultation Billing
   const [appointmentData, setAppointmentData] = useState({
     patientId: '',
     doctorId: '',
@@ -197,6 +197,10 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     time: '',
     reason: ''
   });
+  const [collectFeeNow, setCollectFeeNow] = useState(true);
+  const [feePaymentMode, setFeePaymentMode] = useState('Physical Cash Payment');
+  const [feeRemarks, setFeeRemarks] = useState('');
+  const [printedBookingReceipt, setPrintedBookingReceipt] = useState(null);
   const [appointmentSuccess, setAppointmentSuccess] = useState(false);
   const [patientSearchFocus, setPatientSearchFocus] = useState(false);
   const [selectedBookPatient, setSelectedBookPatient] = useState(null);
@@ -237,8 +241,14 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       ? { name: matchedDoc.name, dept: matchedDoc.department || matchedDoc.specialty } 
       : { name: appointmentData.doctorId, dept: "General Clinic" };
 
+    const docFee = matchedDoc?.consultationFee || (docInfo.dept === 'Cardiology' || docInfo.dept === 'Neurology' ? '500.00' : '300.00');
+    const formattedFee = `₹${parseFloat(docFee).toFixed(2)}`;
+
+    const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
+    const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newAppt = {
-      id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
+      id: apptId,
       patientId: patientId,
       patientName: patientName,
       doctorId: appointmentData.doctorId,
@@ -249,12 +259,46 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       reason: appointmentData.reason,
       status: "Upcoming",
       type: "Physical",
-      source: "Walk-in"
+      source: "Walk-in",
+      consultationFee: formattedFee,
+      feeStatus: collectFeeNow ? "Paid" : "Unpaid",
+      paymentMethod: collectFeeNow ? feePaymentMode : "Pay at Counter"
     };
 
     const updatedAppts = [newAppt, ...appointments];
     setAppointments(updatedAppts);
     localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+
+    // If collected upfront, generate paid invoice in central billing
+    if (collectFeeNow) {
+      const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+      const newInvoice = {
+        id: invoiceId,
+        patientId: patientId,
+        patientName: patientName,
+        date: appointmentData.date || new Date().toISOString().split('T')[0],
+        paymentDate: new Date().toISOString().split('T')[0],
+        amount: formattedFee,
+        status: 'Paid',
+        type: `Doctor Consultation Fee (${docInfo.name})`,
+        paymentMethod: feePaymentMode,
+        paymentRemarks: feeRemarks || 'Collected Upfront at Reception'
+      };
+      const updatedBilling = [newInvoice, ...currentBilling];
+      setBillingList(updatedBilling);
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Prepare printable receipt/token slip
+    setPrintedBookingReceipt({
+      ...newAppt,
+      invoiceId: collectFeeNow ? invoiceId : null,
+      collectedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
 
     setAppointmentSuccess(true);
     setTimeout(() => setAppointmentSuccess(false), 3000);
@@ -266,6 +310,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       time: '',
       reason: ''
     });
+    setFeeRemarks('');
   };
 
   const handleConfirmAppointment = (apptId) => {
@@ -882,7 +927,69 @@ End of Generated Health Summary Report
                 <textarea rows="3" required value={appointmentData.reason} onChange={e => setAppointmentData({...appointmentData, reason: e.target.value})} placeholder="Brief description of symptoms or visit purpose..."></textarea>
               </div>
 
-              <button type="submit" className="rd-btn-primary w-full">Confirm Appointment</button>
+              {/* Doctor Consultation Fee Card */}
+              {(() => {
+                const selectedDoc = doctorsList.find(d => d.id === appointmentData.doctorId);
+                if (!selectedDoc) return null;
+                const feeVal = selectedDoc.consultationFee || (selectedDoc.specialty === 'Cardiology' || selectedDoc.specialty === 'Neurology' ? '500.00' : '300.00');
+
+                return (
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div>
+                        <span style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Doctor Consultation Fee</span>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#166534' }}>₹{parseFloat(feeVal).toFixed(2)}</div>
+                      </div>
+                      <span style={{ fontSize: '12px', background: collectFeeNow ? '#dcfce7' : '#fee2e2', color: collectFeeNow ? '#15803d' : '#b91c1c', padding: '4px 10px', borderRadius: '6px', fontWeight: '700' }}>
+                        {collectFeeNow ? '✓ Pay Upfront at Reception' : 'Pay Later at Counter'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="collect-fee-now" 
+                        checked={collectFeeNow} 
+                        onChange={(e) => setCollectFeeNow(e.target.checked)} 
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <label htmlFor="collect-fee-now" style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }}>
+                        Collect Doctor Consultation Fee Now (No Re-queuing Needed)
+                      </label>
+                    </div>
+
+                    {collectFeeNow && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px', animation: 'fadeIn 0.2s' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Payment Mode</label>
+                          <select 
+                            value={feePaymentMode} 
+                            onChange={(e) => setFeePaymentMode(e.target.value)}
+                            style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', fontSize: '13px', background: 'white' }}
+                          >
+                            <option value="Physical Cash Payment">Physical Cash Payment</option>
+                            <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
+                            <option value="Online Card Payment">Online Card Payment</option>
+                            <option value="Insurance Cover / Claim">Insurance Cover / Claim</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Reference / Notes</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Cash received / UPI Ref" 
+                            value={feeRemarks} 
+                            onChange={(e) => setFeeRemarks(e.target.value)} 
+                            style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', fontSize: '13px', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <button type="submit" className="rd-btn-primary w-full">Confirm Appointment & Generate Token</button>
             </form>
           </div>
 
@@ -1965,6 +2072,95 @@ End of Generated Health Summary Report
             <div className="rd-modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', padding: '16px 24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
               <button className="rd-btn-close" style={{ border: '1px solid #cbd5e1', background: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', color: '#64748b' }} onClick={() => setSelectedInvoice(null)}>Close</button>
               <button className="rd-btn-primary" style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }} onClick={() => window.print()}>Print Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appointment Token & Consultation Fee Slip Modal */}
+      {printedBookingReceipt && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '560px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>🎫 Appointment Token & Fee Slip</h3>
+              <button onClick={() => setPrintedBookingReceipt(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            {/* Printable Slip */}
+            <div style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Outpatient Department • Token & Consultation Slip</p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>TOKEN / APPOINTMENT ID</span>
+                  <strong style={{ fontSize: '16px', color: '#4338ca' }}>{printedBookingReceipt.id}</strong>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block' }}>DATE & TIME SLOT</span>
+                  <strong>{printedBookingReceipt.date} • {printedBookingReceipt.time}</strong>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient Name:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right' }}>{printedBookingReceipt.patientName}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Patient ID:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedBookingReceipt.patientId}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Doctor & Department:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedBookingReceipt.doctorName} ({printedBookingReceipt.department})</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Consultation Fee:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: '#166534' }}>{printedBookingReceipt.consultationFee}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', color: '#64748b' }}>Fee Status:</td>
+                    <td style={{ padding: '6px 0', fontWeight: '700', textAlign: 'right', color: printedBookingReceipt.feeStatus === 'Paid' ? '#15803d' : '#b91c1c' }}>
+                      {printedBookingReceipt.feeStatus === 'Paid' ? `PAID (${printedBookingReceipt.paymentMethod})` : 'UNPAID (Pay at Counter)'}
+                    </td>
+                  </tr>
+                  {printedBookingReceipt.invoiceId && (
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 0', color: '#64748b' }}>Invoice Receipt Ref:</td>
+                      <td style={{ padding: '6px 0', fontWeight: '600', textAlign: 'right' }}>{printedBookingReceipt.invoiceId}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11px', color: '#475569' }}>
+                <strong>📌 Instructions for Patient:</strong>
+                <p style={{ margin: '4px 0 0 0' }}>1. Please proceed directly to Room 101 / OPD Clinic for your turn.</p>
+                <p style={{ margin: '2px 0 0 0' }}>2. Show this token slip to the attending doctor.</p>
+                {printedBookingReceipt.feeStatus === 'Paid' && (
+                  <p style={{ margin: '2px 0 0 0', color: '#15803d', fontWeight: '600' }}>✓ Consultation fee is fully paid upfront. No cash counter visit needed before consultation.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedBookingReceipt(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Token Slip
+              </button>
             </div>
           </div>
         </div>

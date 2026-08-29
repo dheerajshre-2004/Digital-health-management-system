@@ -397,6 +397,63 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [selectedEhrPatient, setSelectedEhrPatient] = useState(null);
   const [patientSearch, setPatientSearch] = useState('');
 
+  // Prescription Print & Inpatient Dispatch States
+  const [printedPrescriptionData, setPrintedPrescriptionData] = useState(null);
+  const [sendInpatientRxToPharmacy, setSendInpatientRxToPharmacy] = useState(true);
+
+  const handlePrintPrescriptionPreview = (targetAppt = null) => {
+    const appt = targetAppt || selectedApptForCheckup || activeCallAppt || {
+      patientName: "Visiting Patient",
+      patientId: "PT-WALK",
+      reason: "Consultation"
+    };
+
+    let medsToPrint = [...prescribedMeds];
+    if (rxDrugName && rxDrugName.trim()) {
+      medsToPrint.push({
+        id: `RXM-TEMP`,
+        name: rxDrugName.trim(),
+        dose: rxDose || '500mg',
+        frequency: rxFrequency || 'Once Daily (QD)',
+        duration: rxDuration || '7 Days',
+        instructions: rxInstructions || 'Take with meals',
+        cost: rxCost || '25.00'
+      });
+    }
+
+    let labsToPrint = [...prescribedLabs];
+    if (labTestName && labTestName.trim()) {
+      labsToPrint.push({
+        testName: labTestName.trim(),
+        priority: labPriority || 'Routine',
+        cost: labCost || '85.00'
+      });
+    }
+
+    const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || activeDocObj || {
+      name: "Dr. Attending Physician",
+      department: "General Medicine",
+      id: "DOC-101"
+    };
+
+    setPrintedPrescriptionData({
+      doctorName: currentDoc.name || "Dr. Attending Physician",
+      doctorDept: currentDoc.department || currentDoc.specialty || "General Medicine",
+      doctorReg: currentDoc.id ? `DMC-${currentDoc.id.replace(/[^0-9]/g, '') || '78492'}` : 'DMC-78492',
+      patientName: appt.patientName,
+      patientId: appt.patientId || "PT-WALK",
+      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      diagnosis: diagnosisNote || "Clinical assessment completed.",
+      symptoms: symptomsNote || "None reported",
+      vitals: { bp: vitalBP || '120/80', hr: vitalHR || '72', temp: vitalTemp || '98.6', spo2: vitalSpO2 || '98' },
+      medications: medsToPrint,
+      labs: labsToPrint,
+      isAdmitted: isAdmitted,
+      ward: isAdmitted ? admissionWard : null,
+      notes: planNote || "Take medicines on schedule and follow-up if symptoms persist."
+    });
+  };
+
   // Telemedicine calling states
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [activeCallAppt, setActiveCallAppt] = useState(null);
@@ -621,6 +678,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <input type="text" className="clinical-input" value={rxCost} onChange={(e) => setRxCost(e.target.value)} />
             </div>
             <button type="button" onClick={addPrescribedMed} className="btn-action-outline">Add Med</button>
+            <button type="button" onClick={() => handlePrintPrescriptionPreview()} className="btn-action-outline" style={{ background: '#e0e7ff', color: '#4338ca', borderColor: '#c7d2fe', fontWeight: 'bold' }}>🖨️ Print Rx Slip</button>
           </div>
 
           {/* Prescribed Meds List */}
@@ -747,6 +805,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <div>
                   <label style={{ fontSize: '11px', color: '#475569' }}>Admission Clinical Indication Notes</label>
                   <textarea value={admissionNotes} onChange={(e) => setAdmissionNotes(e.target.value)} placeholder="E.g., Severe respiratory distress requiring oxygen therapy..." className="clinical-textarea" style={{ minHeight: '60px' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', background: '#f0fdf4', padding: '8px 12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                  <input type="checkbox" id="send-pharmacy-inpatient" checked={sendInpatientRxToPharmacy} onChange={(e) => setSendInpatientRxToPharmacy(e.target.checked)} />
+                  <label htmlFor="send-pharmacy-inpatient" style={{ fontWeight: '600', fontSize: '12px', color: '#166534', cursor: 'pointer' }}>
+                    🚀 Send Inpatient Rx Order to Hospital Pharmacy (Ward Delivery)
+                  </label>
                 </div>
               </div>
             )}
@@ -1235,6 +1299,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       // Save prescriptions to dhms_prescriptions
       if (finalMeds.length > 0) {
         const rxList = JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]');
+        const isAdmittedPatient = !!isAdmitted;
         const newRxs = finalMeds.map(med => ({
           id: `RX-${Math.floor(1000 + Math.random() * 9000)}`,
           patientId: apptToComplete.patientId || 'PT-GEN',
@@ -1243,9 +1308,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           doctorName: currentDoc.name,
           date: todayStr,
           cost: `${parseFloat(med.cost || 25.00).toFixed(2)}`,
-          status: isAdmitted ? 'Advised' : 'Pending',
+          status: isAdmittedPatient ? (sendInpatientRxToPharmacy ? 'Pending Ward Delivery' : 'Advised') : 'Given to Patient (OPD)',
           instructions: med.instructions || 'Take as advised',
-          type: isAdmitted ? 'Inpatient' : 'Outpatient'
+          type: isAdmittedPatient ? 'Inpatient' : 'Outpatient',
+          ward: isAdmittedPatient ? (admissionWard || 'General Ward A') : null,
+          directPharmacyDispatch: isAdmittedPatient && sendInpatientRxToPharmacy
         }));
         const finalRx = [...newRxs, ...rxList];
         localStorage.setItem('dhms_prescriptions', JSON.stringify(finalRx));
@@ -1269,7 +1336,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             name: `${med.name} ${med.dose || ''}`,
             instructions: med.instructions || '',
             cost: parseFloat(med.cost) || 0.00,
-            status: 'Advised',
+            status: sendInpatientRxToPharmacy ? 'Pending Ward Delivery' : 'Advised',
             date: todayStr
           })),
           pharmacyBillPaid: false
@@ -1296,20 +1363,23 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         setLabRequests(finalLab);
       }
 
-      // Create billing invoice for consultation
-      const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-      const newConsultationInvoice = {
-        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: apptToComplete.patientId || 'PT-GEN',
-        patientName: apptToComplete.patientName || 'Patient',
-        date: todayStr,
-        amount: '₹150.00',
-        status: 'Unpaid',
-        type: 'Consultation Fee'
-      };
-      const updatedBillingList = [newConsultationInvoice, ...billing];
-      localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
-      setBillingList(updatedBillingList);
+      // Create billing invoice for consultation ONLY if not already paid upfront at reception
+      if (apptToComplete.feeStatus !== 'Paid') {
+        const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+        const feeAmount = apptToComplete.consultationFee || '₹250.00';
+        const newConsultationInvoice = {
+          id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: apptToComplete.patientId || 'PT-GEN',
+          patientName: apptToComplete.patientName || 'Patient',
+          date: todayStr,
+          amount: feeAmount.startsWith('₹') ? feeAmount : `₹${feeAmount}`,
+          status: 'Unpaid',
+          type: 'Doctor Consultation Fee'
+        };
+        const updatedBillingList = [newConsultationInvoice, ...billing];
+        localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingList));
+        setBillingList(updatedBillingList);
+      }
 
       if (window.dispatchEvent) {
         window.dispatchEvent(new Event('storage'));
@@ -3655,9 +3725,161 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                 <button type="button" onClick={resetClinicalForm} className="btn-action-cancel" style={{ padding: '10px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel Checkup</button>
+                <button type="button" onClick={() => handlePrintPrescriptionPreview()} style={{ padding: '10px 16px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Print Rx Slip</button>
                 <button type="submit" className="btn-action-submit" style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>Complete Checkup & Bill</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Physical Prescription Slip Printable Modal */}
+      {printedPrescriptionData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '680px', maxWidth: '95vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            
+            {/* Modal Header */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '700' }}>📄 Physical Medical Prescription (Rx Slip)</h3>
+              <button onClick={() => setPrintedPrescriptionData(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            {/* Printable Area */}
+            <div id="printable-prescription" style={{ padding: '32px 36px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              
+              {/* Hospital & Doctor Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.02em' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>100 Hospital Boulevard, Medical District • Ph: +91 (800) 123-4567</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>Accredited Tertiary Care & Multispecialty Hospital</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#4338ca' }}>{printedPrescriptionData.doctorName}</h4>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#475569', fontWeight: '600' }}>{printedPrescriptionData.doctorDept}</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Reg No: {printedPrescriptionData.doctorReg || 'DMC-2024-892'}</p>
+                </div>
+              </div>
+
+              {/* Patient Details Bar */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '12px' }}>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>PATIENT NAME</span>
+                  <strong style={{ color: '#1e293b' }}>{printedPrescriptionData.patientName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>PATIENT ID</span>
+                  <strong>{printedPrescriptionData.patientId}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>DATE & TIME</span>
+                  <span>{printedPrescriptionData.date}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>ENCOUNTER</span>
+                  <span style={{ fontWeight: '600', color: printedPrescriptionData.isAdmitted ? '#b45309' : '#15803d' }}>
+                    {printedPrescriptionData.isAdmitted ? `Inpatient (${printedPrescriptionData.ward})` : 'Outpatient (OPD)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Vitals Summary */}
+              {printedPrescriptionData.vitals && (
+                <div style={{ display: 'flex', gap: '16px', fontSize: '11.5px', color: '#475569', paddingBottom: '12px', borderBottom: '1px dashed #cbd5e1', marginBottom: '16px' }}>
+                  <span><strong>BP:</strong> {printedPrescriptionData.vitals.bp || '120/80'} mmHg</span>
+                  <span><strong>Pulse:</strong> {printedPrescriptionData.vitals.hr || '72'} bpm</span>
+                  <span><strong>Temp:</strong> {printedPrescriptionData.vitals.temp || '98.6'} °F</span>
+                  <span><strong>SpO₂:</strong> {printedPrescriptionData.vitals.spo2 || '98'}%</span>
+                </div>
+              )}
+
+              {/* Clinical Diagnosis & Symptoms */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', marginBottom: '6px' }}>
+                  <span style={{ fontWeight: '700', color: '#334155' }}>Clinical Diagnosis: </span>
+                  <span style={{ color: '#0f172a' }}>{printedPrescriptionData.diagnosis || 'Routine clinical evaluation.'}</span>
+                </div>
+                {printedPrescriptionData.symptoms && printedPrescriptionData.symptoms !== 'None reported' && (
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    <strong>Chief Complaints / Symptoms:</strong> {printedPrescriptionData.symptoms}
+                  </div>
+                )}
+              </div>
+
+              {/* Prescription Rx Sign & Medication Table */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '24px', fontWeight: '900', fontFamily: 'serif', color: '#4338ca' }}>℞</span>
+                  <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#1e293b' }}>Prescribed Medications</h4>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 10px', width: '38%' }}>Medicine & Strength</th>
+                      <th style={{ padding: '8px 10px' }}>Frequency</th>
+                      <th style={{ padding: '8px 10px' }}>Duration</th>
+                      <th style={{ padding: '8px 10px' }}>Instructions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printedPrescriptionData.medications.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>No medications prescribed for this consultation.</td>
+                      </tr>
+                    ) : (
+                      printedPrescriptionData.medications.map((m, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '9px 10px' }}>
+                            <strong style={{ color: '#0f172a' }}>{m.name}</strong> {m.dose && <span style={{ color: '#475569', fontSize: '11.5px' }}>({m.dose})</span>}
+                          </td>
+                          <td style={{ padding: '9px 10px', color: '#334155' }}>{m.frequency}</td>
+                          <td style={{ padding: '9px 10px', color: '#334155' }}>{m.duration}</td>
+                          <td style={{ padding: '9px 10px', color: '#64748b', fontSize: '11.5px' }}>{m.instructions || 'As advised'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Ordered Diagnostic Tests (if any) */}
+              {printedPrescriptionData.labs && printedPrescriptionData.labs.length > 0 && (
+                <div style={{ marginBottom: '20px', background: '#fafaf9', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e7e5e4' }}>
+                  <h5 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#44403c', textTransform: 'uppercase' }}>Recommended Diagnostic Tests:</h5>
+                  <div style={{ fontSize: '12px', color: '#57534e' }}>
+                    {printedPrescriptionData.labs.map(l => l.testName || l.name).join(', ')}
+                  </div>
+                </div>
+              )}
+
+              {/* Doctor's Advice & Signoff */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '36px', paddingTop: '18px', borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '300px' }}>
+                  <p style={{ margin: 0 }}>* Take medications as prescribed by the physician.</p>
+                  <p style={{ margin: '2px 0 0 0' }}>* This is an official electronic medical prescription slip.</p>
+                </div>
+                <div style={{ textAlign: 'center', minWidth: '180px' }}>
+                  <div style={{ borderBottom: '1px solid #0f172a', width: '160px', margin: '0 auto 6px auto' }}></div>
+                  <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>{printedPrescriptionData.doctorName}</strong>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>Authorized Signature & Stamp</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button type="button" onClick={() => setPrintedPrescriptionData(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Prescription Slip
+              </button>
+            </div>
           </div>
         </div>
       )}
