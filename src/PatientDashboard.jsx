@@ -17,6 +17,34 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [editAllergies, setEditAllergies] = useState('');
   const [editChronic, setEditChronic] = useState('');
 
+  // Supported Tab Routes
+  const VALID_TABS = [
+    'health_console',
+    'digital_profile',
+    'visit_history',
+    'ehr_records',
+    'laboratory',
+    'telemedicine',
+    'admissions_billing',
+    'insurance'
+  ];
+
+  // Navigate to a specific tab with browser URL hash sync
+  const navigateTab = (tab) => {
+    if (!VALID_TABS.includes(tab)) return;
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+    if (window.location.hash !== `#/${tab}`) {
+      window.location.hash = `#/${tab}`;
+    }
+  };
+
+  // Helper to open modal and push browser history state so Android/browser Back button closes the modal
+  const openModal = (setter, val = true) => {
+    window.history.pushState({ isModal: true }, '');
+    setter(val);
+  };
+
   // Invoice / Receipt State
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
@@ -27,7 +55,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setEditPhone(currentPatient?.phone || '');
     setEditAllergies(currentPatient?.allergies || '');
     setEditChronic(currentPatient?.chronicConditions || '');
-    setShowEditProfileModal(true);
+    openModal(setShowEditProfileModal, true);
   };
 
   const handleEditProfileSubmit = (e) => {
@@ -376,6 +404,49 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setShowNewUpdatesPopup(false);
   };
 
+  // Browser History & Back Button Interception
+  useEffect(() => {
+    const handlePopState = () => {
+      // 1. If any modal is open, close it cleanly without navigating away
+      setShowRequestApptModal(false);
+      setSelectedVisit(null);
+      setSelectedEhrRecord(null);
+      setShowOrderLabModal(false);
+      setSelectedLabOrder(null);
+      setShowScheduleTeleModal(false);
+      setShowEditProfileModal(false);
+      setSelectedInvoice(null);
+      setShowNotifInbox(false);
+      setShowNewUpdatesPopup(false);
+      setReschedulingAppt(null);
+      setMobileMenuOpen(false);
+
+      // 2. Sync active tab from URL hash
+      const currentHash = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+      if (currentHash && VALID_TABS.includes(currentHash)) {
+        setActiveTab(currentHash);
+      } else if (!currentHash) {
+        setActiveTab('health_console');
+      }
+    };
+
+    // Initialize from URL hash
+    const initialHash = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+    if (initialHash && VALID_TABS.includes(initialHash)) {
+      setActiveTab(initialHash);
+    } else if (!window.location.hash) {
+      window.location.hash = '#/health_console';
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, []);
+
   // Auto-generate notifications from state variables
   useEffect(() => {
     const currentNotifs = JSON.parse(localStorage.getItem('dhms_notifications') || '[]');
@@ -599,7 +670,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <h1>Welcome back, <span className="highlight">{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe"}</span></h1>
           <p>Your comprehensive health profile is securely encrypted and maintained.</p>
         </div>
-        <button className="pd-btn-primary" onClick={() => setShowRequestApptModal(true)}>
+        <button className="pd-btn-primary" onClick={() => openModal(setShowRequestApptModal, true)}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
           Request Appointment
         </button>
@@ -2592,35 +2663,35 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         )}
         <aside className={`pd-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
           <ul className="pd-nav">
-            <li className={activeTab === 'health_console' ? 'active' : ''} onClick={() => { setActiveTab('health_console'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'health_console' ? 'active' : ''} onClick={() => navigateTab('health_console')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
               Health Console
             </li>
-            <li className={activeTab === 'digital_profile' ? 'active' : ''} onClick={() => { setActiveTab('digital_profile'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'digital_profile' ? 'active' : ''} onClick={() => navigateTab('digital_profile')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
               Digital Patient Profile
             </li>
-            <li className={activeTab === 'visit_history' ? 'active' : ''} onClick={() => { setActiveTab('visit_history'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'visit_history' ? 'active' : ''} onClick={() => navigateTab('visit_history')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               Visit History Logs
             </li>
-            <li className={activeTab === 'ehr_records' ? 'active' : ''} onClick={() => { setActiveTab('ehr_records'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'ehr_records' ? 'active' : ''} onClick={() => navigateTab('ehr_records')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               EHR Medical Records
             </li>
-            <li className={activeTab === 'laboratory' ? 'active' : ''} onClick={() => { setActiveTab('laboratory'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'laboratory' ? 'active' : ''} onClick={() => navigateTab('laboratory')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.31"></path><path d="M14 9.3V1.99"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.52 16h12.96"></path></svg>
               Laboratory Center
             </li>
-            <li className={activeTab === 'telemedicine' ? 'active' : ''} onClick={() => { setActiveTab('telemedicine'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'telemedicine' ? 'active' : ''} onClick={() => navigateTab('telemedicine')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
               Telemedicine Clinic
             </li>
-            <li className={activeTab === 'admissions_billing' ? 'active' : ''} onClick={() => { setActiveTab('admissions_billing'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'admissions_billing' ? 'active' : ''} onClick={() => navigateTab('admissions_billing')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="10" x2="22" y2="10"></line></svg>
               Admissions & Billing
             </li>
-            <li className={activeTab === 'insurance' ? 'active' : ''} onClick={() => { setActiveTab('insurance'); setMobileMenuOpen(false); }}>
+            <li className={activeTab === 'insurance' ? 'active' : ''} onClick={() => navigateTab('insurance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
               Insurance & Claims
             </li>

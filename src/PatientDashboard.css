@@ -887,18 +887,18 @@
 
 /* Modal Overlay & Card styling */
 .pd-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(15, 23, 42, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 24px;
-  backdrop-filter: blur(4px);
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  padding: 16px !important;
+  backdrop-filter: blur(4px) !important;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -1800,10 +1800,7 @@
   }
 
   .pd-role-badge {
-    font-size: 10px !important;
-    padding: 2px 6px !important;
-    margin-left: 2px !important;
-    display: inline-block !important;
+    display: none !important;
   }
 
   .pd-signout-btn {
