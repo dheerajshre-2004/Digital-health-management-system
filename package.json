@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:patient": "vite --mode patient",
     "build": "vite build",
+    "build:patient": "vite build --mode patient",
     "lint": "oxlint",
     "preview": "vite preview"
   },

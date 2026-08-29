@@ -9,8 +9,13 @@ import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
 
 function App() {
-  const isPatientOnly = new URLSearchParams(window.location.search).get('portal') === 'patient';
-  const isMobileOrPWA = isPatientOnly || 
+  const isPatientPortal = 
+    import.meta.env.VITE_APP_MODE === 'patient' ||
+    new URLSearchParams(window.location.search).get('portal') === 'patient' ||
+    window.location.pathname.startsWith('/patient') ||
+    window.location.hostname.toLowerCase().includes('patient');
+
+  const isMobileOrPWA = isPatientPortal || 
                         window.matchMedia('(display-mode: standalone)').matches || 
                         window.navigator.standalone || 
                         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -29,7 +34,16 @@ function App() {
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
-        if (isMobileOrPWA) {
+        if (isPatientPortal) {
+          if (session.role === 'patient') {
+            setUserRole('patient');
+            setLoggedInPatient(session.user);
+            setIsAuthenticated(true);
+          } else {
+            setUserRole('patient');
+            setIsAuthenticated(false);
+          }
+        } else if (isMobileOrPWA) {
           if (session.role === 'patient') {
             setUserRole('patient');
             setLoggedInPatient(session.user);
@@ -52,7 +66,7 @@ function App() {
       } catch (err) {
         console.error("Failed to restore session:", err);
       }
-    } else if (isMobileOrPWA) {
+    } else if (isPatientPortal || isMobileOrPWA) {
       setUserRole('patient');
     }
 
@@ -499,34 +513,32 @@ function App() {
   return (
     <div className="auth-container">
       <div className="auth-header">
-        <h1>Welcome to <span className="highlight">DHMS</span></h1>
-        <p>{isMobileOrPWA ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and administrators"}</p>
+        <h1>Welcome to <span className="highlight">{isPatientPortal ? "DHMS Patient Portal" : "DHMS"}</span></h1>
+        <p>{isPatientPortal ? "Secure Patient Health Portal for Appointments, Prescriptions & Medical Records" : (isMobileOrPWA ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and healthcare administrators")}</p>
       </div>
 
       <div className="auth-card">
-        {(!isPatientOnly && !isMobileOrPWA) && (
-          <div className="tabs-container">
-            <button 
-              className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
-              onClick={() => setActiveTab('signin')}
-            >
-              Sign In
-            </button>
-            <button 
-              className={`tab ${activeTab === 'register' ? 'active' : ''}`}
-              onClick={() => setActiveTab('register')}
-            >
-              Register Account
-            </button>
-          </div>
-        )}
+        <div className="tabs-container">
+          <button 
+            className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
+            onClick={() => setActiveTab('signin')}
+          >
+            Sign In
+          </button>
+          <button 
+            className={`tab ${activeTab === 'register' ? 'active' : ''}`}
+            onClick={() => setActiveTab('register')}
+          >
+            {isPatientPortal ? "Register as Patient" : "Register Account"}
+          </button>
+        </div>
 
         {activeTab === 'signin' ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
-              <label>{userRole === 'patient' ? 'Patient ID' : 'Email Address'}</label>
+              <label>{(isPatientPortal || userRole === 'patient') ? 'Patient ID, Email or Phone' : 'Email Address'}</label>
               <div className="input-wrapper">
-                {userRole === 'patient' ? (
+                {(isPatientPortal || userRole === 'patient') ? (
                   <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -538,12 +550,15 @@ function App() {
                   </svg>
                 )}
                 <input 
-                  type={userRole === 'patient' ? "text" : "email"} 
-                  placeholder={userRole === 'patient' ? "Enter Patient ID (e.g., PT-101)" : "Enter email address"} 
+                  type={(isPatientPortal || userRole === 'patient') ? "text" : "email"} 
+                  placeholder={(isPatientPortal || userRole === 'patient') ? "Enter Patient ID (e.g., PT-101) or Email" : "Enter email address"} 
                   required 
                   onInput={(e) => {
-                    if (userRole === 'patient') {
-                      e.target.value = e.target.value.toUpperCase();
+                    if (isPatientPortal || userRole === 'patient') {
+                      // If it looks like a patient ID (PT-xxx), uppercase it
+                      if (e.target.value.toUpperCase().startsWith('PT-')) {
+                        e.target.value = e.target.value.toUpperCase();
+                      }
                     }
                   }}
                 />
@@ -578,7 +593,7 @@ function App() {
               </div>
             </div>
 
-            {(!isPatientOnly && !isMobileOrPWA) && (
+            {(!isPatientPortal && !isMobileOrPWA) && (
               <div className="form-group">
                 <label>Login As </label>
                 <div className="select-wrapper">
@@ -600,7 +615,9 @@ function App() {
               </div>
             )}
 
-            <button type="submit" className="btn-submit">Secure Sign In</button>
+            <button type="submit" className="btn-submit">
+              {isPatientPortal ? "Sign In to Patient Portal" : "Secure Sign In"}
+            </button>
           </form>
         ) : (
           <form className="auth-form" onSubmit={handleRegisterSubmit}>
@@ -654,7 +671,7 @@ function App() {
               </div>
             </div>
 
-            {!isMobileOrPWA && (
+            {(!isPatientPortal && !isMobileOrPWA) && (
               <div className="form-group">
                 <label>System Role</label>
                 <div className="select-wrapper">
@@ -676,7 +693,9 @@ function App() {
               </div>
             )}
 
-            <button type="submit" className="btn-submit">Create Encrypted Account</button>
+            <button type="submit" className="btn-submit">
+              {isPatientPortal ? "Create Patient Account" : "Create Encrypted Account"}
+            </button>
           </form>
         )}
       </div>
