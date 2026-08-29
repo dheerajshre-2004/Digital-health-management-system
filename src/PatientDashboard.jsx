@@ -252,6 +252,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [visitSubTab, setVisitSubTab] = useState('visits'); // 'visits' | 'doctors'
   const [ehrSubTab, setEhrSubTab] = useState('vault'); // 'vault' | 'doctors'
+  const [billingSearchQuery, setBillingSearchQuery] = useState('');
+  const [billingCategoryFilter, setBillingCategoryFilter] = useState('All');
+  const [billingStatusFilter, setBillingStatusFilter] = useState('All');
 
   // Laboratory States
   const [labOrders, setLabOrders] = useState(() => {
@@ -638,6 +641,106 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     alert("Password updated successfully!");
   };
 
+  const getAllPatientInvoices = () => {
+    const pId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}`.toLowerCase() : "john doe";
+
+    // 1. Invoices from central billing registry
+    const centralInvoices = billingList.filter(b => 
+      b.patientId === pId || (b.patientName && b.patientName.toLowerCase() === pName)
+    );
+
+    // 2. Invoices from appointments that have consultation fees
+    const apptInvoices = appointments
+      .filter(a => (a.patientId === pId || (a.patientName && a.patientName.toLowerCase() === pName)) && (a.consultationFee || a.doctorConsultationRate) && !centralInvoices.some(b => b.appointmentId === a.id || b.id === `INV-${a.id}`))
+      .map(a => {
+        const feeStr = a.consultationFee || a.doctorConsultationRate || '300.00';
+        const feeNum = parseFloat(String(feeStr).replace(/[^0-9.]/g, '')) || 300;
+        return {
+          id: `INV-${a.id}`,
+          patientId: a.patientId || pId,
+          patientName: a.patientName || (currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "Patient"),
+          date: a.date,
+          paymentDate: a.feeStatus === 'Paid' ? a.date : null,
+          amount: `₹${feeNum.toFixed(2)}`,
+          status: a.feeStatus === 'Paid' ? 'Paid' : 'Unpaid',
+          type: `${a.feeType || 'Doctor Consultation Fee'} (${a.doctorName || 'Attending Doctor'} - ${a.department || 'OPD'})`,
+          paymentMethod: a.paymentMethod || (a.feeStatus === 'Paid' ? 'Physical Cash Payment' : 'Pending Cash Counter'),
+          paymentRemarks: a.feeStatus === 'Paid' ? 'Paid at Reception / OPD Desk' : 'Pending Counter Settle',
+          appointmentId: a.id
+        };
+      });
+
+    // 3. Invoices from completed clinical history
+    const historyInvoices = (currentPatient?.clinicalHistory || [])
+      .filter(h => !centralInvoices.some(b => b.id === `INV-${h.id}`))
+      .map(h => ({
+        id: `INV-${h.id || Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: pId,
+        patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "Patient",
+        date: h.date,
+        paymentDate: h.date,
+        amount: h.consultationFee ? (h.consultationFee.startsWith('₹') ? h.consultationFee : `₹${parseFloat(h.consultationFee).toFixed(2)}`) : '₹300.00',
+        status: 'Paid',
+        type: `Doctor Consultation Fee (${h.doctor} - ${h.department || 'General OPD'})`,
+        paymentMethod: 'Cash Counter Payment',
+        paymentRemarks: 'Completed Clinical Checkup',
+        appointmentId: h.id
+      }));
+
+    // Combine & remove duplicate IDs
+    const combined = [...centralInvoices, ...apptInvoices, ...historyInvoices];
+    const seen = new Set();
+    return combined.filter(inv => {
+      if (seen.has(inv.id)) return false;
+      seen.add(inv.id);
+      return true;
+    });
+  };
+
+  const handlePayInvoiceOnline = (inv) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const updatedBilling = billingList.map(b => {
+      if (b.id === inv.id || (inv.appointmentId && b.appointmentId === inv.appointmentId)) {
+        return { ...b, status: 'Paid', paymentDate: todayStr, paymentMethod: 'UPI / Online Portal Payment', paymentRemarks: 'Settled via Patient Portal Online Gateway' };
+      }
+      return b;
+    });
+    
+    // If invoice was synthesized from appointments, add it to persistent billing list
+    if (!billingList.some(b => b.id === inv.id)) {
+      updatedBilling.unshift({
+        ...inv,
+        status: 'Paid',
+        paymentDate: todayStr,
+        paymentMethod: 'UPI / Online Portal Payment',
+        paymentRemarks: 'Settled via Patient Portal Online Gateway'
+      });
+    }
+
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    // Update appointment if linked
+    if (inv.appointmentId) {
+      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const updatedAppts = allAppts.map(a => {
+        if (a.id === inv.appointmentId) {
+          return { ...a, feeStatus: 'Paid', paymentMethod: 'UPI / Online Portal Payment' };
+        }
+        return a;
+      });
+      localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+      setAppointments(updatedAppts);
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    alert(`✓ Payment of ${inv.amount} for ${inv.type} completed successfully! Official paid receipt is now ready.`);
+  };
+
   const visitHistoryData = [
     ...(currentPatient?.clinicalHistory || []).map((h, index) => ({
       id: h.id || `V-${1000 + index}`,
@@ -655,6 +758,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       admissionWard: h.admissionWard || null,
       isReferred: h.isReferred || false,
       referral: h.referral || null,
+      consultationFee: h.consultationFee || "₹300.00",
+      feeStatus: "Paid",
+      paymentMethod: "Cash Counter Payment",
       vitals: {
         bp: h.vitals?.bp || "120/80 mmHg",
         hr: h.vitals?.hr ? `${h.vitals.hr} BPM` : "72 BPM",
@@ -684,6 +790,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         admissionWard: a.admissionWard || null,
         isReferred: a.isReferred || false,
         referral: a.referral || null,
+        consultationFee: a.consultationFee || a.doctorConsultationRate || "₹300.00",
+        feeStatus: a.feeStatus || "Paid",
+        paymentMethod: a.paymentMethod || "Reception Desk",
         vitals: {
           bp: a.vitals?.bp || "120/80 mmHg",
           hr: a.vitals?.hr ? `${a.vitals.hr} BPM` : "75 BPM",
@@ -896,6 +1005,71 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       <span className={`status-badge ${rx.status.toLowerCase().replace(/\s/g, '')}`} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', backgroundColor: rx.status === 'Dispensed & Billed' ? '#dcfce7' : '#fee2e2', color: rx.status === 'Dispensed & Billed' ? '#15803d' : '#b91c1c' }}>
                         {rx.status}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Recent Consultation & Service Invoices Widget */}
+          <div className="pd-section-card">
+            <div className="pd-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                <h3 style={{ margin: 0 }}>Recent Consultation Bills & Slips</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateTab('admissions_billing')}
+                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+              >
+                View All Bills →
+              </button>
+            </div>
+            {(() => {
+              const allBills = getAllPatientInvoices().slice(0, 4);
+
+              if (allBills.length === 0) {
+                return (
+                  <div className="pd-empty-state">
+                    <p>No billing records found. Completed checkups and consultation slips will show up here.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  {allBills.map(inv => (
+                    <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>{inv.type}</strong>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                          ID: <strong>{inv.id}</strong> • Date: {inv.date} • {inv.paymentMethod || 'Desk'}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <strong style={{ fontSize: '14px', color: '#166534' }}>{inv.amount}</strong>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', background: inv.status === 'Paid' ? '#dcfce7' : '#fee2e2', color: inv.status === 'Paid' ? '#15803d' : '#b91c1c' }}>
+                          {inv.status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoice(inv)}
+                          style={{
+                            padding: '4px 10px',
+                            background: 'white',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            color: '#334155'
+                          }}
+                        >
+                          Receipt
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1316,6 +1490,17 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       <p>{visit.diagnosis}</p>
                     </div>
                     <div className="pd-visit-detail-item">
+                      <strong>Consultation Fee & Billing:</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#166534' }}>
+                          {visit.consultationFee || "₹300.00"}
+                        </span>
+                        <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                          ✓ {visit.feeStatus || 'Paid'} ({visit.paymentMethod || 'Desk'})
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pd-visit-detail-item">
                       <strong>Prescribed Medications:</strong>
                       <div className="pd-prescription-mini-tags">
                         {visit.prescriptions.length === 0 ? <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>None prescribed</span> : visit.prescriptions.map((p, idx) => {
@@ -1333,9 +1518,29 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                       View Full Clinical Log
                     </button>
+                    <button 
+                      className="pd-btn-outline" 
+                      onClick={() => {
+                        const feeAmt = visit.consultationFee ? (visit.consultationFee.startsWith('₹') ? visit.consultationFee : `₹${parseFloat(visit.consultationFee).toFixed(2)}`) : '₹300.00';
+                        setSelectedInvoice({
+                          id: `INV-${visit.id}`,
+                          patientId: currentPatient?.id || 'PT-80234',
+                          patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'Patient',
+                          date: visit.date,
+                          paymentDate: visit.date,
+                          amount: feeAmt,
+                          status: 'Paid',
+                          type: `Doctor Consultation Fee (${visit.doctor} - ${visit.department})`,
+                          paymentMethod: visit.paymentMethod || 'Physical Cash / Desk Settle',
+                          paymentRemarks: `Consultation & Checkup for: ${visit.diagnosis || visit.reason}`
+                        });
+                      }}
+                    >
+                      🧾 View Consultation Bill
+                    </button>
                     <button className="pd-btn-outline" onClick={() => alert(`Downloading visit summary for ${visit.id} (PDF)...`)}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                      Download Summary PDF
+                      Download PDF
                     </button>
                   </div>
                 </div>
@@ -1610,13 +1815,54 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <p style={{ margin: 0, fontSize: '12px', color: '#1e3a8a' }}><strong>Reason:</strong> {selectedVisit.referral.reason}</p>
                   </div>
                 )}
+
+                {/* Consultation Financial Slip */}
+                <div className="pd-modal-section" style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 style={{ color: '#1e293b', margin: 0, fontSize: '13.5px', fontWeight: 'bold' }}>💳 Doctor Consultation Billing Slip</h4>
+                    <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      ✓ {selectedVisit.feeStatus || 'Paid'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px' }}>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Consultation Fee:</span>
+                      <strong style={{ display: 'block', color: '#166534', fontSize: '15px' }}>{selectedVisit.consultationFee || '₹300.00'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Payment Mode:</span>
+                      <strong style={{ display: 'block', color: '#334155' }}>{selectedVisit.paymentMethod || 'Physical Cash / Desk Settle'}</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="pd-modal-footer">
-                <button className="pd-btn-primary" onClick={() => alert(`Printing invoice and record for ${selectedVisit.id}...`)}>
+              <div className="pd-modal-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  className="pd-btn-secondary" 
+                  onClick={() => {
+                    const feeAmt = selectedVisit.consultationFee ? (selectedVisit.consultationFee.startsWith('₹') ? selectedVisit.consultationFee : `₹${parseFloat(selectedVisit.consultationFee).toFixed(2)}`) : '₹300.00';
+                    setSelectedInvoice({
+                      id: `INV-${selectedVisit.id}`,
+                      patientId: currentPatient?.id || 'PT-80234',
+                      patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'Patient',
+                      date: selectedVisit.date,
+                      paymentDate: selectedVisit.date,
+                      amount: feeAmt,
+                      status: 'Paid',
+                      type: `Doctor Consultation Fee (${selectedVisit.doctor} - ${selectedVisit.department})`,
+                      paymentMethod: selectedVisit.paymentMethod || 'Physical Cash / Desk Settle',
+                      paymentRemarks: `Consultation & Assessment for: ${selectedVisit.diagnosis || selectedVisit.reason}`
+                    });
+                  }}
+                >
+                  🧾 View Official Receipt
+                </button>
+                <button type="button" className="pd-btn-primary" onClick={() => window.print()}>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                   Print Log Summary
                 </button>
-                <button className="pd-btn-outline" onClick={() => setSelectedVisit(null)}>Close</button>
+                <button type="button" className="pd-btn-outline" onClick={() => setSelectedVisit(null)}>Close</button>
               </div>
             </div>
           </div>
@@ -2908,74 +3154,193 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
         {/* General Billing Invoices Section */}
         <div style={{ marginTop: '40px', borderTop: '1px solid #e2e8f0', paddingTop: '30px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>General Consultation & Service Invoices</h3>
-          <p style={{ color: '#64748b', fontSize: '13.5px', marginBottom: '16px' }}>
-            Below is the billing history of your clinic consultations, lab diagnostics, and physical checkups processed at the Central Cash Desk.
-          </p>
-          {(() => {
-            const myBilling = billingList.filter(b => b.patientId === (currentPatient?.id || "PT-80234"));
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', margin: '0 0 4px 0' }}>💳 Doctor Consultation, Diagnostic & Service Bills</h3>
+              <p style={{ color: '#64748b', fontSize: '13.5px', margin: 0 }}>
+                Transparent ledger of all doctor consultations, clinical checkups, IPD admissions, lab diagnostic tests, and pharmacy medication invoices.
+              </p>
+            </div>
+          </div>
 
-            if (myBilling.length === 0) {
-              return (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px' }}>
-                  No general invoices or payment records found.
-                </div>
-              );
-            }
+          {(() => {
+            const allBills = getAllPatientInvoices();
+
+            const totalPaid = allBills
+              .filter(b => b.status === 'Paid')
+              .reduce((sum, b) => sum + (parseFloat(String(b.amount).replace(/[^0-9.]/g, '')) || 0), 0);
+
+            const totalPending = allBills
+              .filter(b => b.status !== 'Paid')
+              .reduce((sum, b) => sum + (parseFloat(String(b.amount).replace(/[^0-9.]/g, '')) || 0), 0);
+
+            // Filter logic
+            const filteredBills = allBills.filter(inv => {
+              const query = billingSearchQuery.toLowerCase();
+              const matchesSearch = inv.id.toLowerCase().includes(query) ||
+                                    inv.type.toLowerCase().includes(query) ||
+                                    (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query)) ||
+                                    (inv.paymentRemarks && inv.paymentRemarks.toLowerCase().includes(query));
+
+              const matchesCat = billingCategoryFilter === 'All' ||
+                (billingCategoryFilter === 'Consultation' && inv.type.toLowerCase().includes('consultation')) ||
+                (billingCategoryFilter === 'IPD' && (inv.type.toLowerCase().includes('ward') || inv.type.toLowerCase().includes('inpatient') || inv.type.toLowerCase().includes('deposit') || inv.type.toLowerCase().includes('settlement'))) ||
+                (billingCategoryFilter === 'Labs' && (inv.type.toLowerCase().includes('lab') || inv.type.toLowerCase().includes('diagnostic'))) ||
+                (billingCategoryFilter === 'Pharmacy' && (inv.type.toLowerCase().includes('pharmacy') || inv.type.toLowerCase().includes('prescription') || inv.type.toLowerCase().includes('medication')));
+
+              const matchesStat = billingStatusFilter === 'All' || inv.status.toLowerCase() === billingStatusFilter.toLowerCase();
+
+              return matchesSearch && matchesCat && matchesStat;
+            });
 
             return (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 8px' }}>Invoice ID</th>
-                      <th style={{ padding: '12px 8px' }}>Service Type</th>
-                      <th style={{ padding: '12px 8px' }}>Billing Date</th>
-                      <th style={{ padding: '12px 8px' }}>Amount</th>
-                      <th style={{ padding: '12px 8px' }}>Status</th>
-                      <th style={{ padding: '12px 8px', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myBilling.map(inv => (
-                      <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                        <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{inv.id}</td>
-                        <td style={{ padding: '12px 8px' }}>{inv.type}</td>
-                        <td style={{ padding: '12px 8px' }}>{inv.date}</td>
-                        <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{inv.amount}</td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <span style={{
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            background: inv.status === 'Paid' ? '#dcfce7' : inv.status === 'Unpaid' ? '#fee2e2' : '#fef3c7',
-                            color: inv.status === 'Paid' ? '#15803d' : inv.status === 'Unpaid' ? '#b91c1c' : '#b45309'
-                          }}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <button 
-                            onClick={() => setSelectedInvoice(inv)}
-                            style={{
-                              padding: '6px 12px',
-                              background: '#efefef',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              color: '#334155',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            View Receipt
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                {/* Financial KPI Summary Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '14px 18px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Total Invoices / Slips</span>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', marginTop: '4px' }}>{allBills.length} Invoices</div>
+                  </div>
+
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 18px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#166534', textTransform: 'uppercase', fontWeight: '700' }}>Total Paid to Hospital</span>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>₹{totalPaid.toFixed(2)}</div>
+                  </div>
+
+                  <div style={{ background: totalPending > 0 ? '#fef2f2' : '#f8fafc', border: totalPending > 0 ? '1px solid #fecaca' : '1px solid #cbd5e1', borderRadius: '10px', padding: '14px 18px' }}>
+                    <span style={{ fontSize: '11.5px', color: totalPending > 0 ? '#991b1b' : '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Pending / Outstanding Due</span>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: totalPending > 0 ? '#b91c1c' : '#475569', marginTop: '4px' }}>₹{totalPending.toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {/* Filters & Search */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Search bills by invoice ID, doctor, or service..."
+                    value={billingSearchQuery}
+                    onChange={(e) => setBillingSearchQuery(e.target.value)}
+                    style={{ flex: 1, minWidth: '240px', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  />
+
+                  <select
+                    value={billingCategoryFilter}
+                    onChange={(e) => setBillingCategoryFilter(e.target.value)}
+                    style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="All">All Service Categories</option>
+                    <option value="Consultation">🩺 Doctor Consultation Fees</option>
+                    <option value="IPD">🏥 Inpatient (IPD) / Ward</option>
+                    <option value="Labs">🧪 Lab Diagnostics</option>
+                    <option value="Pharmacy">💊 Pharmacy Medications</option>
+                  </select>
+
+                  <select
+                    value={billingStatusFilter}
+                    onChange={(e) => setBillingStatusFilter(e.target.value)}
+                    style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Paid">✓ Paid Only</option>
+                    <option value="Unpaid">⏳ Unpaid / Pending Only</option>
+                  </select>
+                </div>
+
+                {filteredBills.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                    No invoice or consultation billing records match your search filters.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', background: 'white' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                          <th style={{ padding: '12px 14px' }}>Invoice ID</th>
+                          <th style={{ padding: '12px 14px' }}>Service / Doctor Consultation</th>
+                          <th style={{ padding: '12px 14px' }}>Billing Date</th>
+                          <th style={{ padding: '12px 14px' }}>Amount</th>
+                          <th style={{ padding: '12px 14px' }}>Payment Mode</th>
+                          <th style={{ padding: '12px 14px' }}>Status</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredBills.map(inv => (
+                          <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 'bold', color: '#3b82f6' }}>{inv.id}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <strong style={{ color: '#0f172a' }}>{inv.type}</strong>
+                              {inv.paymentRemarks && (
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{inv.paymentRemarks}</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#475569' }}>
+                              <div>{inv.date}</div>
+                              {inv.paymentDate && inv.status === 'Paid' && (
+                                <div style={{ fontSize: '11px', color: '#15803d' }}>Paid: {inv.paymentDate}</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '12px 14px', fontWeight: '800', color: '#166534', fontSize: '14px' }}>{inv.amount}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', color: '#475569' }}>
+                              {inv.paymentMethod || (inv.status === 'Paid' ? 'Cash / Counter' : 'Pending')}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{
+                                padding: '4px 10px',
+                                borderRadius: '12px',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                display: 'inline-block',
+                                background: inv.status === 'Paid' ? '#dcfce7' : '#fee2e2',
+                                color: inv.status === 'Paid' ? '#15803d' : '#b91c1c'
+                              }}>
+                                {inv.status === 'Paid' ? '✓ Paid' : '⏳ Unpaid'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                {inv.status !== 'Paid' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePayInvoiceOnline(inv)}
+                                    style={{
+                                      padding: '6px 12px',
+                                      background: '#10b981',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    💳 Pay Online
+                                  </button>
+                                )}
+                                <button 
+                                  type="button"
+                                  onClick={() => setSelectedInvoice(inv)}
+                                  style={{
+                                    padding: '6px 12px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    color: '#334155',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  📄 View Receipt
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             );
           })()}
