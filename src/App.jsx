@@ -28,6 +28,21 @@ function App() {
   const [loggedInStaff, setLoggedInStaff] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Controlled Input States for Sign In and Registration
+  const [signInIdentifier, setSignInIdentifier] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+
+  const clearAuthFields = () => {
+    setSignInIdentifier('');
+    setSignInPassword('');
+    setRegFullName('');
+    setRegEmail('');
+    setRegPassword('');
+  };
+
   useEffect(() => {
     // Restore active session if it exists in localStorage
     const savedSession = localStorage.getItem('dhms_active_session');
@@ -223,9 +238,8 @@ function App() {
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
-    const inputs = e.target.querySelectorAll('input');
-    const emailVal = inputs[0]?.value || '';
-    const passwordVal = inputs[1]?.value || '';
+    const emailVal = signInIdentifier.trim();
+    const passwordVal = signInPassword;
     
     if (userRole === 'patient') {
       const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
@@ -239,93 +253,133 @@ function App() {
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInPatient(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'patient', user: matched }));
       } else {
         alert('Patient account not found. Please verify your Patient ID.');
+        setSignInPassword('');
       }
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
-      const matched = doctorsList.find(d => d.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = doctorsList.find(d => 
+        (d.email && d.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (d.name && d.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (d.id && d.id.toLowerCase() === emailVal.toLowerCase())
+      );
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInDoctor(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'doctor', user: matched }));
       } else {
         alert('Doctor account not found. Please register first.');
+        setSignInPassword('');
       }
     } else if (userRole === 'receptionist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
-      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = staffList.find(s => 
+        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
+      );
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'receptionist', user: matched }));
       } else {
         alert('Receptionist account not found. Please register first.');
+        setSignInPassword('');
       }
     } else if (userRole === 'laboratory') {
       const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
-      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = staffList.find(s => 
+        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
+      );
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'laboratory', user: matched }));
       } else {
         alert('Laboratory staff account not found. Please register first.');
+        setSignInPassword('');
       }
     } else if (userRole === 'pharmacist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
-      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = staffList.find(s => 
+        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
+      );
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'pharmacist', user: matched }));
       } else {
         alert('Pharmacy staff account not found. Please register first.');
+        setSignInPassword('');
       }
     } else if (userRole === 'cash_counter') {
       const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
-      const matched = staffList.find(s => s.email?.toLowerCase() === emailVal.toLowerCase());
+      const matched = staffList.find(s => 
+        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
+      );
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
+          setSignInPassword('');
           return;
         }
+        clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'cash_counter', user: matched }));
       } else {
         alert('Cash counter staff account not found. Please register first.');
+        setSignInPassword('');
       }
     } else if (userRole === 'admin') {
       const savedAdmin = localStorage.getItem('dhms_admin');
       if (savedAdmin) {
         const adminObj = JSON.parse(savedAdmin);
         if (adminObj.email.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
+          clearAuthFields();
           setIsAuthenticated(true);
           localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: { name: 'System Administrator', email: emailVal } }));
         } else {
           alert('Incorrect Administrator credentials. Access denied.');
+          setSignInPassword('');
           return;
         }
       } else {
@@ -336,11 +390,13 @@ function App() {
           password: passwordVal
         };
         localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
+        clearAuthFields();
         setIsAuthenticated(true);
         localStorage.setItem('dhms_active_session', JSON.stringify({ role: 'admin', user: newAdmin }));
       }
     } else {
       // Allow other roles (like insurance_agent) to log in directly
+      clearAuthFields();
       setIsAuthenticated(true);
       localStorage.setItem('dhms_active_session', JSON.stringify({ role: userRole, user: { email: emailVal } }));
     }
@@ -348,11 +404,11 @@ function App() {
 
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
-    const nameVal = e.target.querySelector('input[placeholder="Enter your full name"]')?.value || '';
-    const emailVal = e.target.querySelector('input[type="email"]')?.value || '';
-    const passwordVal = e.target.querySelector('input[type="password"]')?.value || '';
+    const nameVal = regFullName.trim();
+    const emailVal = regEmail.trim();
+    const passwordVal = regPassword;
     
-    const nameParts = nameVal.trim().split(/\s+/);
+    const nameParts = nameVal.split(/\s+/);
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
@@ -377,6 +433,7 @@ function App() {
       const updated = [newPatient, ...patientsList];
       localStorage.setItem('dhms_patients', JSON.stringify(updated));
       alert(`Patient account created successfully! Your ID is ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
@@ -397,6 +454,7 @@ function App() {
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
       alert(`Doctor account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else if (userRole === 'receptionist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
@@ -416,6 +474,7 @@ function App() {
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
       alert(`Receptionist account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else if (userRole === 'laboratory') {
       const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
@@ -435,6 +494,7 @@ function App() {
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
       alert(`Laboratory staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else if (userRole === 'pharmacist') {
       const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
@@ -454,6 +514,7 @@ function App() {
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
       alert(`Pharmacy staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else if (userRole === 'cash_counter') {
       const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
@@ -473,15 +534,18 @@ function App() {
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
       alert(`Cash counter staff account registered successfully! ID: ${newId}. Please sign in to access your portal.`);
+      clearAuthFields();
       setActiveTab('signin');
     } else {
       alert('Registration successful! Please sign in using your account credentials.');
+      clearAuthFields();
       setActiveTab('signin');
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('dhms_active_session');
+    clearAuthFields();
     setIsAuthenticated(false);
     setLoggedInPatient(null);
     setLoggedInDoctor(null);
@@ -522,13 +586,19 @@ function App() {
           <div className="tabs-container">
             <button 
               className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
-              onClick={() => setActiveTab('signin')}
+              onClick={() => {
+                clearAuthFields();
+                setActiveTab('signin');
+              }}
             >
               Sign In
             </button>
             <button 
               className={`tab ${activeTab === 'register' ? 'active' : ''}`}
-              onClick={() => setActiveTab('register')}
+              onClick={() => {
+                clearAuthFields();
+                setActiveTab('register');
+              }}
             >
               Register Account
             </button>
@@ -555,13 +625,13 @@ function App() {
                   type={(isPatientPortal || userRole === 'patient') ? "text" : "email"} 
                   placeholder={(isPatientPortal || userRole === 'patient') ? "Enter Patient ID (e.g., PT-101) or Email" : "Enter email address"} 
                   required 
-                  onInput={(e) => {
-                    if (isPatientPortal || userRole === 'patient') {
-                      // Convert to uppercase for Patient ID (unless typing an email)
-                      if (!e.target.value.includes('@')) {
-                        e.target.value = e.target.value.toUpperCase();
-                      }
+                  value={signInIdentifier}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if ((isPatientPortal || userRole === 'patient') && !val.includes('@')) {
+                      val = val.toUpperCase();
                     }
+                    setSignInIdentifier(val);
                   }}
                 />
               </div>
@@ -574,7 +644,14 @@ function App() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <input type={showPassword ? "text" : "password"} placeholder="Enter password" required style={{ paddingRight: '40px' }} />
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Enter password" 
+                  required 
+                  value={signInPassword}
+                  onChange={(e) => setSignInPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }} 
+                />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
@@ -630,7 +707,13 @@ function App() {
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <input type="text" placeholder="Enter your full name" required />
+                <input 
+                  type="text" 
+                  placeholder="Enter your full name" 
+                  required 
+                  value={regFullName}
+                  onChange={(e) => setRegFullName(e.target.value)}
+                />
               </div>
             </div>
 
@@ -641,7 +724,13 @@ function App() {
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                   <polyline points="22,6 12,13 2,6"></polyline>
                 </svg>
-                <input type="email" placeholder="Enter email address" required />
+                <input 
+                  type="email" 
+                  placeholder="Enter email address" 
+                  required 
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                />
               </div>
             </div>
             
@@ -652,7 +741,14 @@ function App() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <input type={showPassword ? "text" : "password"} placeholder="Enter password" required style={{ paddingRight: '40px' }} />
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Enter password" 
+                  required 
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }} 
+                />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
