@@ -207,6 +207,21 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     setGeneratedPassword(randomPassword);
   };
 
+  // Helper to calculate doctor consultation fee
+  const getDoctorConsultationFee = (docIdOrName) => {
+    if (!docIdOrName) return 300.00;
+    const doc = doctorsList.find(d => 
+      d.id === docIdOrName || 
+      d.name === docIdOrName ||
+      (d.name && docIdOrName.toLowerCase().includes(d.name.toLowerCase()))
+    );
+    if (doc?.consultationFee) return parseFloat(doc.consultationFee);
+    const dept = doc?.specialty || doc?.department || '';
+    if (dept === 'Cardiology' || dept === 'Neurology') return 500.00;
+    if (dept === 'Orthopedics' || dept === 'Oncology' || dept === 'Pediatrics') return 400.00;
+    return 300.00;
+  };
+
   // State for Appointment Booking & Upfront Consultation Billing
   const [appointmentData, setAppointmentData] = useState({
     patientId: '',
@@ -215,6 +230,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     time: '',
     reason: ''
   });
+  const [bookingFeeType, setBookingFeeType] = useState('Consultation Fee'); // 'Consultation Fee' | 'Appointment Fee' | 'Appointment + Consultation Fee'
   const [collectFeeNow, setCollectFeeNow] = useState(true);
   const [feePaymentMode, setFeePaymentMode] = useState('Physical Cash Payment');
   const [feeRemarks, setFeeRemarks] = useState('');
@@ -259,8 +275,19 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       ? { name: matchedDoc.name, dept: matchedDoc.department || matchedDoc.specialty } 
       : { name: appointmentData.doctorId, dept: "General Clinic" };
 
-    const docFee = matchedDoc?.consultationFee || (docInfo.dept === 'Cardiology' || docInfo.dept === 'Neurology' ? '500.00' : '300.00');
-    const formattedFee = `₹${parseFloat(docFee).toFixed(2)}`;
+    const docFee = getDoctorConsultationFee(appointmentData.doctorId || docInfo.name);
+    let feeAmount = docFee;
+    let feeTypeLabel = `Doctor Consultation Fee (${docInfo.name})`;
+    
+    if (bookingFeeType === 'Appointment Fee') {
+      feeAmount = 150.00;
+      feeTypeLabel = `Appointment Booking Fee (${docInfo.name})`;
+    } else if (bookingFeeType === 'Appointment + Consultation Fee') {
+      feeAmount = 150.00 + docFee;
+      feeTypeLabel = `Appointment & Consultation Fee (${docInfo.name})`;
+    }
+
+    const formattedFee = `₹${parseFloat(feeAmount).toFixed(2)}`;
 
     const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
     const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -278,7 +305,9 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       status: "Upcoming",
       type: "Physical",
       source: "Walk-in",
+      feeType: bookingFeeType,
       consultationFee: formattedFee,
+      doctorConsultationRate: `₹${docFee.toFixed(2)}`,
       feeStatus: collectFeeNow ? "Paid" : "Unpaid",
       paymentMethod: collectFeeNow ? feePaymentMode : "Pay at Counter"
     };
@@ -298,7 +327,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
         paymentDate: new Date().toISOString().split('T')[0],
         amount: formattedFee,
         status: 'Paid',
-        type: `Doctor Consultation Fee (${docInfo.name})`,
+        type: feeTypeLabel,
         paymentMethod: feePaymentMode,
         paymentRemarks: feeRemarks || 'Collected Upfront at Reception'
       };
@@ -945,25 +974,105 @@ End of Generated Health Summary Report
                 <textarea rows="3" required value={appointmentData.reason} onChange={e => setAppointmentData({...appointmentData, reason: e.target.value})} placeholder="Brief description of symptoms or visit purpose..."></textarea>
               </div>
 
-              {/* Doctor Consultation Fee Card */}
+              {/* Dynamic Fee Breakdown & Payment Card */}
               {(() => {
                 const selectedDoc = doctorsList.find(d => d.id === appointmentData.doctorId);
-                if (!selectedDoc) return null;
-                const feeVal = selectedDoc.consultationFee || (selectedDoc.specialty === 'Cardiology' || selectedDoc.specialty === 'Neurology' ? '500.00' : '300.00');
+                const docFee = selectedDoc ? getDoctorConsultationFee(selectedDoc.id) : 300.00;
+                
+                let currentFee = docFee;
+                if (bookingFeeType === 'Appointment Fee') {
+                  currentFee = 150.00;
+                } else if (bookingFeeType === 'Appointment + Consultation Fee') {
+                  currentFee = 150.00 + docFee;
+                }
 
                 return (
-                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <div>
-                        <span style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Doctor Consultation Fee</span>
-                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#166534' }}>₹{parseFloat(feeVal).toFixed(2)}</div>
+                        <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>
+                          Total Upfront Charge
+                        </span>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#166534' }}>
+                          ₹{currentFee.toFixed(2)}
+                        </div>
                       </div>
-                      <span style={{ fontSize: '12px', background: collectFeeNow ? '#dcfce7' : '#fee2e2', color: collectFeeNow ? '#15803d' : '#b91c1c', padding: '4px 10px', borderRadius: '6px', fontWeight: '700' }}>
-                        {collectFeeNow ? '✓ Pay Upfront at Reception' : 'Pay Later at Counter'}
+                      <span style={{ fontSize: '11.5px', background: collectFeeNow ? '#dcfce7' : '#fee2e2', color: collectFeeNow ? '#15803d' : '#b91c1c', padding: '4px 10px', borderRadius: '6px', fontWeight: '700' }}>
+                        {collectFeeNow ? '✓ Collect at Reception' : 'Pay at Cash Counter'}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    {/* Fee Option Selector */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                        Applicable Fee Structure
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setBookingFeeType('Consultation Fee')}
+                          style={{
+                            padding: '8px 6px',
+                            borderRadius: '6px',
+                            border: bookingFeeType === 'Consultation Fee' ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                            background: bookingFeeType === 'Consultation Fee' ? '#f0fdf4' : 'white',
+                            color: bookingFeeType === 'Consultation Fee' ? '#166534' : '#475569',
+                            fontWeight: '700',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <div>🩺 Consultation Fee</div>
+                          <div style={{ fontSize: '12px', marginTop: '2px', color: '#15803d' }}>₹{docFee.toFixed(2)}</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setBookingFeeType('Appointment Fee')}
+                          style={{
+                            padding: '8px 6px',
+                            borderRadius: '6px',
+                            border: bookingFeeType === 'Appointment Fee' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                            background: bookingFeeType === 'Appointment Fee' ? '#eff6ff' : 'white',
+                            color: bookingFeeType === 'Appointment Fee' ? '#1e40af' : '#475569',
+                            fontWeight: '700',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <div>🎟️ Booking Fee</div>
+                          <div style={{ fontSize: '12px', marginTop: '2px', color: '#2563eb' }}>₹150.00</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setBookingFeeType('Appointment + Consultation Fee')}
+                          style={{
+                            padding: '8px 6px',
+                            borderRadius: '6px',
+                            border: bookingFeeType === 'Appointment + Consultation Fee' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                            background: bookingFeeType === 'Appointment + Consultation Fee' ? '#f5f3ff' : 'white',
+                            color: bookingFeeType === 'Appointment + Consultation Fee' ? '#6d28d9' : '#475569',
+                            fontWeight: '700',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <div>📑 Combined Fee</div>
+                          <div style={{ fontSize: '12px', marginTop: '2px', color: '#7c3aed' }}>₹{(150.00 + docFee).toFixed(2)}</div>
+                        </button>
+                      </div>
+                      {selectedDoc && (
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                          ✓ Selected: <strong>{selectedDoc.name}</strong> ({selectedDoc.specialty}) • Consultation Rate: <strong>₹{docFee.toFixed(2)}</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', paddingTop: '6px', borderTop: '1px dashed #e2e8f0' }}>
                       <input 
                         type="checkbox" 
                         id="collect-fee-now" 
@@ -971,8 +1080,8 @@ End of Generated Health Summary Report
                         onChange={(e) => setCollectFeeNow(e.target.checked)} 
                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                       />
-                      <label htmlFor="collect-fee-now" style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }}>
-                        Collect Doctor Consultation Fee Now (No Re-queuing Needed)
+                      <label htmlFor="collect-fee-now" style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }}>
+                        Collect Fee Now at Reception (Issue Paid Slip Directly)
                       </label>
                     </div>
 
@@ -1086,9 +1195,10 @@ End of Generated Health Summary Report
                         <button 
                           className="rd-btn-small" 
                           onClick={() => {
+                            const docFee = getDoctorConsultationFee(appt.doctorId || appt.doctorName);
                             setBillingModalAppt(appt);
-                            setBillingModalFee('120.00');
-                            setBillingModalType('Appointment Fee');
+                            setBillingModalFee(docFee.toFixed(2));
+                            setBillingModalType('Consultation Fee');
                           }}
                           style={{
                             padding: '4px 10px',
@@ -1101,7 +1211,7 @@ End of Generated Health Summary Report
                             cursor: 'pointer'
                           }}
                         >
-                          Pay in Counter
+                          💳 Collect / Bill Fee
                         </button>
                       )}
                       
@@ -2236,81 +2346,169 @@ End of Generated Health Summary Report
       )}
 
       {/* Pay at Counter / Invoice Generation Modal */}
-      {billingModalAppt && (
-        <div className="rd-modal-overlay">
-          <div className="rd-modal-content" style={{ maxWidth: '420px' }}>
-            <div className="rd-modal-header">
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>Collect Payment at Desk</h3>
-              <button className="rd-btn-close" onClick={() => setBillingModalAppt(null)}>&times;</button>
-            </div>
-            <div className="rd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="rd-form-group">
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Patient Name</label>
-                <input type="text" readOnly value={billingModalAppt.patientName} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
+      {billingModalAppt && (() => {
+        const docFee = getDoctorConsultationFee(billingModalAppt.doctorId || billingModalAppt.doctorName);
+        return (
+          <div className="rd-modal-overlay">
+            <div className="rd-modal-content" style={{ maxWidth: '460px' }}>
+              <div className="rd-modal-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>💳 Collect / Generate Fee Invoice</h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Doctor: <strong>{billingModalAppt.doctorName}</strong> ({billingModalAppt.department || 'OPD'})</span>
+                </div>
+                <button className="rd-btn-close" onClick={() => setBillingModalAppt(null)}>&times;</button>
               </div>
-              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Patient ID</label>
-                <input type="text" readOnly value={billingModalAppt.patientId} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
+
+              <div className="rd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px 20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="rd-form-group">
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient Name</label>
+                    <input type="text" readOnly value={billingModalAppt.patientName} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 10px', borderRadius: '6px', fontSize: '13px' }} />
+                  </div>
+                  <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient ID</label>
+                    <input type="text" readOnly value={billingModalAppt.patientId} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 10px', borderRadius: '6px', fontSize: '13px' }} />
+                  </div>
+                </div>
+
+                <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Select Fee / Service Type</label>
+                  <select 
+                    value={billingModalType} 
+                    onChange={e => {
+                      const newType = e.target.value;
+                      setBillingModalType(newType);
+                      if (newType === 'Consultation Fee') {
+                        setBillingModalFee(docFee.toFixed(2));
+                      } else if (newType === 'Appointment Fee') {
+                        setBillingModalFee('150.00');
+                      } else if (newType === 'Appointment + Consultation Fee') {
+                        setBillingModalFee((150.00 + docFee).toFixed(2));
+                      } else if (newType === 'Lab Diagnostics') {
+                        setBillingModalFee('450.00');
+                      } else if (newType === 'Prescription Co-pay') {
+                        setBillingModalFee('250.00');
+                      } else if (newType === 'Hospital Ward Charge') {
+                        setBillingModalFee('800.00');
+                      }
+                    }} 
+                    style={{ border: '1px solid #cbd5e1', padding: '9px 12px', borderRadius: '6px', fontSize: '13.5px', outline: 'none', backgroundColor: 'white', fontWeight: '600' }}
+                  >
+                    <option value="Consultation Fee">🩺 Doctor Consultation Fee (₹{docFee.toFixed(2)})</option>
+                    <option value="Appointment Fee">🎟️ Appointment Booking Fee (₹150.00)</option>
+                    <option value="Appointment + Consultation Fee">📑 Combined (Appointment + Consultation) (₹{(150.00 + docFee).toFixed(2)})</option>
+                    <option value="Lab Diagnostics">🧪 Lab Diagnostics (₹450.00)</option>
+                    <option value="Prescription Co-pay">💊 Prescription Co-pay (₹250.00)</option>
+                    <option value="Hospital Ward Charge">🏥 Hospital Ward Charge (₹800.00)</option>
+                  </select>
+                </div>
+
+                <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Payable Amount (₹)</label>
+                    <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold' }}>
+                      Auto-computed from {billingModalAppt.doctorName}
+                    </span>
+                  </div>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={billingModalFee} 
+                    onChange={e => setBillingModalFee(e.target.value)} 
+                    placeholder="300.00" 
+                    style={{ border: '1px solid #cbd5e1', padding: '9px 12px', borderRadius: '6px', fontSize: '16px', fontWeight: '800', outline: 'none', color: '#166534' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button 
+                    type="button"
+                    className="rd-btn-primary"
+                    onClick={() => {
+                      const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
+                      const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+                      
+                      const newInvoice = {
+                        id: invoiceId,
+                        patientId: billingModalAppt.patientId,
+                        patientName: billingModalAppt.patientName,
+                        date: billingModalAppt.date || new Date().toISOString().split('T')[0],
+                        paymentDate: new Date().toISOString().split('T')[0],
+                        amount: cleanAmount,
+                        status: 'Paid',
+                        type: `${billingModalType} (${billingModalAppt.doctorName})`,
+                        paymentMethod: 'Physical Cash Payment',
+                        paymentRemarks: 'Collected Upfront at Reception Desk'
+                      };
+                      const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+                      const updatedBilling = [newInvoice, ...allBilling];
+                      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+                      setBillingList(updatedBilling);
+
+                      // Update appointment status to Paid
+                      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+                      const updatedAppts = allAppts.map(a => {
+                        if (a.id === billingModalAppt.id) {
+                          return { ...a, feeStatus: 'Paid', consultationFee: cleanAmount, paymentMethod: 'Physical Cash Payment' };
+                        }
+                        return a;
+                      });
+                      localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+                      setAppointments(updatedAppts);
+
+                      if (window.dispatchEvent) {
+                        window.dispatchEvent(new Event('storage'));
+                      }
+
+                      setBillingModalAppt(null);
+                      alert(`✓ Payment of ${cleanAmount} collected at desk! Receipt generated successfully.`);
+                    }}
+                    style={{ flex: 1, padding: '10px 12px', background: '#10b981', fontSize: '13px', fontWeight: '700' }}
+                  >
+                    ✓ Collect at Desk (Paid)
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
+                      const newInvoice = {
+                        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+                        patientId: billingModalAppt.patientId,
+                        patientName: billingModalAppt.patientName,
+                        date: billingModalAppt.date,
+                        amount: cleanAmount,
+                        status: 'Unpaid',
+                        type: `${billingModalType} (${billingModalAppt.doctorName})`,
+                        appointmentId: billingModalAppt.id
+                      };
+                      const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+                      const updated = [newInvoice, ...allBilling];
+                      localStorage.setItem('dhms_billing', JSON.stringify(updated));
+                      setBillingList(updated);
+                      setBillingModalAppt(null);
+                      alert(`Invoice of ${cleanAmount} sent to Central Cash Desk successfully!`);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      background: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      color: '#334155',
+                      borderRadius: '6px',
+                      fontWeight: '700',
+                      fontSize: '12.5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    💳 Send to Cash Counter
+                  </button>
+                </div>
               </div>
-              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Appointment Date</label>
-                <input type="text" readOnly value={billingModalAppt.date} style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px' }} />
-              </div>
-              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Billing / Service Type</label>
-                <select 
-                  value={billingModalType} 
-                  onChange={e => setBillingModalType(e.target.value)} 
-                  style={{ border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px', fontSize: '14px', outline: 'none', backgroundColor: 'white' }}
-                >
-                  <option value="Appointment Fee">Appointment Fee</option>
-                  <option value="Consultation Fee">Consultation Fee</option>
-                  <option value="Lab Diagnostics">Lab Diagnostics</option>
-                  <option value="Prescription Co-pay">Prescription Co-pay</option>
-                  <option value="Hospital Ward Charge">Hospital Ward Charge</option>
-                </select>
-              </div>
-              <div className="cc-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Appointment Fee / Amount ($)</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={billingModalFee} 
-                  onChange={e => setBillingModalFee(e.target.value)} 
-                  placeholder="120.00" 
-                  style={{ border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '6px', fontSize: '14px', outline: 'none' }}
-                />
-              </div>
-              
-              <button 
-                className="rd-btn-primary w-full"
-                onClick={() => {
-                  const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
-                  const newInvoice = {
-                    id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-                    patientId: billingModalAppt.patientId,
-                    patientName: billingModalAppt.patientName,
-                    date: billingModalAppt.date,
-                    amount: cleanAmount,
-                    status: 'Unpaid',
-                    type: billingModalType,
-                    appointmentId: billingModalAppt.id
-                  };
-                  const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-                  const updated = [newInvoice, ...allBilling];
-                  localStorage.setItem('dhms_billing', JSON.stringify(updated));
-                  setBillingList(updated);
-                  setBillingModalAppt(null);
-                  alert(`Invoice generated and sent to Central Cash Desk successfully!`);
-                }}
-                style={{ marginTop: '12px' }}
-              >
-                Send Invoice to Cash Counter
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {/* View Invoice Receipt Modal */}
       {selectedInvoice && (
         <div className="rd-modal-overlay" onClick={() => setSelectedInvoice(null)}>

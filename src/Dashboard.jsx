@@ -1722,7 +1722,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'overview', label: 'My Dashboard' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
-          { id: 'inpatient_ward', label: '🛏️ Inpatient (IPD) Ward' },
+          { id: 'inpatient_ward', label: ' Inpatient (IPD) Ward' },
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
@@ -2973,7 +2973,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                    <h3 style={{ margin: 0, color: '#0f172a' }}>🌅 Slot 1 (Morning: 9 AM - 1 PM) Bookings</h3>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}> Slot 1 (Morning: 9 AM - 1 PM) Bookings</h3>
                     <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1' }}>
                       {slot1BookedPatients.length} Booked
                     </span>
@@ -3011,7 +3011,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
                 <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                    <h3 style={{ margin: 0, color: '#0f172a' }}>🌇 Slot 2 (Afternoon: 2 PM - 6 PM) Bookings</h3>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}> Slot 2 (Afternoon: 2 PM - 6 PM) Bookings</h3>
                     <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1' }}>
                       {slot2BookedPatients.length} Booked
                     </span>
@@ -3527,7 +3527,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       <div className="module-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
-            <h2>🛏️ Inpatient Ward & Patient Bedside Care</h2>
+            <h2> Inpatient Ward & Patient Bedside Care</h2>
             <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor admitted inpatients under care, view bedside medication ledger, and perform clinical discharge sign-offs.</p>
           </div>
           <span style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
