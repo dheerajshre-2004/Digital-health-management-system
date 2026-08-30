@@ -1276,34 +1276,43 @@ End of Generated Health Summary Report
                         <strong>Reason:</strong> {appt.reason}
                       </p>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
-                      {billingList.some(b => b.appointmentId === appt.id) ? (
-                        <span style={{ fontSize: '11.5px', color: '#16a34a', background: '#dcfce7', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>
-                          Sent to Counter
-                        </span>
-                      ) : (
-                        <button 
-                          className="rd-btn-small" 
-                          onClick={() => {
-                            const docFee = getDoctorConsultationFee(appt.doctorId || appt.doctorName);
-                            setBillingModalAppt(appt);
-                            setBillingModalFee(docFee.toFixed(2));
-                            setBillingModalType('Consultation Fee');
-                          }}
-                          style={{
-                            padding: '4px 10px',
-                            background: '#f8fafc',
-                            color: '#475569',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          💳 Collect / Bill Fee
-                        </button>
-                      )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {appt.paymentStatus === 'Paid' ? (
+                          <span style={{ fontSize: '11.5px', color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: '6px', fontWeight: '700', border: '1px solid #bbf7d0' }}>
+                            ✓ Fee Cleared Online ({appt.consultationFee || '₹500.00'})
+                          </span>
+                        ) : billingList.some(b => b.appointmentId === appt.id) ? (
+                          <span style={{ fontSize: '11.5px', color: '#16a34a', background: '#dcfce7', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                            Sent to Counter
+                          </span>
+                        ) : (
+                          <button 
+                            className="rd-btn-small" 
+                            onClick={() => {
+                              const docFee = getDoctorConsultationFee(appt.doctorId || appt.doctorName);
+                              setBillingModalAppt(appt);
+                              setBillingModalFee(docFee.toFixed(2));
+                              setBillingModalType('Consultation Fee');
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              background: '#f8fafc',
+                              color: '#475569',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💳 Collect / Bill Fee
+                          </button>
+                        )}
+                        {appt.transactionId && (
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>Txn: {appt.transactionId}</span>
+                        )}
+                      </div>
                       
                       {(appt.status === 'Pending Confirmation' || appt.status === 'Confirmed' || appt.status === 'Upcoming') && (
                         <button 
@@ -1514,13 +1523,28 @@ End of Generated Health Summary Report
             <tbody>
               {paginatedBilling.map(inv => (
                 <tr key={inv.id}>
-                  <td><strong style={{ color: '#475569' }}>{inv.id}</strong></td>
+                  <td>
+                    <strong style={{ color: '#475569' }}>{inv.id}</strong>
+                    {inv.transactionId && (
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>Txn: {inv.transactionId}</div>
+                    )}
+                  </td>
                   <td>
                     <strong>{inv.patientName}</strong>
                     <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {inv.patientId}</div>
                   </td>
-                  <td>{inv.type}</td>
-                  <td>{inv.date}</td>
+                  <td>
+                    <div>{inv.type}</div>
+                    {inv.paymentMethod && (
+                      <span style={{ fontSize: '11px', color: '#6366f1', background: '#e0e7ff', padding: '1px 6px', borderRadius: '4px', display: 'inline-block', marginTop: '2px', fontWeight: '600' }}>
+                        {inv.paymentMethod}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <div>{inv.date}</div>
+                    {inv.paymentDate && <span style={{ fontSize: '10.5px', color: '#16a34a' }}>Paid: {inv.paymentDate}</span>}
+                  </td>
                   <td><strong>{inv.amount}</strong></td>
                   <td>
                     <span className={`rd-status-badge ${inv.status.toLowerCase()}`}>
@@ -1528,7 +1552,7 @@ End of Generated Health Summary Report
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
                       {inv.status === 'Unpaid' && (
                         <button 
                           className="rd-btn-small" 
@@ -1540,10 +1564,10 @@ End of Generated Health Summary Report
                       )}
                       <button 
                         className="rd-btn-outline" 
-                        onClick={() => alert(`Printing invoice receipt for ${inv.id}...`)}
+                        onClick={() => setSelectedInvoice(inv)}
                         style={{ padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: 'white', fontSize: '12px', cursor: 'pointer' }}
                       >
-                        Print Invoice
+                        🧾 View / Print
                       </button>
                     </div>
                   </td>

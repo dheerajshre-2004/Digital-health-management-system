@@ -2840,12 +2840,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     <td>{appt.reason}</td>
                     <td><span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{appt.type}</span></td>
                     <td>
-                      <span className="status-badge" style={{
-                        backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
-                        color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
-                      }}>
-                        {appt.status}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span className="status-badge" style={{
+                          backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
+                          color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
+                        }}>
+                          {appt.status}
+                        </span>
+                        {appt.paymentStatus === 'Paid' && (
+                          <span style={{ fontSize: '10px', color: '#15803d', fontWeight: '700', background: '#dcfce7', padding: '2px 4px', borderRadius: '4px', textAlign: 'center' }}>
+                            ✓ Fee Paid
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {appt.status !== 'Completed' && (
@@ -3681,6 +3688,9 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           <div className="tele-header-left">
             <span className="tele-live-badge">● LIVE SESSION</span>
             <h2>Tele-Consultation Suite — {activeCallAppt.patientName} ({activeCallAppt.id})</h2>
+            <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', border: '1px solid #bbf7d0' }}>
+              ✓ Fee Cleared Online ({activeCallAppt.consultationFee || '₹500.00'})
+            </span>
           </div>
           <button className="tele-end-btn-top" onClick={handleEndCall}>
             Leave Workspace

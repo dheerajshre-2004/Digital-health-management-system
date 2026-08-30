@@ -300,6 +300,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       date: a.date,
       time: a.time,
       status: a.status === 'Scheduled' ? 'Ready' : a.status,
+      paymentStatus: a.paymentStatus || 'Paid',
+      paymentMethod: a.paymentMethod || 'Online Gateway',
+      transactionId: a.transactionId || null,
+      invoiceId: a.invoiceId || null,
+      consultationFee: a.consultationFee || '₹500.00',
       reason: a.reason
     }));
   });
@@ -308,6 +313,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [callChatMessages, setCallChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [showScheduleTeleModal, setShowScheduleTeleModal] = useState(false);
+  const [showTelePaymentModal, setShowTelePaymentModal] = useState(false);
+  const [pendingTeleAppt, setPendingTeleAppt] = useState(null);
+  const [telePaymentMethod, setTelePaymentMethod] = useState('UPI');
+  const [teleUpiId, setTeleUpiId] = useState('');
+  const [teleCardNumber, setTeleCardNumber] = useState('');
+  const [teleCardExpiry, setTeleCardExpiry] = useState('');
+  const [teleCardCvv, setTeleCardCvv] = useState('');
+  const [isProcessingTelePay, setIsProcessingTelePay] = useState(false);
   const [newTeleDoctor, setNewTeleDoctor] = useState('');
   const [newTeleDept, setNewTeleDept] = useState('');
   const [newTeleDate, setNewTeleDate] = useState('');
@@ -1957,39 +1970,128 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     const matchedDoc = doctorsList.find(d => d.id === newTeleDoctor);
     const doctorName = matchedDoc ? matchedDoc.name : newTeleDoctor;
     const doctorId = matchedDoc ? matchedDoc.id : newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_');
+    const fee = matchedDoc && matchedDoc.consultationFee ? matchedDoc.consultationFee : '500.00';
 
-    const newConsult = {
+    const prepAppt = {
       id: `TELE-${Math.floor(100 + Math.random() * 900)}`,
-      doctor: doctorName,
-      department: newTeleDept,
-      date: newTeleDate || "2026-07-20",
-      time: newTeleTime || "11:00 AM",
-      status: "Scheduled",
-      reason: newTeleReason || "General health consultation."
-    };
-    setTeleconsultations(prev => [...prev, newConsult]);
-
-    const newAppt = {
-      id: newConsult.id,
-      patientId: currentPatient?.id || "PT-80234",
-      patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
-      doctorId: doctorId,
       doctorName: doctorName,
-      department: newTeleDept,
-      date: newConsult.date,
-      time: newConsult.time,
-      reason: newConsult.reason,
-      status: "Scheduled",
-      type: "Telemedicine",
-      source: "Online"
+      doctorId: doctorId,
+      department: newTeleDept || "General Medicine",
+      date: newTeleDate || new Date().toISOString().split('T')[0],
+      time: newTeleTime || "11:00 AM",
+      reason: newTeleReason || "General health consultation.",
+      fee: fee.toString().replace('₹', '')
     };
-    const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    const updated = [newAppt, ...currentAppts];
-    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
-    setAppointments(updated);
 
+    setPendingTeleAppt(prepAppt);
     setShowScheduleTeleModal(false);
-    setNewTeleReason('');
+    setShowTelePaymentModal(true);
+  };
+
+  const handleCompleteTelePayment = (e) => {
+    e.preventDefault();
+    if (!pendingTeleAppt) return;
+    setIsProcessingTelePay(true);
+
+    setTimeout(() => {
+      const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+      const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe";
+      const invoiceId = `INV-TELE-${Math.floor(10000 + Math.random() * 90000)}`;
+      const txnId = `TXN-${telePaymentMethod.toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const formattedFee = `₹${parseFloat(pendingTeleAppt.fee).toFixed(2)}`;
+      const paymentDate = new Date().toISOString().split('T')[0];
+
+      // 1. Create Invoice in dhms_billing
+      const newInvoice = {
+        id: invoiceId,
+        patientId: patientId,
+        patientName: patientName,
+        doctorId: pendingTeleAppt.doctorId,
+        doctorName: pendingTeleAppt.doctorName,
+        date: pendingTeleAppt.date,
+        paymentDate: paymentDate,
+        amount: formattedFee,
+        status: 'Paid',
+        type: 'Telemedicine Consultation Fee',
+        paymentMethod: `Online Gateway (${telePaymentMethod})`,
+        paymentRemarks: `Online Paid. Txn ID: ${txnId}`,
+        transactionId: txnId,
+        appointmentId: pendingTeleAppt.id
+      };
+
+      const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+      const updatedBilling = [newInvoice, ...currentBilling];
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+      setBilling(updatedBilling);
+
+      // 2. Create Confirmed Appointment in dhms_appointments
+      const newAppt = {
+        id: pendingTeleAppt.id,
+        patientId: patientId,
+        patientName: patientName,
+        doctorId: pendingTeleAppt.doctorId,
+        doctorName: pendingTeleAppt.doctorName,
+        department: pendingTeleAppt.department,
+        date: pendingTeleAppt.date,
+        time: pendingTeleAppt.time,
+        reason: pendingTeleAppt.reason,
+        status: "Scheduled",
+        type: "Telemedicine",
+        source: "Online",
+        paymentStatus: "Paid",
+        paymentMethod: `Online Gateway (${telePaymentMethod})`,
+        transactionId: txnId,
+        invoiceId: invoiceId,
+        consultationFee: formattedFee
+      };
+
+      const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const updatedAppts = [newAppt, ...currentAppts];
+      localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+      setAppointments(updatedAppts);
+
+      // 3. Update local teleconsultations list
+      const newConsult = {
+        id: newAppt.id,
+        doctor: newAppt.doctorName,
+        department: newAppt.department,
+        date: newAppt.date,
+        time: newAppt.time,
+        status: "Ready",
+        paymentStatus: "Paid",
+        paymentMethod: newAppt.paymentMethod,
+        transactionId: txnId,
+        invoiceId: invoiceId,
+        consultationFee: formattedFee,
+        reason: newAppt.reason
+      };
+      setTeleconsultations(prev => [newConsult, ...prev]);
+
+      // 4. Trigger storage sync
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
+
+      setIsProcessingTelePay(false);
+      setShowTelePaymentModal(false);
+      setPendingTeleAppt(null);
+      setNewTeleReason('');
+      setTeleUpiId('');
+      setTeleCardNumber('');
+      setTeleCardExpiry('');
+      setTeleCardCvv('');
+
+      if (window.Swal) {
+        window.Swal.fire({
+          title: 'Payment Successful! 🎉',
+          html: `<p>Your online payment of <b>${formattedFee}</b> for Telemedicine consultation with <b>${newAppt.doctorName}</b> is confirmed.</p><p style="font-size:12px;color:#64748b;">Transaction ID: ${txnId}<br/>Invoice ID: ${invoiceId}</p>`,
+          icon: 'success',
+          confirmButtonColor: '#7c3aed'
+        });
+      } else {
+        alert(`Payment Successful! Consultation booked with ${newAppt.doctorName}. Transaction ID: ${txnId}`);
+      }
+    }, 1200);
   };
   const handleOrderLabSubmit = (e) => {
     e.preventDefault();
@@ -3219,28 +3321,65 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
             ) : (
               teleconsultations.map(tele => (
-                <div key={tele.id} className="pd-tele-item">
+                <div key={tele.id} className="pd-tele-item" style={{ borderLeft: '4px solid #7c3aed', position: 'relative' }}>
                   <div className="pd-tele-info">
-                    <div className="pd-tele-avatar-badge">
+                    <div className="pd-tele-avatar-badge" style={{ background: '#ede9fe', color: '#7c3aed' }}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                     </div>
                     <div>
-                      <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#1e293b' }}>{tele.doctor}</h4>
-                      <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#64748b' }}>Department: <strong>{tele.department}</strong> • Reason: {tele.reason}</p>
-                      <span className="pd-visit-time">{tele.date} at {tele.time}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <h4 style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{tele.doctor}</h4>
+                        <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontWeight: '700', border: '1px solid #bbf7d0' }}>
+                          ✓ Online Paid ({tele.consultationFee || '₹500.00'})
+                        </span>
+                      </div>
+                      <p style={{ margin: '4px 0', fontSize: '12.5px', color: '#64748b' }}>
+                        Department: <strong style={{ color: '#334155' }}>{tele.department}</strong> • Reason: {tele.reason}
+                      </p>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
+                        <span className="pd-visit-time">📅 {tele.date} at {tele.time}</span>
+                        {tele.transactionId && (
+                          <span style={{ fontSize: '11px', color: '#64748b', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                            Ref: {tele.transactionId}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="pd-tele-actions">
-                    {tele.status === "Ready" ? (
-                      <button className="pd-btn-teal" onClick={() => {
+                  <div className="pd-tele-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {tele.invoiceId && (
+                      <button 
+                        className="pd-btn-outline"
+                        style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#cbd5e1' }}
+                        onClick={() => {
+                          const bill = billing.find(b => b.id === tele.invoiceId || b.appointmentId === tele.id) || {
+                            id: tele.invoiceId || 'INV-TELE-001',
+                            patientId: currentPatient?.id || 'PT-80234',
+                            patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'John Doe',
+                            date: tele.date,
+                            paymentDate: tele.date,
+                            type: 'Telemedicine Consultation Fee',
+                            amount: tele.consultationFee || '₹500.00',
+                            status: 'Paid',
+                            paymentMethod: tele.paymentMethod || 'Online Gateway (UPI)',
+                            paymentRemarks: `Online Paid. Txn ID: ${tele.transactionId || 'TXN-ONLINE-999'}`
+                          };
+                          setSelectedInvoice(bill);
+                        }}
+                      >
+                        🧾 Receipt
+                      </button>
+                    )}
+                    {tele.status === "Ready" || tele.status === "Scheduled" ? (
+                      <button className="pd-btn-teal" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={() => {
                         setActiveCallId(tele.id);
                         setIsVideoCallActive(true);
                       }}>
-                        Join Consultation
+                        📹 Join Consultation
                       </button>
                     ) : (
                       <span className="pd-badge in-session" style={{ background: '#f1f5f9', color: '#475569' }}>
-                        Confirmed
+                        {tele.status}
                       </span>
                     )}
                   </div>
@@ -4834,7 +4973,207 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
               <div className="pd-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#f8fafc' }}>
                 <button className="pd-btn-outline" type="button" onClick={() => setShowScheduleTeleModal(false)}>Cancel</button>
-                <button className="pd-btn-primary" type="submit" style={{ background: '#7c3aed' }}>Schedule Consultation</button>
+                <button className="pd-btn-primary" type="submit" style={{ background: '#7c3aed' }}>
+                  Proceed to Online Payment →
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Online Telemedicine Payment Gateway Modal */}
+      {showTelePaymentModal && pendingTeleAppt && (
+        <div className="pd-modal-overlay" onClick={() => !isProcessingTelePay && setShowTelePaymentModal(false)} style={{ zIndex: 10000 }}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)', color: 'white', padding: '20px 24px', position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                    🔒 Secure Payment Gateway
+                  </span>
+                  <h3 style={{ margin: '8px 0 0 0', fontSize: '18px', fontWeight: '700', color: 'white' }}>
+                    Telemedicine Consultation Fee
+                  </h3>
+                </div>
+                {!isProcessingTelePay && (
+                  <button 
+                    onClick={() => setShowTelePaymentModal(false)} 
+                    style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', opacity: 0.8 }}
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <form onSubmit={handleCompleteTelePayment} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+              {/* Order Summary Box */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Consulting Doctor:</span>
+                  <strong style={{ color: '#1e293b' }}>{pendingTeleAppt.doctorName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Department:</span>
+                  <span style={{ color: '#334155' }}>{pendingTeleAppt.department}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Slot Date & Time:</span>
+                  <span style={{ color: '#334155' }}>{pendingTeleAppt.date} at {pendingTeleAppt.time}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontSize: '15px' }}>
+                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Total Payable Amount:</span>
+                  <strong style={{ color: '#7c3aed', fontSize: '17px' }}>₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* Payment Methods Selection */}
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '8px' }}>
+                  Select Payment Method
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {[
+                    { id: 'UPI', label: '⚡ UPI / QR', icon: '📱' },
+                    { id: 'Card', label: '💳 Card', icon: '💳' },
+                    { id: 'NetBanking', label: '🏦 NetBanking', icon: '🏛️' }
+                  ].map(method => (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setTelePaymentMethod(method.id)}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '8px',
+                        border: telePaymentMethod === method.id ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                        background: telePaymentMethod === method.id ? '#f5f3ff' : '#ffffff',
+                        color: telePaymentMethod === method.id ? '#7c3aed' : '#475569',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span style={{ fontSize: '16px' }}>{method.icon}</span>
+                      <span>{method.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* UPI Tab */}
+              {telePaymentMethod === 'UPI' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ width: '120px', height: '120px', margin: '0 auto 8px auto', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '32px' }}>📱</span>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>SCAN UPI QR</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Scan with GPay, PhonePe, Paytm, or enter UPI ID below</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Virtual Payment Address (UPI ID)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. mobile@upi or username@okhdfcbank"
+                      value={teleUpiId}
+                      onChange={(e) => setTeleUpiId(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Card Tab */}
+              {telePaymentMethod === 'Card' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Card Number</label>
+                    <input
+                      type="text"
+                      placeholder="4532 •••• •••• 8890"
+                      value={teleCardNumber}
+                      onChange={(e) => setTeleCardNumber(e.target.value)}
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Expiry Date</label>
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        value={teleCardExpiry}
+                        onChange={(e) => setTeleCardExpiry(e.target.value)}
+                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>CVV</label>
+                      <input
+                        type="password"
+                        placeholder="•••"
+                        maxLength="4"
+                        value={teleCardCvv}
+                        onChange={(e) => setTeleCardCvv(e.target.value)}
+                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NetBanking Tab */}
+              {telePaymentMethod === 'NetBanking' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Choose Bank</label>
+                  <select style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}>
+                    <option>HDFC Bank</option>
+                    <option>State Bank of India (SBI)</option>
+                    <option>ICICI Bank</option>
+                    <option>Axis Bank</option>
+                    <option>Kotak Mahindra Bank</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginTop: '6px' }}>
+                <button
+                  type="submit"
+                  disabled={isProcessingTelePay}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: isProcessingTelePay ? '#94a3b8' : '#7c3aed',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    cursor: isProcessingTelePay ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
+                  }}
+                >
+                  {isProcessingTelePay ? (
+                    <>
+                      <span className="rd-spinner" style={{ width: '16px', height: '16px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></span>
+                      Processing Payment...
+                    </>
+                  ) : (
+                    <>
+                      Pay ₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)} & Confirm Booking
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>
