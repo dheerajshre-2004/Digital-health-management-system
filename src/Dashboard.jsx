@@ -1945,22 +1945,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     switch (role) {
       case 'admin':
         return [
-          { id: 'overview', label: '📊 Operations Overview' },
-          { id: 'patients', label: '👥 Master Patients & EHR' },
-          { id: 'appointments', label: '📅 Hospital Appointments & OPD' },
-          { id: 'inpatient_ward', label: '🏥 Inpatient (IPD) Beds & Wards' },
-          { id: 'departments', label: '🏢 Hospital Departments' },
-          { id: 'doctors', label: '🩺 Doctors & Medical Roster' },
-          { id: 'receptionist_staff', label: '🛎️ Receptionist Staff' },
-          { id: 'laboratory_staff', label: '🔬 Laboratory Staff' },
-          { id: 'pharmacy_staff', label: '💊 Pharmacy Staff' },
-          { id: 'cashier_staff', label: '💳 Cash Counter Staff' },
-          { id: 'pharmacy', label: '📦 Pharmacy Stock & Meds' },
-          { id: 'laboratory', label: '🧪 Diagnostic Lab Orders' },
-          { id: 'payroll', label: '💼 Staff Payroll & Salaries' },
-          { id: 'insurance_claims', label: '🛡️ Insurance & TPA Claims' },
-          { id: 'attendance', label: '📋 Shift Attendance & Absentees' },
-          { id: 'transfer_authority', label: '🔒 Transfer Admin Authority' }
+          { id: 'overview', label: 'Operations Overview' },
+          { id: 'departments', label: 'Hospital Departments' },
+          { id: 'doctors', label: 'Doctors & Medical Roster' },
+          { id: 'receptionist_staff', label: 'Receptionist Staff' },
+          { id: 'laboratory_staff', label: 'Laboratory Staff' },
+          { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
+          { id: 'cashier_staff', label: 'Cash Counter Staff' },
+          { id: 'payroll', label: 'Staff Payroll & Salaries' },
+          { id: 'inpatient_ward', label: 'Inpatient (IPD) Beds & Wards' },
+          { id: 'pharmacy', label: 'Pharmacy Stock & Meds' },
+          { id: 'laboratory', label: 'Diagnostic Lab Orders' },
+          { id: 'insurance_claims', label: 'Insurance & TPA Claims' },
+          { id: 'attendance', label: 'Shift Attendance & Absentees' },
+          { id: 'transfer_authority', label: 'Transfer Admin Authority' }
         ];
       case 'doctor':
         return [
@@ -1971,7 +1969,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
-          { id: 'payroll', label: '💰 My Compensation & Pay Slip' },
+          { id: 'payroll', label: 'My Compensation & Pay Slip' },
           { id: 'attendance', label: 'My Shift Attendance' }
         ];
       case 'patient':
@@ -2032,21 +2030,21 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => setShowAddStaffModal(true)}
-                style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px' }}
               >
-                ➕ Register Staff
+                + Register Staff
               </button>
               <button 
                 onClick={() => setShowAddDoctorModal(true)}
-                style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px' }}
               >
-                🩺 Add Doctor
+                + Add Doctor
               </button>
               <button 
                 onClick={() => setShowAdminBookingModal(true)}
-                style={{ padding: '8px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '8px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px' }}
               >
-                📅 Book Appointment
+                + Book Appointment
               </button>
             </div>
           </div>
@@ -2113,14 +2111,14 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           {/* Live Staff Presence Bar */}
           <div style={{ marginTop: '8px', marginBottom: '24px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                📋 Live Staff Presence & Shift Status (Date: {todayStr})
+              <h3 style={{ margin: 0, fontSize: '14px', color: '#1e293b' }}>
+                Live Staff Presence & Shift Status (Date: {todayStr})
               </h3>
               <button 
                 onClick={() => setActiveView('attendance')} 
                 style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}
               >
-                View Master Attendance & Absentees Log →
+                View Master Attendance & Absentees Log &rarr;
               </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
@@ -3007,16 +3005,16 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   <button
                     onClick={handleRunMonthlyPayroll}
                     disabled={isProcessingPayroll}
-                    style={{ padding: '9px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ padding: '9px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
                   >
-                    {isProcessingPayroll ? '⚡ Computing...' : '⚡ Recalculate Payroll'}
+                    {isProcessingPayroll ? 'Computing...' : 'Recalculate Payroll'}
                   </button>
 
                   <button
                     onClick={handleBatchDisburseAll}
-                    style={{ padding: '9px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ padding: '9px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
                   >
-                    💰 Batch Disburse All ({activePayroll.length - disbursedCount} Pending)
+                    Batch Disburse All ({activePayroll.length - disbursedCount} Pending)
                   </button>
                 </div>
               </div>
@@ -3116,7 +3114,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <strong style={{ fontSize: '14px', color: '#1e293b' }}>{p.staffName}</strong>
                           <div style={{ fontSize: '11.5px', color: '#64748b' }}>ID: <strong>{p.staffId}</strong> • {p.staffRole}</div>
                           <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                            🏦 {p.bankName} (A/C: {p.accountNumber})
+                            {p.bankName} (A/C: {p.accountNumber})
                           </div>
                         </td>
                         <td>
@@ -3155,7 +3153,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                             color: p.status === 'Disbursed' ? '#15803d' : '#1d4ed8',
                             fontWeight: 'bold'
                           }}>
-                            {p.status === 'Disbursed' ? '✓ Disbursed (NEFT)' : 'Approved'}
+                            {p.status === 'Disbursed' ? 'Disbursed (NEFT)' : 'Approved'}
                           </span>
                           {p.status === 'Disbursed' && p.transactionRef && (
                             <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{p.transactionRef}</div>
@@ -3165,16 +3163,16 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             <button
                               onClick={() => setSelectedPaycheckForSlip(p)}
-                              style={{ padding: '5px 10px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '5px 10px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700' }}
                             >
-                              🖨️ Pay Slip
+                              Pay Slip
                             </button>
                             {p.status !== 'Disbursed' && (
                               <button
                                 onClick={() => handleDisburseSalary(p.id)}
                                 style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700' }}
                               >
-                                💸 Disburse
+                                Disburse
                               </button>
                             )}
                           </div>
@@ -3199,9 +3197,9 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 </div>
                 <button
                   onClick={() => setSelectedPaycheckForSlip(docPay)}
-                  style={{ padding: '10px 18px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '10px 18px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
                 >
-                  🖨️ Download Official Pay Slip
+                  Download Official Pay Slip
                 </button>
               </div>
 
@@ -5513,7 +5511,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             {/* Modal Action Header (Hidden on print) */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '700' }}>
-                📄 Official Hospital Salary Paystub — {selectedPaycheckForSlip.staffName}
+                Official Hospital Salary Paystub — {selectedPaycheckForSlip.staffName}
               </h3>
               <button onClick={() => setSelectedPaycheckForSlip(null)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
             </div>
@@ -5764,7 +5762,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 onClick={() => window.print()}
                 style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                🖨️ Print Official Pay Slip
+                Print Official Pay Slip
               </button>
             </div>
           </div>
