@@ -4,9 +4,22 @@ import CashCounterDashboard from './CashCounterDashboard';
 import { sendPatientWelcomeEmail } from './emailService';
 import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWords } from './payrollService';
 
-const DUMMY_DEPARTMENTS = [];
+const DUMMY_DEPARTMENTS = [
+  { id: 1, name: 'Cardiology & Intensive Cardiac Care', code: 'CARD', head: 'Dr. Sarah Connor' },
+  { id: 2, name: 'Neurology & Neurosurgery', code: 'NEUR', head: 'Dr. Gregory House' },
+  { id: 3, name: 'Orthopedics & Joint Care', code: 'ORTH', head: 'Dr. John Watson' },
+  { id: 4, name: 'General & Internal Medicine', code: 'GENM', head: 'Dr. Meredith Grey' },
+  { id: 5, name: 'Pediatrics & Neonatology', code: 'PEDI', head: 'Dr. Leonard McCoy' },
+  { id: 6, name: 'Oncology & Chemotherapy Wing', code: 'ONCO', head: 'Dr. Beverly Crusher' },
+  { id: 7, name: 'Emergency & Trauma Care (24x7)', code: 'EMER', head: 'Dr. Michaela Quinn' }
+];
 
-const DOCTORS = [];
+const DOCTORS = [
+  { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care', status: 'Available', email: 'sarah.connor@dhms.org', phone: '+91 98765 43211' },
+  { id: 'dr_gregory_house', name: 'Dr. Gregory House', department: 'Neurology & Neurosurgery', status: 'Available', email: 'gregory.house@dhms.org', phone: '+91 98765 43212' },
+  { id: 'dr_meredith_grey', name: 'Dr. Meredith Grey', department: 'General & Internal Medicine', status: 'Available', email: 'meredith.grey@dhms.org', phone: '+91 98765 43213' },
+  { id: 'dr_john_watson', name: 'Dr. John Watson', department: 'Orthopedics & Joint Care', status: 'Available', email: 'john.watson@dhms.org', phone: '+91 98765 43214' }
+];
 
 export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [activeView, setActiveView] = useState('overview');
@@ -181,16 +194,22 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   const [departmentsList, setDepartmentsList] = useState(() => {
     const saved = localStorage.getItem('dhms_departments');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
     localStorage.setItem('dhms_departments', JSON.stringify(DUMMY_DEPARTMENTS));
     return DUMMY_DEPARTMENTS;
   });
 
   const [doctorsRoster, setDoctorsRoster] = useState(() => {
     const saved = localStorage.getItem('dhms_doctors');
-    if (saved) return JSON.parse(saved);
-    localStorage.setItem('dhms_doctors', JSON.stringify([]));
-    return [];
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+    localStorage.setItem('dhms_doctors', JSON.stringify(DOCTORS));
+    return DOCTORS;
   });
 
   const [receptionistStaff, setReceptionistStaff] = useState(() => {
@@ -241,6 +260,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [insuranceClaims, setInsuranceClaims] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
   });
+
+  // Department & Doctor Modal States
+  const [showAddDeptModal, setShowAddDeptModal] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptHead, setNewDeptHead] = useState('');
+  const [newDeptCode, setNewDeptCode] = useState('');
+
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [newDocDept, setNewDocDept] = useState('Cardiology & Intensive Cardiac Care');
+  const [newDocStatus, setNewDocStatus] = useState('Available');
+  const [newDocEmail, setNewDocEmail] = useState('');
+  const [newDocPassword, setNewDocPassword] = useState('');
+  const [newDocPhone, setNewDocPhone] = useState('');
 
   // Universal Staff Registration Modal for Admin
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
