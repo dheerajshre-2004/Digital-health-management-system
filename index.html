@@ -12,29 +12,19 @@
     <title>DHMS - Digital Health Portal</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+      // Clear legacy service worker caches to ensure immediate UI updates
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => {
-              console.log('[PWA] Service Worker registered successfully:', reg.scope);
-              
-              // Force check for updates immediately on app startup
-              reg.update();
-              
-              // Auto-reload the app when a new service worker is installed
-              reg.onupdatefound = () => {
-                const installingWorker = reg.installing;
-                if (installingWorker) {
-                  installingWorker.onstatechange = () => {
-                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      console.log('[PWA] New update installed. Reloading...');
-                      window.location.reload();
-                    }
-                  };
-                }
-              };
-            })
-            .catch((err) => console.error('[PWA] Service Worker registration failed:', err));
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          for (const name of names) {
+            caches.delete(name);
+          }
         });
       }
     </script>

@@ -807,11 +807,7 @@ function App() {
               {isPatientPortal ? "Sign In to Patient Portal" : "Secure Sign In"}
             </button>
 
-            {(isPatientPortal || userRole === 'patient') && (
-              <div style={{ marginTop: '16px', padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12.5px', color: '#475569', textAlign: 'center', lineHeight: 1.5 }}>
-                🏥 <strong>New Patient?</strong> Patient accounts & Unique Health IDs are issued exclusively through the <strong>Hospital Reception Desk</strong>. Upon registration, your access credentials and welcome email are automatically sent to your inbox.
-              </div>
-            )}
+
           </form>
         ) : (
           <form className="auth-form" onSubmit={handleRegisterSubmit}>
