@@ -1696,24 +1696,38 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
 
     const idStr = `dr_${newDocName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Math.floor(100 + Math.random() * 900)}`;
+    const emailTarget = newDocEmail.trim() || `${newDocName.toLowerCase().replace(/\s+/g, '')}@dhms.org`;
     const newDoc = {
       id: idStr,
       name: newDocName.startsWith('Dr.') ? newDocName : `Dr. ${newDocName}`,
       department: newDocDept,
       status: newDocStatus,
-      email: newDocEmail || `${newDocName.toLowerCase().replace(/\s+/g, '')}@dhms.org`,
+      email: emailTarget,
       password: newDocPassword,
-      phone: newDocPhone || '+1 (555) 000-0000'
+      phone: newDocPhone || '+91 98765 43210'
     };
     const updated = [...doctorsRoster, newDoc];
     setDoctorsRoster(updated);
     localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+
+    sendPatientWelcomeEmail({
+      patientName: newDoc.name,
+      email: emailTarget,
+      patientId: idStr,
+      password: newDocPassword,
+      phone: newDocPhone || '+91 98765 43210'
+    });
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
     setNewDocName('');
     setNewDocEmail('');
     setNewDocPhone('');
     setNewDocPassword('');
     setShowAddDoctorModal(false);
-    alert(`${newDoc.name} added to hospital doctors roster.`);
+    alert(`✓ ${newDoc.name} added to hospital doctors roster. Login credentials dispatched to ${emailTarget}.`);
   };
 
   const handleToggleDoctorStatus = (docId, newStatus) => {
