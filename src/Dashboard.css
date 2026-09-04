@@ -879,3 +879,29 @@
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-salary-slip,
+  #printable-salary-slip *,
+  #printable-prescription,
+  #printable-prescription * {
+    visibility: visible;
+  }
+  #printable-salary-slip,
+  #printable-prescription {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    padding: 20px !important;
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import CashCounterDashboard from './CashCounterDashboard';
 import { sendPatientWelcomeEmail } from './emailService';
+import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWords } from './payrollService';
 
 const DUMMY_DEPARTMENTS = [];
 
@@ -25,6 +26,65 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [adminPharmacySubTab, setAdminPharmacySubTab] = useState('medications');
   const [adminClaimStatusFilter, setAdminClaimStatusFilter] = useState('All');
   const [selectedPatientForAdminFile, setSelectedPatientForAdminFile] = useState(null);
+
+  // Hospital Payroll & Paycheck Engine States
+  const [payrollRecords, setPayrollRecords] = useState(() => {
+    const saved = localStorage.getItem('dhms_payroll_records');
+    if (saved) return JSON.parse(saved);
+    return [];
+  });
+  const [payrollMonth, setPayrollMonth] = useState('September 2026');
+  const [payrollRoleFilter, setPayrollRoleFilter] = useState('All');
+  const [payrollStatusFilter, setPayrollStatusFilter] = useState('All');
+  const [selectedPaycheckForSlip, setSelectedPaycheckForSlip] = useState(null);
+  const [isProcessingPayroll, setIsProcessingPayroll] = useState(false);
+
+  const handleRunMonthlyPayroll = () => {
+    setIsProcessingPayroll(true);
+    setTimeout(() => {
+      const records = generateFullHospitalPayroll(payrollMonth);
+      setPayrollRecords(records);
+      setIsProcessingPayroll(false);
+      alert(`✓ Generated official monthly payroll for ${records.length} hospital staff members for ${payrollMonth}!`);
+    }, 400);
+  };
+
+  const handleDisburseSalary = (paycheckId) => {
+    const updated = payrollRecords.map(p => {
+      if (p.id === paycheckId) {
+        return {
+          ...p,
+          status: 'Disbursed',
+          disbursedAt: new Date().toISOString()
+        };
+      }
+      return p;
+    });
+    setPayrollRecords(updated);
+    localStorage.setItem('dhms_payroll_records', JSON.stringify(updated));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`✓ Salary disbursed via Direct Bank NEFT for Pay Slip #${paycheckId}!`);
+  };
+
+  const handleBatchDisburseAll = () => {
+    const pendingCount = payrollRecords.filter(p => p.status !== 'Disbursed').length;
+    if (pendingCount === 0) {
+      alert("All salary records for this period have already been disbursed.");
+      return;
+    }
+    if (!window.confirm(`Execute electronic NEFT batch transfer for ${pendingCount} staff members for ${payrollMonth}?`)) {
+      return;
+    }
+    const updated = payrollRecords.map(p => ({
+      ...p,
+      status: 'Disbursed',
+      disbursedAt: p.disbursedAt || new Date().toISOString()
+    }));
+    setPayrollRecords(updated);
+    localStorage.setItem('dhms_payroll_records', JSON.stringify(updated));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`✓ Batch Bank Transfer Complete! ${pendingCount} staff paychecks marked Disbursed.`);
+  };
 
   // Attendance Tracker States
   const [adminAttendanceDate, setAdminAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1865,6 +1925,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'pharmacy', label: '📦 Pharmacy Stock & Meds' },
           { id: 'laboratory', label: '🧪 Diagnostic Lab Orders' },
           { id: 'billing', label: '💰 Financials & Master Billing' },
+          { id: 'payroll', label: '💼 Staff Payroll & Salaries' },
           { id: 'insurance_claims', label: '🛡️ Insurance & TPA Claims' },
           { id: 'attendance', label: '📋 Shift Attendance & Absentees' },
           { id: 'transfer_authority', label: '🔒 Transfer Admin Authority' }
@@ -1878,6 +1939,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
+          { id: 'payroll', label: '💰 My Compensation & Pay Slip' },
           { id: 'attendance', label: 'My Shift Attendance' }
         ];
       case 'patient':
@@ -2968,6 +3030,322 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
       case 'cashcounter':
         return <CashCounterDashboard embedMode={true} adminMode={true} />;
+
+      case 'payroll':
+        // Ensure payroll records exist; if not auto-generate initial draft
+        const activePayroll = payrollRecords.length > 0 ? payrollRecords : generateFullHospitalPayroll(payrollMonth);
+        
+        if (role === 'admin') {
+          const totalGrossPayroll = activePayroll.reduce((sum, p) => sum + (p.earnings?.totalGross || 0), 0);
+          const totalNetPayroll = activePayroll.reduce((sum, p) => sum + (p.netSalary || 0), 0);
+          const totalOpdDoctorCommissions = activePayroll.reduce((sum, p) => sum + (p.earnings?.opdCommission || 0), 0);
+          const totalTaxesAndPF = activePayroll.reduce((sum, p) => sum + (p.deductions?.totalDeductions || 0), 0);
+          const disbursedCount = activePayroll.filter(p => p.status === 'Disbursed').length;
+
+          const filteredPayroll = activePayroll.filter(p => {
+            const matchQ = (p.staffName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (p.staffId || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (p.department || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (p.id || '').toLowerCase().includes(adminSearch.toLowerCase());
+            const matchRole = payrollRoleFilter === 'All' || p.staffRole?.toLowerCase().includes(payrollRoleFilter.toLowerCase()) || p.department?.toLowerCase().includes(payrollRoleFilter.toLowerCase());
+            const matchStatus = payrollStatusFilter === 'All' || p.status === payrollStatusFilter;
+            return matchQ && matchRole && matchStatus;
+          });
+
+          return (
+            <div className="module-content">
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h2>Hospital Staff Payroll & Salary Disbursement Console</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+                    Execute multi-tier hospital compensation, calculate doctor OPD revenue shares, shift differentials, attendance LOP, and process NEFT bank transfers.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select 
+                    value={payrollMonth}
+                    onChange={(e) => {
+                      setPayrollMonth(e.target.value);
+                      const recs = generateFullHospitalPayroll(e.target.value);
+                      setPayrollRecords(recs);
+                    }}
+                    style={{ padding: '9px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="September 2026">Period: September 2026</option>
+                    <option value="October 2026">Period: October 2026</option>
+                    <option value="August 2026">Period: August 2026</option>
+                    <option value="July 2026">Period: July 2026</option>
+                  </select>
+
+                  <button
+                    onClick={handleRunMonthlyPayroll}
+                    disabled={isProcessingPayroll}
+                    style={{ padding: '9px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {isProcessingPayroll ? '⚡ Computing...' : '⚡ Recalculate Payroll'}
+                  </button>
+
+                  <button
+                    onClick={handleBatchDisburseAll}
+                    style={{ padding: '9px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    💰 Batch Disburse All ({activePayroll.length - disbursedCount} Pending)
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Analytics Cards */}
+              <div className="stats-grid" style={{ marginBottom: '20px' }}>
+                <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                  <h3>Total Gross Payroll Budget</h3>
+                  <div className="stat-value">₹{totalGrossPayroll.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Base CTC + Clinical Allowances</div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                  <h3>Net Disbursable Salary</h3>
+                  <div className="stat-value" style={{ color: '#15803d' }}>₹{totalNetPayroll.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '12px', color: '#15803d', marginTop: '4px', fontWeight: '600' }}>
+                    {disbursedCount} / {activePayroll.length} Paychecks Disbursed
+                  </div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                  <h3>Doctor OPD Revenue Share</h3>
+                  <div className="stat-value">₹{totalOpdDoctorCommissions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>30% cut on completed consultations</div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                  <h3>Statutory Deductions & Taxes</h3>
+                  <div className="stat-value">₹{totalTaxesAndPF.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>EPF (12%), PT, TDS & Attendance LOP</div>
+                </div>
+              </div>
+
+              {/* Filter Row */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <input 
+                  type="text" 
+                  placeholder="Search by Staff Name, ID, Department..."
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                  style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '300px', outline: 'none' }}
+                />
+
+                <select 
+                  value={payrollRoleFilter}
+                  onChange={(e) => setPayrollRoleFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                >
+                  <option value="All">All Staff Roles</option>
+                  <option value="Doctor">Physicians & Surgeons</option>
+                  <option value="Receptionist">Front Desk Reception</option>
+                  <option value="Laboratory">Laboratory Pathologists</option>
+                  <option value="Pharmacist">Pharmacists</option>
+                  <option value="Cashier">Cash Counter & Billing</option>
+                </select>
+
+                <select 
+                  value={payrollStatusFilter}
+                  onChange={(e) => setPayrollStatusFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                >
+                  <option value="All">All Disbursal Statuses</option>
+                  <option value="Approved">Approved (Pending Transfer)</option>
+                  <option value="Disbursed">Disbursed (Direct Deposit NEFT)</option>
+                </select>
+              </div>
+
+              {/* Payroll Master Table */}
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Pay Slip ID</th>
+                    <th>Staff Details & Bank</th>
+                    <th>Base & Allowances</th>
+                    <th>Clinical Incentives / OPD Cut</th>
+                    <th>Deductions & LOP</th>
+                    <th>Net Disbursed Pay</th>
+                    <th>Transfer Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayroll.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>
+                        No payroll records found for this selection. Click "Recalculate Payroll" to generate salary sheets.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPayroll.map(p => (
+                      <tr key={p.id}>
+                        <td>
+                          <strong style={{ color: '#4338ca', fontSize: '13px' }}>{p.id}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>Period: {p.month}</div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '14px', color: '#1e293b' }}>{p.staffName}</strong>
+                          <div style={{ fontSize: '11.5px', color: '#64748b' }}>ID: <strong>{p.staffId}</strong> • {p.staffRole}</div>
+                          <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                            🏦 {p.bankName} (A/C: {p.accountNumber})
+                          </div>
+                        </td>
+                        <td>
+                          <div>Basic: <strong>₹{p.earnings.basicPay.toLocaleString('en-IN')}</strong></div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>HRA: ₹{p.earnings.hra.toLocaleString('en-IN')} | Med: ₹{p.earnings.medicalAllowance.toLocaleString('en-IN')}</div>
+                        </td>
+                        <td>
+                          {p.earnings.opdCommission > 0 ? (
+                            <div>
+                              <strong style={{ color: '#15803d' }}>+₹{p.earnings.opdCommission.toLocaleString('en-IN')}</strong>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{p.earnings.completedApptsCount} OPD Cases (30% cut)</div>
+                            </div>
+                          ) : p.earnings.labIncentive > 0 ? (
+                            <div>
+                              <strong style={{ color: '#6366f1' }}>+₹{p.earnings.labIncentive.toLocaleString('en-IN')}</strong>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{p.earnings.completedLabsCount} Tests Verified</div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>Standard Schedule</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ color: '#b91c1c', fontWeight: 'bold' }}>-₹{p.deductions.totalDeductions.toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            EPF: ₹{p.deductions.epf} | TDS: ₹{p.deductions.tds} {p.deductions.lossOfPay > 0 ? `| LOP: ₹${p.deductions.lossOfPay}` : ''}
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '15px', color: '#15803d' }}>
+                            ₹{p.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </strong>
+                        </td>
+                        <td>
+                          <span className="status-badge" style={{
+                            backgroundColor: p.status === 'Disbursed' ? '#dcfce7' : '#eff6ff',
+                            color: p.status === 'Disbursed' ? '#15803d' : '#1d4ed8',
+                            fontWeight: 'bold'
+                          }}>
+                            {p.status === 'Disbursed' ? '✓ Disbursed (NEFT)' : 'Approved'}
+                          </span>
+                          {p.status === 'Disbursed' && p.transactionRef && (
+                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{p.transactionRef}</div>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => setSelectedPaycheckForSlip(p)}
+                              style={{ padding: '5px 10px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              🖨️ Pay Slip
+                            </button>
+                            {p.status !== 'Disbursed' && (
+                              <button
+                                onClick={() => handleDisburseSalary(p.id)}
+                                style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700' }}
+                              >
+                                💸 Disburse
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        } else if (role === 'doctor') {
+          const activeDoc = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: 'doc_1', name: 'Doctor' };
+          const docPay = activePayroll.find(p => p.staffId === activeDoc.id || p.staffName === activeDoc.name) || calculateStaffPaycheck(activeDoc, 'Doctor', payrollMonth);
+
+          return (
+            <div className="module-content">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2>Physician Compensation & Monthly Salary Slip</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Review base retainer, live OPD consultation commissions, statutory deductions, and official pay slip.</p>
+                </div>
+                <button
+                  onClick={() => setSelectedPaycheckForSlip(docPay)}
+                  style={{ padding: '10px 18px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  🖨️ Download Official Pay Slip
+                </button>
+              </div>
+
+              {/* Doctor Summary Grid */}
+              <div className="stats-grid" style={{ marginBottom: '24px' }}>
+                <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                  <h3>Fixed Base Clinical Retainer</h3>
+                  <div className="stat-value">₹{docPay.earnings.basicPay.toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Monthly Grade Salary</div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                  <h3>OPD Consultation Commission (30%)</h3>
+                  <div className="stat-value" style={{ color: '#6d28d9' }}>₹{docPay.earnings.opdCommission.toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{docPay.earnings.completedApptsCount} Completed Consultations</div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                  <h3>Statutory Deductions (EPF/TDS)</h3>
+                  <div className="stat-value" style={{ color: '#b91c1c' }}>-₹{docPay.deductions.totalDeductions.toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Tax Withholding & Benefits</div>
+                </div>
+
+                <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                  <h3>Net Disbursed Take-Home</h3>
+                  <div className="stat-value" style={{ color: '#15803d' }}>₹{docPay.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '12px', color: '#15803d', marginTop: '4px', fontWeight: 'bold' }}>{docPay.status} via Direct NEFT</div>
+                </div>
+              </div>
+
+              {/* Itemized Ledger Table */}
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ margin: '0 0 16px 0', color: '#1e293b' }}>Monthly Compensation Breakdown ({docPay.month})</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                  <div>
+                    <h4 style={{ color: '#15803d', borderBottom: '2px solid #dcfce7', paddingBottom: '6px', margin: '0 0 12px 0' }}>Earnings (+)</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Basic Salary:</span><strong>₹{docPay.earnings.basicPay.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>House Rent Allowance (HRA 20%):</span><strong>₹{docPay.earnings.hra.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Medical & Risk Allowance:</span><strong>₹{docPay.earnings.medicalAllowance.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Special Clinical Allowance:</span><strong>₹{docPay.earnings.specialAllowance.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Emergency On-Call Duty:</span><strong>₹{docPay.earnings.onCallAllowance.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 'bold' }}><span>OPD Consultation Cut (30%):</span><strong>₹{docPay.earnings.opdCommission.toLocaleString('en-IN')}</strong></div>
+                      <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
+                        <span>Gross Earnings:</span><span>₹{docPay.earnings.totalGross.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 style={{ color: '#b91c1c', borderBottom: '2px solid #fee2e2', paddingBottom: '6px', margin: '0 0 12px 0' }}>Deductions (-)</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Provident Fund (EPF 12%):</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.epf.toLocaleString('en-IN')}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Professional Tax (PT):</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.professionalTax.toLocaleString('en-IN')}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Income Tax Withholding (TDS 10%):</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.tds.toLocaleString('en-IN')}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Hospital Group Health Insurance:</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.healthInsurance.toLocaleString('en-IN')}</span></div>
+                      {docPay.deductions.lossOfPay > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Loss of Pay (Unpaid Absences):</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.lossOfPay.toLocaleString('en-IN')}</span></div>
+                      )}
+                      <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
+                        <span>Total Deductions:</span><span style={{ color: '#b91c1c' }}>-₹{docPay.deductions.totalDeductions.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return null;
 
       case 'insurance_claims':
         const pendingClaimsCount = insuranceClaims.filter(c => c.status === 'Pending' || c.status === 'Under Review' || !c.status).length;
@@ -5196,6 +5574,271 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 style={{ padding: '8px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
               >
                 Close EHR File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official Hospital Salary Disbursement Slip (Paystub) Modal */}
+      {selectedPaycheckForSlip && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '780px', maxWidth: '95vw', maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            {/* Modal Action Header (Hidden on print) */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '700' }}>
+                📄 Official Hospital Salary Paystub — {selectedPaycheckForSlip.staffName}
+              </h3>
+              <button onClick={() => setSelectedPaycheckForSlip(null)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            {/* Printable Salary Slip Content */}
+            <div id="printable-salary-slip" style={{ padding: '32px 36px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+              {/* Hospital Official Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.02em' }}>
+                    DHMS CENTRAL MULTISPECIALTY HOSPITAL
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    100 Hospital Boulevard, Medical District • Ph: +91 (800) 123-4567
+                  </p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                    Healthcare Provider Reg No: HOSP-MED-2026-9921 • TAN: BLRH09214D
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', display: 'inline-block' }}>
+                    SALARY PAYSTUB
+                  </span>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', marginTop: '6px' }}>
+                    Period: {selectedPaycheckForSlip.month}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Slip No: <strong>{selectedPaycheckForSlip.id}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Employee & Bank Metadata Grid */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 18px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', fontSize: '12px' }}>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>STAFF FULL NAME</span>
+                  <strong style={{ color: '#1e293b', fontSize: '13px' }}>{selectedPaycheckForSlip.staffName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>EMPLOYEE ID & ROLE</span>
+                  <strong>{selectedPaycheckForSlip.staffId}</strong>
+                  <div style={{ color: '#475569', fontSize: '11px' }}>{selectedPaycheckForSlip.staffRole}</div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>DEPARTMENT / WING</span>
+                  <strong>{selectedPaycheckForSlip.department}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>PAN NUMBER</span>
+                  <strong>{selectedPaycheckForSlip.panNumber || 'AAAAA0000A'}</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>BANK NAME</span>
+                  <strong>{selectedPaycheckForSlip.bankName}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>ACCOUNT NUMBER</span>
+                  <strong>{selectedPaycheckForSlip.accountNumber}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>IFSC / ROUTING</span>
+                  <span>{selectedPaycheckForSlip.ifscCode}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '10.5px' }}>DISBURSAL DATE</span>
+                  <span>{selectedPaycheckForSlip.payDate}</span>
+                </div>
+              </div>
+
+              {/* Attendance Summary */}
+              {selectedPaycheckForSlip.attendance && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f1f5f9', padding: '8px 14px', borderRadius: '6px', fontSize: '11.5px', color: '#334155', marginBottom: '20px' }}>
+                  <span><strong>Total Days in Month:</strong> {selectedPaycheckForSlip.attendance.totalDays}</span>
+                  <span><strong>Days Worked:</strong> {selectedPaycheckForSlip.attendance.presentDays}</span>
+                  <span><strong>Approved Paid Leaves:</strong> {selectedPaycheckForSlip.attendance.paidLeaves}</span>
+                  <span>
+                    <strong>Loss of Pay (LOP Days):</strong>{' '}
+                    <span style={{ color: selectedPaycheckForSlip.attendance.unpaidAbsences > 0 ? '#b91c1c' : '#15803d', fontWeight: 'bold' }}>
+                      {selectedPaycheckForSlip.attendance.unpaidAbsences}
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              {/* Two-Column Side-by-Side Financial Table */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                {/* Earnings Table */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div style={{ background: '#f0fdf4', padding: '10px 14px', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13px', color: '#166534' }}>GROSS EARNINGS (+)</strong>
+                    <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold' }}>AMOUNT (₹)</span>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Basic Salary</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600' }}>₹{selectedPaycheckForSlip.earnings.basicPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>House Rent Allowance (HRA 20%)</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600' }}>₹{selectedPaycheckForSlip.earnings.hra.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Medical & Risk Allowance</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600' }}>₹{selectedPaycheckForSlip.earnings.medicalAllowance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Special Clinical Allowance</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600' }}>₹{selectedPaycheckForSlip.earnings.specialAllowance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      {selectedPaycheckForSlip.earnings.opdCommission > 0 && (
+                        <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f0fdf4' }}>
+                          <td style={{ padding: '8px 12px', color: '#15803d' }}>
+                            <strong>OPD Consultation Revenue Share (30%)</strong>
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>{selectedPaycheckForSlip.earnings.completedApptsCount} Patient Consultations</div>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: '#15803d' }}>
+                            +₹{selectedPaycheckForSlip.earnings.opdCommission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )}
+                      {selectedPaycheckForSlip.earnings.labIncentive > 0 && (
+                        <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f0fdf4' }}>
+                          <td style={{ padding: '8px 12px', color: '#15803d' }}>
+                            <strong>Diagnostic Lab Verification Bonus</strong>
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>{selectedPaycheckForSlip.earnings.completedLabsCount} Tests Processed</div>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: '#15803d' }}>
+                            +₹{selectedPaycheckForSlip.earnings.labIncentive.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )}
+                      {selectedPaycheckForSlip.earnings.onCallAllowance > 0 && (
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 12px' }}>Emergency On-Call Duty Stipend</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600' }}>₹{selectedPaycheckForSlip.earnings.onCallAllowance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1e293b' }}>TOTAL GROSS EARNINGS</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#15803d', fontSize: '13px' }}>
+                          ₹{selectedPaycheckForSlip.earnings.totalGross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Deductions Table */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div style={{ background: '#fef2f2', padding: '10px 14px', borderBottom: '1px solid #fecdd3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13px', color: '#991b1b' }}>STATUTORY DEDUCTIONS (-)</strong>
+                    <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 'bold' }}>AMOUNT (₹)</span>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Provident Fund (EPF 12%)</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600', color: '#b91c1c' }}>-₹{selectedPaycheckForSlip.deductions.epf.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Professional Tax (PT)</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600', color: '#b91c1c' }}>-₹{selectedPaycheckForSlip.deductions.professionalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Income Tax Withholding (TDS)</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600', color: '#b91c1c' }}>-₹{selectedPaycheckForSlip.deductions.tds.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 12px' }}>Hospital Group MediClaim Insurance</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '600', color: '#b91c1c' }}>-₹{selectedPaycheckForSlip.deductions.healthInsurance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      {selectedPaycheckForSlip.deductions.lossOfPay > 0 && (
+                        <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#fff1f2' }}>
+                          <td style={{ padding: '8px 12px', color: '#991b1b' }}>
+                            <strong>Loss of Pay (LOP Cut)</strong>
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>{selectedPaycheckForSlip.attendance?.unpaidAbsences} Unexcused Absences</div>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: '700', color: '#b91c1c' }}>
+                            -₹{selectedPaycheckForSlip.deductions.lossOfPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1e293b' }}>TOTAL DEDUCTIONS</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#b91c1c', fontSize: '13px' }}>
+                          -₹{selectedPaycheckForSlip.deductions.totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Net Salary Banner */}
+              <div style={{ background: '#f8fafc', border: '2px solid #cbd5e1', borderRadius: '10px', padding: '16px 20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    NET DISBURSED SALARY (TAKE-HOME)
+                  </span>
+                  <div style={{ fontSize: '13px', color: '#334155', fontStyle: 'italic', marginTop: '4px' }}>
+                    Amount in words: <strong>{selectedPaycheckForSlip.netSalaryInWords}</strong>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                    Mode: {selectedPaycheckForSlip.paymentMode} • Ref UTR: <strong>{selectedPaycheckForSlip.transactionRef}</strong>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: '#15803d' }}>
+                    ₹{selectedPaycheckForSlip.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                    {selectedPaycheckForSlip.status === 'Disbursed' ? '✓ Disbursed to Bank' : 'Approved for Disbursal'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Authorized Signatures & Seal */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '36px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                <div style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '320px' }}>
+                  <p style={{ margin: 0 }}>* This is an official system-generated hospital salary slip.</p>
+                  <p style={{ margin: '2px 0 0 0' }}>* Direct queries to Hospital Accounts & Finance Wing.</p>
+                </div>
+                <div style={{ textAlign: 'center', minWidth: '190px' }}>
+                  <div style={{ borderBottom: '1px solid #0f172a', width: '160px', margin: '0 auto 6px auto' }}></div>
+                  <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>Chief Financial Officer (CFO)</strong>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>DHMS Accounts & Payroll Division</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer (Hidden on print) */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button 
+                type="button" 
+                onClick={() => setSelectedPaycheckForSlip(null)} 
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => window.print()}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Official Pay Slip
               </button>
             </div>
           </div>
