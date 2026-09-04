@@ -2040,12 +2040,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               >
                 + Add Doctor
               </button>
-              <button 
-                onClick={() => setShowAdminBookingModal(true)}
-                style={{ padding: '8px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px' }}
-              >
-                + Book Appointment
-              </button>
             </div>
           </div>
 
@@ -2210,33 +2204,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 ))}
               </tbody>
             </table>
-
-            {/* Add Dept Modal */}
-            {showAddDeptModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <h3 style={{ margin: 0, color: '#1e293b' }}>Add New Department</h3>
-                  <form onSubmit={handleAddDepartment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department Name</label>
-                      <input type="text" required value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="e.g. Oncology" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Dept Code</label>
-                      <input type="text" required value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} placeholder="e.g. ONCO" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Head of Department</label>
-                      <input type="text" value={newDeptHead} onChange={(e) => setNewDeptHead(e.target.value)} placeholder="e.g. Dr. Robert House" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-                      <button type="button" onClick={() => setShowAddDeptModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                      <button type="submit" style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Department</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         );
 
@@ -2304,49 +2271,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 ))}
               </tbody>
             </table>
-
-            {/* Add Doctor Modal */}
-            {showAddDoctorModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <h3 style={{ margin: 0, color: '#1e293b' }}>Add New Doctor to Roster</h3>
-                  <form onSubmit={handleAddDoctor} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Doctor Full Name</label>
-                      <input type="text" required value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Dr. Alice Vance" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department</label>
-                      <select value={newDocDept} onChange={(e) => setNewDocDept(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
-                        {departmentsList.map(dept => (
-                          <option key={dept.id} value={dept.name}>{dept.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
-                      <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }}>
-                        <option value="Available">Available</option>
-                        <option value="On Leave">On Leave</option>
-                        <option value="In Surgery">In Surgery</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Email Address</label>
-                      <input type="email" value={newDocEmail} onChange={(e) => setNewDocEmail(e.target.value)} placeholder="alice@dhms.org" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Password</label>
-                      <input type="password" required value={newDocPassword} onChange={(e) => setNewDocPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-                      <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                      <button type="submit" style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Doctor</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         );
 
@@ -5369,6 +5293,85 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setShowAddMedModal(false)} style={{ padding: '8px 16px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                 <button type="submit" style={{ padding: '8px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Save to Inventory</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Department Modal */}
+      {showAddDeptModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ margin: 0, color: '#1e293b' }}>Add New Department</h3>
+            <form onSubmit={handleAddDepartment} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department Name</label>
+                <input type="text" required value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="e.g. Oncology" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Dept Code</label>
+                <input type="text" required value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} placeholder="e.g. ONCO" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Head of Department</label>
+                <input type="text" value={newDeptHead} onChange={(e) => setNewDeptHead(e.target.value)} placeholder="e.g. Dr. Robert House" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setShowAddDeptModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save Department</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Doctor Modal */}
+      {showAddDoctorModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '440px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>Add New Doctor to Roster</h3>
+              <button onClick={() => setShowAddDoctorModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+            <form onSubmit={handleAddDoctor} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Doctor Full Name</label>
+                <input type="text" required value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Dr. Alice Vance" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department</label>
+                <select value={newDocDept} onChange={(e) => setNewDocDept(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
+                  {departmentsList.map(dept => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
+                <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
+                  <option value="Available">Available</option>
+                  <option value="On Leave">On Leave</option>
+                  <option value="In Surgery">In Surgery</option>
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Email Address</label>
+                  <input type="email" value={newDocEmail} onChange={(e) => setNewDocEmail(e.target.value)} placeholder="alice@dhms.org" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Phone Number</label>
+                  <input type="text" value={newDocPhone} onChange={(e) => setNewDocPhone(e.target.value)} placeholder="+91 98765 43210" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Login Password</label>
+                <input type="password" required value={newDocPassword} onChange={(e) => setNewDocPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Save Doctor</button>
               </div>
             </form>
           </div>
