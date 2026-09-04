@@ -1924,7 +1924,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'cashier_staff', label: '💳 Cash Counter Staff' },
           { id: 'pharmacy', label: '📦 Pharmacy Stock & Meds' },
           { id: 'laboratory', label: '🧪 Diagnostic Lab Orders' },
-          { id: 'billing', label: '💰 Financials & Master Billing' },
           { id: 'payroll', label: '💼 Staff Payroll & Salaries' },
           { id: 'insurance_claims', label: '🛡️ Insurance & TPA Claims' },
           { id: 'attendance', label: '📋 Shift Attendance & Absentees' },
@@ -2045,7 +2044,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Total Hospital OPD: {appointments.length}</div>
             </div>
 
-            <div className="stat-card" style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }} onClick={() => setActiveView('billing')}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }} onClick={() => setActiveView('cashcounter')}>
               <h3>Collected Hospital Revenue</h3>
               <div className="stat-value">₹{totalRev.toFixed(2)}</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
@@ -2919,112 +2918,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 </table>
               </div>
             )}
-          </div>
-        );
-
-      case 'billing':
-        const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace(/[^0-9.]/g, '').trim()) || 0;
-        const paidRev = billingList.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
-        const unpaidRev = billingList.filter(inv => inv.status === 'Unpaid').reduce((sum, inv) => sum + cleanAmount(inv.amount), 0);
-
-        return (
-          <div className="module-content">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <h2>Hospital Financials & Master Billing</h2>
-                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Master billing ledger covering consultations, diagnostics, and pharmacy charges.</p>
-              </div>
-            </div>
-
-            <div className="stats-grid" style={{ marginBottom: '20px' }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                <h3>Collected Revenue</h3>
-                <div className="stat-value">₹{paidRev.toFixed(2)}</div>
-              </div>
-              <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-                <h3>Outstanding Unpaid</h3>
-                <div className="stat-value">₹{unpaidRev.toFixed(2)}</div>
-              </div>
-              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                <h3>Total Invoices</h3>
-                <div className="stat-value">{billingList.length}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <input 
-                type="text" 
-                placeholder="Search invoice by ID, patient or type..."
-                value={adminSearch}
-                onChange={(e) => setAdminSearch(e.target.value)}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '320px', outline: 'none' }}
-              />
-              <select 
-                value={adminStatusFilter}
-                onChange={(e) => setAdminStatusFilter(e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
-              >
-                <option value="All">All Invoices</option>
-                <option value="Paid">Paid</option>
-                <option value="Unpaid">Unpaid</option>
-              </select>
-            </div>
-
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Invoice ID</th>
-                  <th>Patient Details</th>
-                  <th>Billing Description</th>
-                  <th>Date</th>
-                  <th>Charge Amount</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {billingList
-                  .filter(inv => {
-                    const matchQ = inv.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                                   inv.id.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                                   inv.type.toLowerCase().includes(adminSearch.toLowerCase());
-                    const matchS = adminStatusFilter === 'All' || inv.status === adminStatusFilter;
-                    return matchQ && matchS;
-                  })
-                  .map(inv => (
-                    <tr key={inv.id}>
-                      <td><strong>{inv.id}</strong></td>
-                      <td>{inv.patientName}</td>
-                      <td>{inv.type}</td>
-                      <td>{inv.date}</td>
-                      <td><strong>{inv.amount}</strong></td>
-                      <td>
-                        <span className={`status-badge ${inv.status.toLowerCase()}`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {inv.status === 'Unpaid' && (
-                            <button
-                              onClick={() => handleAdminMarkPaid(inv.id)}
-                              style={{ padding: '4px 8px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
-                            >
-                              Collect Payment
-                            </button>
-                          )}
-                          <button
-                            onClick={() => alert(`Printing Invoice ${inv.id} Receipt...`)}
-                            style={{ padding: '4px 8px', border: '1px solid #cbd5e1', background: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#475569' }}
-                          >
-                            Print
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
           </div>
         );
 
