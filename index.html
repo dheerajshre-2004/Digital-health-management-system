@@ -14,7 +14,7 @@
     <title>DHMS - Digital Health Portal</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-      // Clear legacy service worker caches to ensure immediate UI updates
+      // Clear legacy service worker caches and local cache storage to force freshest release
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((registrations) => {
           for (const reg of registrations) {
@@ -33,6 +33,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.jsx?v=20260904_2"></script>
   </body>
 </html>
