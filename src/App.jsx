@@ -810,7 +810,7 @@ function App() {
 
           </form>
         ) : (
-          <form className="auth-form" onSubmit={handleRegisterSubmit}>
+          <form className="auth-form" onSubmit={handleRegisterSubmit} autoComplete="off">
             <div className="form-group">
               <label>Full Name</label>
               <div className="input-wrapper">
@@ -820,6 +820,7 @@ function App() {
                 </svg>
                 <input 
                   type="text" 
+                  autoComplete="off"
                   placeholder="Enter staff full name" 
                   required 
                   value={regFullName}
@@ -837,6 +838,8 @@ function App() {
                 </svg>
                 <input 
                   type="email" 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_email"
                   placeholder="Enter official email address" 
                   required 
                   value={regEmail}
@@ -854,7 +857,9 @@ function App() {
                 </svg>
                 <input 
                   type={showPassword ? "text" : "password"} 
-                  placeholder="Enter secure password" 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_pwd"
+                  placeholder="Create password" 
                   required 
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}

@@ -2035,7 +2035,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 + Register Staff
               </button>
               <button 
-                onClick={() => setShowAddDoctorModal(true)}
+                onClick={() => {
+                  setNewDocName('');
+                  setNewDocEmail('');
+                  setNewDocPhone('');
+                  setNewDocPassword('');
+                  setShowAddDoctorModal(true);
+                }}
                 style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px' }}
               >
                 + Add Doctor
@@ -2217,7 +2223,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               </div>
               {role === 'admin' && (
                 <button 
-                  onClick={() => setShowAddDoctorModal(true)}
+                  onClick={() => {
+                    setNewDocName('');
+                    setNewDocEmail('');
+                    setNewDocPhone('');
+                    setNewDocPassword('');
+                    setShowAddDoctorModal(true);
+                  }}
                   style={{ padding: '10px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
                 >
                   + Add New Doctor
@@ -5153,6 +5165,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   <input 
                     type="email" 
                     required 
+                    autoComplete="new-password"
+                    name="hospital_staff_email_new"
                     value={newStaffEmail} 
                     onChange={(e) => setNewStaffEmail(e.target.value)} 
                     placeholder="clara@dhms.org" 
@@ -5163,6 +5177,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Contact Phone</label>
                   <input 
                     type="text" 
+                    autoComplete="off"
                     value={newStaffPhone} 
                     onChange={(e) => setNewStaffPhone(e.target.value)} 
                     placeholder="+91 98765 43210" 
@@ -5176,6 +5191,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <input 
                   type="password" 
                   required 
+                  autoComplete="new-password"
+                  name="hospital_staff_pwd_new"
                   value={newStaffPassword} 
                   onChange={(e) => setNewStaffPassword(e.target.value)} 
                   placeholder="••••••••" 
@@ -5334,10 +5351,18 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>Add New Doctor to Roster</h3>
               <button onClick={() => setShowAddDoctorModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
             </div>
-            <form onSubmit={handleAddDoctor} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleAddDoctor} autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Doctor Full Name</label>
-                <input type="text" required value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Dr. Alice Vance" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                <input 
+                  type="text" 
+                  required 
+                  autoComplete="off"
+                  value={newDocName} 
+                  onChange={(e) => setNewDocName(e.target.value)} 
+                  placeholder="e.g. Dr. Alice Vance" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
               </div>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Department</label>
@@ -5358,16 +5383,40 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Email Address</label>
-                  <input type="email" value={newDocEmail} onChange={(e) => setNewDocEmail(e.target.value)} placeholder="alice@dhms.org" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                  <input 
+                    type="email" 
+                    autoComplete="new-password"
+                    name="hospital_doc_email"
+                    value={newDocEmail} 
+                    onChange={(e) => setNewDocEmail(e.target.value)} 
+                    placeholder="alice@dhms.org" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Phone Number</label>
-                  <input type="text" value={newDocPhone} onChange={(e) => setNewDocPhone(e.target.value)} placeholder="+91 98765 43210" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                  <input 
+                    type="text" 
+                    autoComplete="off"
+                    value={newDocPhone} 
+                    onChange={(e) => setNewDocPhone(e.target.value)} 
+                    placeholder="+91 98765 43210" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
                 </div>
               </div>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Login Password</label>
-                <input type="password" required value={newDocPassword} onChange={(e) => setNewDocPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} />
+                <input 
+                  type="password" 
+                  required 
+                  autoComplete="new-password"
+                  name="hospital_doc_pwd"
+                  value={newDocPassword} 
+                  onChange={(e) => setNewDocPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
