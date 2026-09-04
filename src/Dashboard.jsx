@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import CashCounterDashboard from './CashCounterDashboard';
+import { sendPatientWelcomeEmail } from './emailService';
 
 const DUMMY_DEPARTMENTS = [];
 
@@ -19,7 +20,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   // Admin Module States & Controls
   const [adminSearch, setAdminSearch] = useState('');
   const [adminStatusFilter, setAdminStatusFilter] = useState('All');
+  const [adminDeptFilter, setAdminDeptFilter] = useState('All');
+  const [adminDocFilter, setAdminDocFilter] = useState('All');
   const [adminPharmacySubTab, setAdminPharmacySubTab] = useState('medications');
+  const [adminClaimStatusFilter, setAdminClaimStatusFilter] = useState('All');
+  const [selectedPatientForAdminFile, setSelectedPatientForAdminFile] = useState(null);
 
   // Attendance Tracker States
   const [adminAttendanceDate, setAdminAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -172,31 +177,30 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return filtered;
   });
 
-  // Modals state for Admin
-  const [showAddDeptModal, setShowAddDeptModal] = useState(false);
-  const [newDeptName, setNewDeptName] = useState('');
-  const [newDeptHead, setNewDeptHead] = useState('');
-  const [newDeptCode, setNewDeptCode] = useState('');
-
-  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocDept, setNewDocDept] = useState('Primary Care');
-  const [newDocStatus, setNewDocStatus] = useState('Available');
-  const [newDocEmail, setNewDocEmail] = useState('');
-  const [newDocPhone, setNewDocPhone] = useState('');
-  const [newDocPassword, setNewDocPassword] = useState('');
-
-  const [showAdminBookingModal, setShowAdminBookingModal] = useState(false);
-  const [adminBookPatient, setAdminBookPatient] = useState('');
-  const [adminBookDoctor, setAdminBookDoctor] = useState(() => {
-    const saved = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
-    return saved.length > 0 ? saved[0].id : '';
+  // Insurance Claims State
+  const [insuranceClaims, setInsuranceClaims] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
   });
-  const [adminBookDept, setAdminBookDept] = useState('Primary Care');
-  const [adminBookDate, setAdminBookDate] = useState(new Date().toISOString().split('T')[0]);
-  const [adminBookTime, setAdminBookTime] = useState('Slot 1');
-  const [adminBookReason, setAdminBookReason] = useState('Routine Checkup');
-  const [adminBookType, setAdminBookType] = useState('Physical');
+
+  // Universal Staff Registration Modal for Admin
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [newStaffRole, setNewStaffRole] = useState('receptionist');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [newStaffDesignation, setNewStaffDesignation] = useState('');
+  const [newStaffDept, setNewStaffDept] = useState('Primary Care');
+
+  // New Medication Modal for Pharmacy Inventory
+  const [showAddMedModal, setShowAddMedModal] = useState(false);
+  const [newMedName, setNewMedName] = useState('');
+  const [newMedGeneric, setNewMedGeneric] = useState('');
+  const [newMedCategory, setNewMedCategory] = useState('Analgesics');
+  const [newMedStock, setNewMedStock] = useState(100);
+  const [newMedPrice, setNewMedPrice] = useState('25.00');
+  const [newMedThreshold, setNewMedThreshold] = useState(20);
+  const [newMedEmergency, setNewMedEmergency] = useState(false);
 
   // Billing state
   const [billingList, setBillingList] = useState(() => {
@@ -1180,11 +1184,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setDoctorsRoster(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
+      setReceptionistStaff(JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]'));
+      setLaboratoryStaff(JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]'));
+      setPharmacyStaff(JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]'));
+      setCashierStaff(JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]'));
       setDepartmentsList(JSON.parse(localStorage.getItem('dhms_departments') || '[]'));
+      setInsuranceClaims(JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]'));
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    const syncInterval = setInterval(handleStorageChange, 1200);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   const handleUpdateApptStatus = (apptId, newStatus) => {
@@ -1680,6 +1693,123 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
   };
 
+  const handleAddStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffEmail.trim() || !newStaffPassword.trim()) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    const emailClean = newStaffEmail.trim().toLowerCase();
+    const roleMap = {
+      receptionist: { storageKey: 'dhms_receptionist_staff', idPrefix: 'REC', defaultRole: 'Front Desk Receptionist' },
+      laboratory: { storageKey: 'dhms_laboratory_staff', idPrefix: 'LAB', defaultRole: 'Laboratory Pathologist' },
+      pharmacist: { storageKey: 'dhms_pharmacy_staff', idPrefix: 'PHR', defaultRole: 'Dispensing Pharmacist' },
+      cash_counter: { storageKey: 'dhms_cashier_staff', idPrefix: 'CSH', defaultRole: 'Billing Specialist' },
+      insurance_agent: { storageKey: 'dhms_insurance_staff', idPrefix: 'INS', defaultRole: 'TPA / Insurance Agent' }
+    };
+
+    const config = roleMap[newStaffRole] || roleMap.receptionist;
+    const currentList = JSON.parse(localStorage.getItem(config.storageKey) || '[]');
+    
+    if (currentList.some(s => s.email?.toLowerCase() === emailClean)) {
+      alert(`A staff member with email ${emailClean} is already registered.`);
+      return;
+    }
+
+    const newId = `${config.idPrefix}-${Math.floor(100 + Math.random() * 900)}`;
+    const newMember = {
+      id: newId,
+      name: newStaffName.trim(),
+      role: newStaffDesignation.trim() || config.defaultRole,
+      department: newStaffDept || config.defaultRole,
+      email: emailClean,
+      phone: newStaffPhone.trim() || '+91 98765 43210',
+      password: newStaffPassword,
+      status: 'Available'
+    };
+
+    const updated = [newMember, ...currentList];
+    localStorage.setItem(config.storageKey, JSON.stringify(updated));
+
+    if (newStaffRole === 'receptionist') setReceptionistStaff(updated);
+    if (newStaffRole === 'laboratory') setLaboratoryStaff(updated);
+    if (newStaffRole === 'pharmacist') setPharmacyStaff(updated);
+    if (newStaffRole === 'cash_counter') setCashierStaff(updated);
+
+    sendPatientWelcomeEmail({
+      patientName: newStaffName.trim(),
+      email: emailClean,
+      patientId: newId,
+      password: newStaffPassword,
+      phone: newStaffPhone.trim()
+    });
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    alert(`✓ Registered ${newStaffName.trim()} (${newId}) as ${config.defaultRole}! Credentials emailed.`);
+    setShowAddStaffModal(false);
+    setNewStaffName('');
+    setNewStaffEmail('');
+    setNewStaffPhone('');
+    setNewStaffPassword('');
+    setNewStaffDesignation('');
+  };
+
+  const handleAddMedication = (e) => {
+    e.preventDefault();
+    if (!newMedName.trim()) return;
+    const currentMeds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+    const newMed = {
+      id: `MED-${Math.floor(100 + Math.random() * 900)}`,
+      name: newMedName.trim(),
+      genericName: newMedGeneric.trim() || newMedName.trim(),
+      category: newMedCategory,
+      stock: parseInt(newMedStock) || 50,
+      price: parseFloat(newMedPrice) || 25.00,
+      lowStockThreshold: parseInt(newMedThreshold) || 20,
+      isEmergency: newMedEmergency
+    };
+    const updated = [newMed, ...currentMeds];
+    localStorage.setItem('dhms_medications', JSON.stringify(updated));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`✓ Added ${newMed.name} to pharmacy inventory.`);
+    setShowAddMedModal(false);
+    setNewMedName('');
+    setNewMedGeneric('');
+    setNewMedStock(100);
+    setNewMedPrice('25.00');
+  };
+
+  const handleRestockMedication = (medId, amount = 50) => {
+    const currentMeds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
+    const updated = currentMeds.map(m => {
+      if (m.id === medId) {
+        return { ...m, stock: (m.stock || 0) + amount };
+      }
+      return m;
+    });
+    localStorage.setItem('dhms_medications', JSON.stringify(updated));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`✓ Restocked medication +${amount} units.`);
+  };
+
+  const handleApproveInsuranceClaim = (claimId) => {
+    const claims = JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
+    const updated = claims.map(c => {
+      if (c.id === claimId) {
+        return { ...c, status: 'Approved', approvedAmount: c.claimAmount, settlementDate: new Date().toISOString().split('T')[0] };
+      }
+      return c;
+    });
+    localStorage.setItem('dhms_insurance_claims', JSON.stringify(updated));
+    setInsuranceClaims(updated);
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`✓ Insurance Claim ${claimId} approved by Hospital Administrator.`);
+  };
+
   const handleAdminCreateAppointment = (e) => {
     e.preventDefault();
     if (!adminBookPatient.trim()) return;
@@ -1722,23 +1852,29 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     switch (role) {
       case 'admin':
         return [
-          { id: 'overview', label: 'Operations Overview' },
-          { id: 'departments', label: 'Departments & Staff' },
-          { id: 'doctors', label: 'Doctors Roster' },
-          { id: 'receptionist_staff', label: 'Receptionist Staff' },
-          { id: 'laboratory_staff', label: 'Laboratory Staff' },
-          { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
-          { id: 'cashier_staff', label: 'Cash Counter Staff' },
-          { id: 'pharmacy', label: 'Pharmacy Stock' },
-          { id: 'attendance', label: 'Attendance & Absentees' },
-          { id: 'transfer_authority', label: 'Transfer Authority' }
+          { id: 'overview', label: '📊 Operations Overview' },
+          { id: 'patients', label: '👥 Master Patients & EHR' },
+          { id: 'appointments', label: '📅 Hospital Appointments & OPD' },
+          { id: 'inpatient_ward', label: '🏥 Inpatient (IPD) Beds & Wards' },
+          { id: 'departments', label: '🏢 Hospital Departments' },
+          { id: 'doctors', label: '🩺 Doctors & Medical Roster' },
+          { id: 'receptionist_staff', label: '🛎️ Receptionist Staff' },
+          { id: 'laboratory_staff', label: '🔬 Laboratory Staff' },
+          { id: 'pharmacy_staff', label: '💊 Pharmacy Staff' },
+          { id: 'cashier_staff', label: '💳 Cash Counter Staff' },
+          { id: 'pharmacy', label: '📦 Pharmacy Stock & Meds' },
+          { id: 'laboratory', label: '🧪 Diagnostic Lab Orders' },
+          { id: 'billing', label: '💰 Financials & Master Billing' },
+          { id: 'insurance_claims', label: '🛡️ Insurance & TPA Claims' },
+          { id: 'attendance', label: '📋 Shift Attendance & Absentees' },
+          { id: 'transfer_authority', label: '🔒 Transfer Admin Authority' }
         ];
       case 'doctor':
         return [
           { id: 'overview', label: 'My Dashboard' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
-          { id: 'inpatient_ward', label: ' Inpatient (IPD) Ward' },
+          { id: 'inpatient_ward', label: 'Inpatient (IPD) Ward' },
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
@@ -1771,6 +1907,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (role === 'admin') {
       const cleanAmount = (amtStr) => parseFloat((amtStr || '').replace(/[^0-9.]/g, '').trim()) || 0;
       const totalRev = billingList.filter(i => i.status === 'Paid').reduce((sum, i) => sum + cleanAmount(i.amount), 0);
+      const pendingRev = billingList.filter(i => i.status === 'Unpaid').reduce((sum, i) => sum + cleanAmount(i.amount), 0);
       const meds = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
       const lowStockCount = meds.filter(m => m.stock <= (m.lowStockThreshold || 15)).length;
 
@@ -1785,69 +1922,133 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       const labStaffPresent = countPresent('Laboratory');
       const pharmacistsPresent = countPresent('Pharmacist');
       const cashiersPresent = countPresent('Cashier');
+      const activeAdmissionsCount = admissions.filter(a => a.status === 'Admitted').length;
+      const todayApptsCount = appointments.filter(a => a.date === todayStr).length;
+      const pendingLabCount = labRequests.filter(l => l.status === 'Pending').length;
+      const totalClaimsCount = insuranceClaims.length;
 
       return (
         <>
-          <p style={{ color: '#475569', fontSize: '15px' }}>
-            Welcome <strong>Administrator</strong>. Executive Operations Console connecting hospital departments, doctors roster, pharmacy inventory, and shift attendance tracker.
-          </p>
-
-          <div style={{ marginTop: '16px', marginBottom: '20px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Staff Presence Summary (Today: {todayStr})
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Doctors</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>{doctorsPresent} Present</div>
-              </div>
-              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Receptionists</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#3b82f6' }}>{receptionistsPresent} Present</div>
-              </div>
-              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Lab Staff</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#6366f1' }}>{labStaffPresent} Present</div>
-              </div>
-              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Pharmacists</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981' }}>{pharmacistsPresent} Present</div>
-              </div>
-              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', marginTop: '2px' }}>Cashiers</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f59e0b' }}>{cashiersPresent} Present</div>
-              </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <p style={{ color: '#475569', fontSize: '15px', margin: 0 }}>
+                Welcome <strong>Administrator</strong>. Real-time central executive console coordinating clinical care, staff rosters, admissions, diagnostics, and financial settlements.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => setShowAddStaffModal(true)}
+                style={{ padding: '8px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                ➕ Register Staff
+              </button>
+              <button 
+                onClick={() => setShowAddDoctorModal(true)}
+                style={{ padding: '8px 14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🩺 Add Doctor
+              </button>
+              <button 
+                onClick={() => setShowAdminBookingModal(true)}
+                style={{ padding: '8px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                📅 Book Appointment
+              </button>
             </div>
           </div>
-          
-          <div className="stats-grid" style={{ marginTop: '20px' }}>
-            <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', cursor: 'pointer' }} onClick={() => setActiveView('departments')}>
-              <h3>Departments</h3>
-              <div className="stat-value">{departmentsList.length}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Active Hospital Wings</div>
+
+          {/* KPI Dashboard Grid */}
+          <div className="stats-grid" style={{ marginBottom: '20px' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', cursor: 'pointer' }} onClick={() => setActiveView('patients')}>
+              <h3>Total Registered Patients</h3>
+              <div className="stat-value">{patients.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Active Health Records (EHR)</div>
             </div>
 
             <div className="stat-card" style={{ borderLeft: '4px solid #10b981', cursor: 'pointer' }} onClick={() => setActiveView('doctors')}>
               <h3>Available Doctors</h3>
               <div className="stat-value">{doctorsRoster.filter(d => d.status === 'Available').length} / {doctorsRoster.length}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>On Active Duty</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Physicians on Active Duty</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }} onClick={() => setActiveView('inpatient_ward')}>
+              <h3>Inpatient (IPD) Admissions</h3>
+              <div className="stat-value">{activeAdmissionsCount} Beds</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Currently Hospitalized</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => setActiveView('appointments')}>
+              <h3>Today's Appointments</h3>
+              <div className="stat-value">{todayApptsCount} Appts</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Total Hospital OPD: {appointments.length}</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }} onClick={() => setActiveView('billing')}>
+              <h3>Collected Hospital Revenue</h3>
+              <div className="stat-value">₹{totalRev.toFixed(2)}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span style={{ color: pendingRev > 0 ? '#ef4444' : '#10b981', fontWeight: '600' }}>₹{pendingRev.toFixed(2)} Pending Clearance</span>
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #06b6d4', cursor: 'pointer' }} onClick={() => setActiveView('laboratory')}>
+              <h3>Diagnostic Lab Orders</h3>
+              <div className="stat-value">{labRequests.length}</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span style={{ color: pendingLabCount > 0 ? '#f59e0b' : '#10b981', fontWeight: '600' }}>{pendingLabCount} Pending Tests</span>
+              </div>
             </div>
 
             <div className="stat-card" style={{ borderLeft: '4px solid #ec4899', cursor: 'pointer' }} onClick={() => setActiveView('pharmacy')}>
-              <h3>Pharmacy & Stock</h3>
+              <h3>Pharmacy & Medication Stock</h3>
               <div className="stat-value">{meds.length} Meds</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                <span style={{ color: lowStockCount > 0 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{lowStockCount} Low Stock Items</span>
+                <span style={{ color: lowStockCount > 0 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{lowStockCount} Low Stock Alert(s)</span>
               </div>
             </div>
 
-            <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setActiveView('attendance')}>
-              <h3>Shift Attendance</h3>
-              <div className="stat-value">
-                {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]')).filter(a => a.date === adminAttendanceDate && a.status === 'Present').length} Present
+            <div className="stat-card" style={{ borderLeft: '4px solid #ea580c', cursor: 'pointer' }} onClick={() => setActiveView('insurance_claims')}>
+              <h3>Insurance & TPA Claims</h3>
+              <div className="stat-value">{totalClaimsCount} Claims</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                {insuranceClaims.filter(c => c.status === 'Approved' || c.status === 'Settled').length} Approved / Settled
               </div>
-              <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', fontWeight: 'bold' }}>
-                {(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]')).filter(a => a.date === adminAttendanceDate && (a.status === 'Absent' || a.status === 'On Leave')).length} Absent / On Leave
+            </div>
+          </div>
+
+          {/* Live Staff Presence Bar */}
+          <div style={{ marginTop: '8px', marginBottom: '24px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📋 Live Staff Presence & Shift Status (Date: {todayStr})
+              </h3>
+              <button 
+                onClick={() => setActiveView('attendance')} 
+                style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}
+              >
+                View Master Attendance & Absentees Log →
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', cursor: 'pointer' }} onClick={() => setActiveView('doctors')}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>Doctors</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981', marginTop: '2px' }}>{doctorsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', cursor: 'pointer' }} onClick={() => setActiveView('receptionist_staff')}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>Receptionists</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#3b82f6', marginTop: '2px' }}>{receptionistsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', cursor: 'pointer' }} onClick={() => setActiveView('laboratory_staff')}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>Lab Pathologists</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#6366f1', marginTop: '2px' }}>{labStaffPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', cursor: 'pointer' }} onClick={() => setActiveView('pharmacy_staff')}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>Pharmacists</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#10b981', marginTop: '2px' }}>{pharmacistsPresent} Present</div>
+              </div>
+              <div style={{ background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', cursor: 'pointer' }} onClick={() => setActiveView('cashier_staff')}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>Cashiers & Billing</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f59e0b', marginTop: '2px' }}>{cashiersPresent} Present</div>
               </div>
             </div>
           </div>
@@ -2065,6 +2266,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <h2>Receptionist Staff Roster</h2>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage front desk receptionist staff, active statuses, and assignments.</p>
               </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('receptionist');
+                    setNewStaffDept('Reception Desk');
+                    setNewStaffDesignation('Front Desk Receptionist');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Receptionist Staff
+                </button>
+              )}
             </div>
 
             <table className="data-table">
@@ -2123,6 +2337,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <h2>Laboratory Staff Roster</h2>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage pathologists, lab technicians, active duty statuses, and assignments.</p>
               </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('laboratory');
+                    setNewStaffDept('Diagnostic Pathology');
+                    setNewStaffDesignation('Laboratory Pathologist');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Lab Pathologist
+                </button>
+              )}
             </div>
 
             <table className="data-table">
@@ -2181,6 +2408,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <h2>Pharmacy Staff Roster</h2>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage pharmacists, stock handlers, active duty statuses, and assignments.</p>
               </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('pharmacist');
+                    setNewStaffDept('Central Pharmacy');
+                    setNewStaffDesignation('Dispensing Pharmacist');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Pharmacy Staff
+                </button>
+              )}
             </div>
 
             <table className="data-table">
@@ -2239,6 +2479,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <h2>Cash Counter Staff Roster</h2>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage cashiers, billing specialists, active duty statuses, and assignments.</p>
               </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('cash_counter');
+                    setNewStaffDept('Billing & Cash Counter');
+                    setNewStaffDesignation('Billing Specialist');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Cashier Staff
+                </button>
+              )}
             </div>
 
             <table className="data-table">
@@ -2498,6 +2751,14 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <h2>Pharmacy & Stock Control Center</h2>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor medication stock levels, prescription fulfillment, and pharmacy staff.</p>
               </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => setShowAddMedModal(true)}
+                  style={{ padding: '10px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Medication
+                </button>
+              )}
             </div>
 
              {/* Sub-tabs for Pharmacy Desk */}
@@ -2708,12 +2969,292 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       case 'cashcounter':
         return <CashCounterDashboard embedMode={true} adminMode={true} />;
 
+      case 'insurance_claims':
+        const pendingClaimsCount = insuranceClaims.filter(c => c.status === 'Pending' || c.status === 'Under Review' || !c.status).length;
+        const approvedClaimsCount = insuranceClaims.filter(c => c.status === 'Approved' || c.status === 'Settled').length;
+        const cleanClaimAmt = (val) => parseFloat((val || '').toString().replace(/[^0-9.]/g, '')) || 0;
+        const totalClaimValue = insuranceClaims.reduce((acc, c) => acc + cleanClaimAmt(c.claimAmount), 0);
+        const totalApprovedValue = insuranceClaims.filter(c => c.status === 'Approved' || c.status === 'Settled').reduce((acc, c) => acc + cleanClaimAmt(c.approvedAmount || c.claimAmount), 0);
+
+        const filteredClaims = insuranceClaims.filter(c => {
+          const matchQ = (c.patientName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                         (c.id || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                         (c.policyNumber || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                         (c.provider || '').toLowerCase().includes(adminSearch.toLowerCase());
+          const matchS = adminClaimStatusFilter === 'All' || c.status === adminClaimStatusFilter;
+          return matchQ && matchS;
+        });
+
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Insurance & TPA Claims Management</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Review, verify pre-authorizations, and authorize cashless insurance settlements.</p>
+              </div>
+            </div>
+
+            {/* Claims Overview Cards */}
+            <div className="stats-grid" style={{ marginBottom: '20px' }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                <h3>Total Claims Logged</h3>
+                <div className="stat-value">{insuranceClaims.length}</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Across all empanelled TPAs</div>
+              </div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                <h3>Under Review / Pending</h3>
+                <div className="stat-value">{pendingClaimsCount}</div>
+                <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px', fontWeight: '600' }}>Awaiting Administrative Approval</div>
+              </div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <h3>Settled & Approved</h3>
+                <div className="stat-value">₹{totalApprovedValue.toFixed(2)}</div>
+                <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>{approvedClaimsCount} Claims Processed</div>
+              </div>
+              <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                <h3>Total Claim Volume</h3>
+                <div className="stat-value">₹{totalClaimValue.toFixed(2)}</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Gross Hospital Claims</div>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <input 
+                type="text" 
+                placeholder="Search by Patient, Claim ID, Policy No, or Provider..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '340px', outline: 'none' }}
+              />
+              <select 
+                value={adminClaimStatusFilter}
+                onChange={(e) => setAdminClaimStatusFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Approved">Approved</option>
+                <option value="Settled">Settled</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* Claims Table */}
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Claim ID</th>
+                  <th>Patient Details</th>
+                  <th>Insurance Provider & Policy</th>
+                  <th>Diagnosis / Service</th>
+                  <th>Claim Amount</th>
+                  <th>Approved Amount</th>
+                  <th>Status</th>
+                  <th>Administrative Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredClaims.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                      No insurance claims found matching the current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClaims.map(claim => (
+                    <tr key={claim.id}>
+                      <td><strong style={{ color: '#4338ca' }}>{claim.id}</strong></td>
+                      <td>
+                        <strong>{claim.patientName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>ID: {claim.patientId}</div>
+                      </td>
+                      <td>
+                        <strong>{claim.provider || 'Star Health TPA'}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>Policy: {claim.policyNumber || 'POL-8829-X'}</div>
+                      </td>
+                      <td>
+                        <div>{claim.diagnosis || claim.treatment || 'Inpatient Hospitalization'}</div>
+                        <span style={{ fontSize: '11px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>
+                          Pre-Auth: {claim.preAuthStatus || 'Verified'}
+                        </span>
+                      </td>
+                      <td><strong>₹{cleanClaimAmt(claim.claimAmount).toFixed(2)}</strong></td>
+                      <td>
+                        {claim.approvedAmount ? (
+                          <strong style={{ color: '#15803d' }}>₹{cleanClaimAmt(claim.approvedAmount).toFixed(2)}</strong>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>-</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="status-badge" style={{
+                          backgroundColor: claim.status === 'Approved' || claim.status === 'Settled' ? '#dcfce7' : claim.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                          color: claim.status === 'Approved' || claim.status === 'Settled' ? '#15803d' : claim.status === 'Rejected' ? '#b91c1c' : '#b45309'
+                        }}>
+                          {claim.status || 'Under Review'}
+                        </span>
+                      </td>
+                      <td>
+                        {claim.status !== 'Approved' && claim.status !== 'Settled' ? (
+                          <button
+                            onClick={() => handleApproveInsuranceClaim(claim.id)}
+                            style={{ padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+                          >
+                            ✓ Approve Claim
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 'bold' }}>
+                            ✓ Settled {claim.settlementDate || ''}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+
       case 'patients':
-        if (role === 'doctor') {
-          const filtered = patients.filter(p => 
-            `${p.firstName} ${p.lastName}`.toLowerCase().includes(patientSearch.toLowerCase()) || 
-            p.id.toLowerCase().includes(patientSearch.toLowerCase())
+        const filteredAllPatients = patients.filter(p => {
+          const nameMatch = `${p.firstName || ''} ${p.lastName || ''} ${p.name || ''}`.toLowerCase().includes(patientSearch.toLowerCase()) || 
+                            (p.id || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
+                            (p.email || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
+                            (p.phone || '').toLowerCase().includes(patientSearch.toLowerCase());
+          return nameMatch;
+        });
+
+        if (role === 'admin') {
+          return (
+            <div className="module-content">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2>Master Electronic Health Records (EHR) Directory</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Centrally oversee all registered patients, clinical history, vitals, and medical profiles.</p>
+                </div>
+              </div>
+
+              {/* Patient Directory Stats Bar */}
+              <div className="stats-grid" style={{ marginBottom: '20px' }}>
+                <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                  <h3>Total Patients Registered</h3>
+                  <div className="stat-value">{patients.length}</div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                  <h3>Active Clinical Profiles</h3>
+                  <div className="stat-value">{patients.filter(p => (p.clinicalHistory && p.clinicalHistory.length > 0) || p.bloodType).length}</div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                  <h3>Known Allergies / Alert</h3>
+                  <div className="stat-value">{patients.filter(p => p.allergies && p.allergies !== 'None' && p.allergies !== '').length}</div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                  <h3>Currently Hospitalized (IPD)</h3>
+                  <div className="stat-value">{admissions.filter(a => a.status === 'Admitted').length}</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Search patient by Name, ID, Phone, or Email..."
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                  style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '380px', fontSize: '14px', outline: 'none' }}
+                />
+              </div>
+
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Patient ID</th>
+                    <th>Patient Full Name</th>
+                    <th>Age / Gender / DOB</th>
+                    <th>Contact Details</th>
+                    <th>Blood Group</th>
+                    <th>Allergies & Conditions</th>
+                    <th>Clinical Record Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAllPatients.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No patient records found matching search.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAllPatients.map(p => {
+                      const displayName = p.firstName && p.lastName ? `${p.firstName} ${p.lastName}` : (p.name || 'Patient');
+                      const age = p.dob ? (new Date().getFullYear() - new Date(p.dob).getFullYear()) : (p.age || '-');
+                      const hasAllergy = p.allergies && p.allergies !== 'None' && p.allergies !== '';
+
+                      return (
+                        <tr key={p.id}>
+                          <td><strong style={{ color: '#4338ca' }}>{p.id}</strong></td>
+                          <td>
+                            <strong style={{ fontSize: '14px', color: '#1e293b' }}>{displayName}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>Joined: {p.registeredDate || 'Hospital Record'}</div>
+                          </td>
+                          <td>
+                            <div>{age !== '-' ? `${age} yrs` : 'Age N/A'}</div>
+                            <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>{p.gender || 'Unknown'} ({p.dob || 'DOB N/A'})</span>
+                          </td>
+                          <td>
+                            <div>{p.phone || '+91 98765 43210'}</div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>{p.email || 'N/A'}</div>
+                          </td>
+                          <td>
+                            <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>
+                              {p.bloodType || 'O+'}
+                            </span>
+                          </td>
+                          <td>
+                            {hasAllergy ? (
+                              <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: '600' }}>
+                                ⚠️ {p.allergies}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#64748b', fontSize: '12px' }}>No known allergies</span>
+                            )}
+                            {p.chronicConditions && p.chronicConditions !== 'None' && (
+                              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>• {p.chronicConditions}</div>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button 
+                                onClick={() => setSelectedPatientForAdminFile(p)}
+                                style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                📋 Open EHR File
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to remove ${displayName}'s record?`)) {
+                                    const updated = patients.filter(pt => pt.id !== p.id);
+                                    setPatients(updated);
+                                    localStorage.setItem('dhms_patients', JSON.stringify(updated));
+                                    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+                                  }
+                                }}
+                                style={{ padding: '6px 10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           );
+        } else if (role === 'doctor') {
           return (
             <div className="module-content">
               <h2>EHR Patient Directory</h2>
@@ -2742,8 +3283,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(p => {
-                        const age = new Date().getFullYear() - new Date(p.dob).getFullYear();
+                      {filteredAllPatients.map(p => {
+                        const age = p.dob ? (new Date().getFullYear() - new Date(p.dob).getFullYear()) : (p.age || '-');
                         return (
                           <tr key={p.id} style={{ cursor: 'pointer', background: selectedEhrPatient?.id === p.id ? '#f1f5f9' : 'white' }} onClick={() => {
                             setSelectedEhrPatient(p);
@@ -2752,9 +3293,9 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                             setNewBloodType(p.bloodType || 'O+');
                           }}>
                             <td><strong>{p.id}</strong></td>
-                            <td>{p.firstName} {p.lastName}</td>
-                            <td>{age} yrs ({p.dob})</td>
-                            <td style={{ textTransform: 'capitalize' }}>{p.gender}</td>
+                            <td>{p.firstName && p.lastName ? `${p.firstName} ${p.lastName}` : (p.name || 'Patient')}</td>
+                            <td>{age} yrs ({p.dob || 'DOB N/A'})</td>
+                            <td style={{ textTransform: 'capitalize' }}>{p.gender || 'Unknown'}</td>
                             <td>
                               <button 
                                 className="rd-btn-small"
@@ -2810,80 +3351,232 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         return null;
 
       case 'appointments':
-        const docAppts = appointments.filter(a => {
-          return a.doctorId === activeDoctorId || 
-                 (activeDoctorId === 'dr_house' && (a.doctorId === 'dr_gregory_house' || a.doctorName?.includes('House'))) ||
-                 (activeDoctorId === 'dr_watson' && (a.doctorId === 'dr_john_watson' || a.doctorName?.includes('Watson'))) ||
-                 (activeDoctorId === 'dr_grey' && (a.doctorId === 'dr_meredith_grey' || a.doctorName?.includes('Grey')));
-        });
-        return (
-          <div className="module-content">
-            <h2>Appointments Management</h2>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Appt ID</th>
-                  <th>Patient Name</th>
-                  <th>Date & Time</th>
-                  <th>Reason</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docAppts.map(appt => (
-                  <tr key={appt.id}>
-                    <td><strong>{appt.id}</strong></td>
-                    <td>{appt.patientName}</td>
-                    <td>{appt.date} ({appt.time})</td>
-                    <td>{appt.reason}</td>
-                    <td><span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{appt.type}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span className="status-badge" style={{
-                          backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
-                          color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
-                        }}>
-                          {appt.status}
-                        </span>
-                        {appt.paymentStatus === 'Paid' && (
-                          <span style={{ fontSize: '10px', color: '#15803d', fontWeight: '700', background: '#dcfce7', padding: '2px 4px', borderRadius: '4px', textAlign: 'center' }}>
-                            ✓ Fee Paid
+        if (role === 'admin') {
+          const filteredAdminAppts = appointments.filter(a => {
+            const matchQ = (a.patientName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (a.doctorName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (a.id || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                           (a.date || '').toLowerCase().includes(adminSearch.toLowerCase());
+            const matchStatus = adminStatusFilter === 'All' || a.status === adminStatusFilter;
+            const matchDoc = adminDocFilter === 'All' || a.doctorId === adminDocFilter || a.doctorName === adminDocFilter;
+            const matchDept = adminDeptFilter === 'All' || a.department === adminDeptFilter;
+            return matchQ && matchStatus && matchDoc && matchDept;
+          });
+
+          return (
+            <div className="module-content">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h2>Hospital Appointments & OPD Master Ledger</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Centrally coordinate OPD doctor queues, check-ins, consult modes, and schedules.</p>
+                </div>
+                <button 
+                  onClick={() => setShowAdminBookingModal(true)}
+                  style={{ padding: '10px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  📅 + Schedule Appointment
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <input 
+                  type="text" 
+                  placeholder="Search by ID, Patient, Doctor, Date..."
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                  style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '280px', outline: 'none' }}
+                />
+                <select 
+                  value={adminStatusFilter}
+                  onChange={(e) => setAdminStatusFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Upcoming">Upcoming</option>
+                  <option value="Checked In">Checked In</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+                <select 
+                  value={adminDocFilter}
+                  onChange={(e) => setAdminDocFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                >
+                  <option value="All">All Doctors</option>
+                  {doctorsRoster.map(doc => (
+                    <option key={doc.id} value={doc.id}>{doc.name}</option>
+                  ))}
+                </select>
+                <select 
+                  value={adminDeptFilter}
+                  onChange={(e) => setAdminDeptFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                >
+                  <option value="All">All Departments</option>
+                  {departmentsList.map(dept => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Appointments Table */}
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Appt ID</th>
+                    <th>Patient Name & ID</th>
+                    <th>Doctor & Department</th>
+                    <th>Date & Time</th>
+                    <th>Encounter Type</th>
+                    <th>Consultation Fee</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdminAppts.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No appointments found matching filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAdminAppts.map(appt => (
+                      <tr key={appt.id}>
+                        <td><strong style={{ color: '#4338ca' }}>{appt.id}</strong></td>
+                        <td>
+                          <strong>{appt.patientName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.patientId || 'PT-REG'}</div>
+                        </td>
+                        <td>
+                          <strong>{appt.doctorName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.department}</div>
+                        </td>
+                        <td>
+                          <strong>{appt.date}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.time}</div>
+                        </td>
+                        <td>
+                          <span style={{ background: appt.type === 'Telemedicine' ? '#eff6ff' : '#f1f5f9', color: appt.type === 'Telemedicine' ? '#1d4ed8' : '#334155', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                            {appt.type === 'Telemedicine' ? '🎥 Telemedicine' : '🏥 In-Person OPD'}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      {appt.status !== 'Completed' && (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          {appt.type === 'Telemedicine' ? (
-                            <button 
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 'bold' }}>{appt.consultationFee || '₹250.00'}</div>
+                          <span style={{ fontSize: '11px', color: appt.paymentStatus === 'Paid' || appt.feeStatus === 'Paid' ? '#15803d' : '#b45309', fontWeight: 'bold' }}>
+                            {appt.paymentStatus === 'Paid' || appt.feeStatus === 'Paid' ? '✓ Paid' : 'Pending Payment'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="status-badge" style={{
+                            backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
+                            color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
+                          }}>
+                            {appt.status}
+                          </span>
+                        </td>
+                        <td>
+                          {appt.status !== 'Completed' ? (
+                            <button
                               onClick={() => {
-                                setActiveCallAppt(appt);
-                                setIsVideoCallActive(true);
+                                const updated = appointments.map(a => a.id === appt.id ? { ...a, status: 'Completed' } : a);
+                                setAppointments(updated);
+                                localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+                                if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
                               }}
-                              style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '4px 8px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}
                             >
-                              🎥 Connect Call
+                              Mark Done
                             </button>
                           ) : (
-                            <button 
-                              onClick={() => handleOpenCheckupModal(appt)}
-                              style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
-                            >
-                              Start Checkup
-                            </button>
+                            <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold' }}>Completed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        } else {
+          const docAppts = appointments.filter(a => {
+            return a.doctorId === activeDoctorId || 
+                   (activeDoctorId === 'dr_house' && (a.doctorId === 'dr_gregory_house' || a.doctorName?.includes('House'))) ||
+                   (activeDoctorId === 'dr_watson' && (a.doctorId === 'dr_john_watson' || a.doctorName?.includes('Watson'))) ||
+                   (activeDoctorId === 'dr_grey' && (a.doctorId === 'dr_meredith_grey' || a.doctorName?.includes('Grey')));
+          });
+          return (
+            <div className="module-content">
+              <h2>Appointments Management</h2>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Appt ID</th>
+                    <th>Patient Name</th>
+                    <th>Date & Time</th>
+                    <th>Reason</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {docAppts.map(appt => (
+                    <tr key={appt.id}>
+                      <td><strong>{appt.id}</strong></td>
+                      <td>{appt.patientName}</td>
+                      <td>{appt.date} ({appt.time})</td>
+                      <td>{appt.reason}</td>
+                      <td><span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{appt.type}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span className="status-badge" style={{
+                            backgroundColor: appt.status === 'Completed' ? '#dcfce7' : appt.status === 'Checked In' ? '#eff6ff' : appt.status === 'In Progress' ? '#fef3c7' : '#f1f5f9',
+                            color: appt.status === 'Completed' ? '#15803d' : appt.status === 'Checked In' ? '#1d4ed8' : appt.status === 'In Progress' ? '#b45309' : '#475569'
+                          }}>
+                            {appt.status}
+                          </span>
+                          {appt.paymentStatus === 'Paid' && (
+                            <span style={{ fontSize: '10px', color: '#15803d', fontWeight: '700', background: '#dcfce7', padding: '2px 4px', borderRadius: '4px', textAlign: 'center' }}>
+                              ✓ Fee Paid
+                            </span>
                           )}
                         </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
+                      </td>
+                      <td>
+                        {appt.status !== 'Completed' && (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {appt.type === 'Telemedicine' ? (
+                              <button 
+                                onClick={() => {
+                                  setActiveCallAppt(appt);
+                                  setIsVideoCallActive(true);
+                                }}
+                                style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                🎥 Connect Call
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleOpenCheckupModal(appt)}
+                                style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}
+                              >
+                                Start Checkup
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
 
       case 'slot_management': {
         const docId = activeDoctorId ? activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_') : '';
@@ -4157,6 +4850,354 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Universal Staff Registration Modal for Admin */}
+      {showAddStaffModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '480px', maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>➕ Register New Hospital Staff Member</h3>
+              <button onClick={() => setShowAddStaffModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Staff Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={newStaffName} 
+                  onChange={(e) => setNewStaffName(e.target.value)} 
+                  placeholder="e.g. Clara Oswald" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Staff Role / Department</label>
+                  <select 
+                    value={newStaffRole} 
+                    onChange={(e) => {
+                      setNewStaffRole(e.target.value);
+                      if (e.target.value === 'receptionist') setNewStaffDept('Reception Desk');
+                      if (e.target.value === 'laboratory') setNewStaffDept('Diagnostic Pathology');
+                      if (e.target.value === 'pharmacist') setNewStaffDept('Central Pharmacy');
+                      if (e.target.value === 'cash_counter') setNewStaffDept('Billing & Cash Counter');
+                      if (e.target.value === 'insurance_agent') setNewStaffDept('Insurance / TPA Desk');
+                    }} 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}
+                  >
+                    <option value="receptionist">Receptionist</option>
+                    <option value="laboratory">Laboratory Pathologist</option>
+                    <option value="pharmacist">Pharmacist</option>
+                    <option value="cash_counter">Cash Counter / Billing</option>
+                    <option value="insurance_agent">Insurance Agent</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Assigned Wing / Dept</label>
+                  <input 
+                    type="text" 
+                    value={newStaffDept} 
+                    onChange={(e) => setNewStaffDept(e.target.value)} 
+                    placeholder="e.g. Outpatient Desk" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Specific Designation / Title</label>
+                <input 
+                  type="text" 
+                  value={newStaffDesignation} 
+                  onChange={(e) => setNewStaffDesignation(e.target.value)} 
+                  placeholder="e.g. Senior Shift Supervisor" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Official Email Address</label>
+                  <input 
+                    type="email" 
+                    required 
+                    value={newStaffEmail} 
+                    onChange={(e) => setNewStaffEmail(e.target.value)} 
+                    placeholder="clara@dhms.org" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Contact Phone</label>
+                  <input 
+                    type="text" 
+                    value={newStaffPhone} 
+                    onChange={(e) => setNewStaffPhone(e.target.value)} 
+                    placeholder="+91 98765 43210" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Login Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={newStaffPassword} 
+                  onChange={(e) => setNewStaffPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setShowAddStaffModal(false)} style={{ padding: '8px 16px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 18px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Register & Notify Staff</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Medication Modal */}
+      {showAddMedModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '460px', maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px', fontWeight: 'bold' }}>💊 Add Medication to Pharmacy Stock</h3>
+              <button onClick={() => setShowAddMedModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleAddMedication} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Brand / Commercial Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={newMedName} 
+                  onChange={(e) => setNewMedName(e.target.value)} 
+                  placeholder="e.g. Paracetamol 650mg" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Generic Chemical Formulation</label>
+                <input 
+                  type="text" 
+                  value={newMedGeneric} 
+                  onChange={(e) => setNewMedGeneric(e.target.value)} 
+                  placeholder="e.g. Acetaminophen" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Therapeutic Category</label>
+                  <select 
+                    value={newMedCategory} 
+                    onChange={(e) => setNewMedCategory(e.target.value)} 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}
+                  >
+                    <option value="Analgesics">Analgesics & Pain</option>
+                    <option value="Antibiotics">Antibiotics</option>
+                    <option value="Antihypertensives">Antihypertensives</option>
+                    <option value="Antidiabetics">Antidiabetics</option>
+                    <option value="Antipyretics">Antipyretics</option>
+                    <option value="Critical Care">Critical Care & ICU</option>
+                    <option value="Gastrointestinal">Gastrointestinal</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Initial Stock Units</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    required 
+                    value={newMedStock} 
+                    onChange={(e) => setNewMedStock(e.target.value)} 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Unit Price (₹)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0" 
+                    required 
+                    value={newMedPrice} 
+                    onChange={(e) => setNewMedPrice(e.target.value)} 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Low Stock Alert Below</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={newMedThreshold} 
+                    onChange={(e) => setNewMedThreshold(e.target.value)} 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <input 
+                  type="checkbox" 
+                  id="medEmergency" 
+                  checked={newMedEmergency} 
+                  onChange={(e) => setNewMedEmergency(e.target.checked)} 
+                />
+                <label htmlFor="medEmergency" style={{ fontSize: '13px', color: '#334155', fontWeight: '600' }}>Mark as Emergency / Critical Life-Saving Drug</label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                <button type="button" onClick={() => setShowAddMedModal(false)} style={{ padding: '8px 16px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Save to Inventory</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Patient EHR Detailed Medical File Viewer Modal */}
+      {selectedPatientForAdminFile && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '850px', maxWidth: '94vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b', fontWeight: '800' }}>
+                  🏥 Electronic Health Record (EHR) — {selectedPatientForAdminFile.firstName && selectedPatientForAdminFile.lastName ? `${selectedPatientForAdminFile.firstName} ${selectedPatientForAdminFile.lastName}` : (selectedPatientForAdminFile.name || 'Patient')}
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Patient ID: <strong>{selectedPatientForAdminFile.id}</strong> • Gender: {selectedPatientForAdminFile.gender || 'Unknown'} • DOB: {selectedPatientForAdminFile.dob || 'N/A'} • Blood Group: <strong>{selectedPatientForAdminFile.bloodType || 'O+'}</strong>
+                </span>
+              </div>
+              <button onClick={() => setSelectedPatientForAdminFile(null)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Vitals & Clinical Alerts Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                  <span style={{ fontSize: '11px', color: '#1e40af', fontWeight: '700', textTransform: 'uppercase' }}>Contact & Phone</span>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e3a8a', marginTop: '4px' }}>{selectedPatientForAdminFile.phone || '+91 98765 43210'}</div>
+                  <div style={{ fontSize: '11px', color: '#3b82f6' }}>{selectedPatientForAdminFile.email || 'No email registered'}</div>
+                </div>
+
+                <div style={{ background: selectedPatientForAdminFile.allergies && selectedPatientForAdminFile.allergies !== 'None' ? '#fef2f2' : '#f0fdf4', padding: '12px 16px', borderRadius: '8px', border: selectedPatientForAdminFile.allergies && selectedPatientForAdminFile.allergies !== 'None' ? '1px solid #fecdd3' : '1px solid #bbf7d0' }}>
+                  <span style={{ fontSize: '11px', color: selectedPatientForAdminFile.allergies && selectedPatientForAdminFile.allergies !== 'None' ? '#991b1b' : '#166534', fontWeight: '700', textTransform: 'uppercase' }}>Known Allergies</span>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: selectedPatientForAdminFile.allergies && selectedPatientForAdminFile.allergies !== 'None' ? '#b91c1c' : '#15803d', marginTop: '4px' }}>
+                    {selectedPatientForAdminFile.allergies || 'None reported'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '11px', color: '#475569', fontWeight: '700', textTransform: 'uppercase' }}>Chronic Conditions</span>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '4px' }}>
+                    {selectedPatientForAdminFile.chronicConditions || 'None registered'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Consultation History */}
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', borderBottom: '2px solid #f1f5f9', paddingBottom: '6px' }}>
+                  🩺 Past Clinical Consultations & Vitals Log
+                </h4>
+                {(!selectedPatientForAdminFile.clinicalHistory || selectedPatientForAdminFile.clinicalHistory.length === 0) ? (
+                  <p style={{ color: '#64748b', fontSize: '13px', fontStyle: 'italic', margin: '4px 0' }}>No consultation logs on file yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {selectedPatientForAdminFile.clinicalHistory.map((hist, i) => (
+                      <div key={i} style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>
+                          <span>Date: <strong>{hist.date}</strong></span>
+                          <span>Attending Physician: <strong>{hist.doctor}</strong></span>
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', marginTop: '6px' }}>Diagnosis: {hist.diagnosis}</div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>Reason: {hist.reason}</div>
+                        {hist.vitals && (
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: '#334155', background: 'white', padding: '6px 10px', borderRadius: '4px', border: '1px solid #e2e8f0', marginTop: '6px' }}>
+                            <span>BP: <strong>{hist.vitals.bp}</strong></span>
+                            <span>Pulse: <strong>{hist.vitals.hr} bpm</strong></span>
+                            <span>Temp: <strong>{hist.vitals.temp} °F</strong></span>
+                            <span>SpO2: <strong>{hist.vitals.spo2}%</strong></span>
+                          </div>
+                        )}
+                        {hist.prescriptions && hist.prescriptions.length > 0 && (
+                          <div style={{ fontSize: '12px', color: '#0f172a', marginTop: '6px' }}>
+                            <strong>Prescriptions:</strong> {hist.prescriptions.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Related Hospital Admissions */}
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', borderBottom: '2px solid #f1f5f9', paddingBottom: '6px' }}>
+                  🏥 Inpatient (IPD) Admissions & Bed History
+                </h4>
+                {admissions.filter(a => a.patientId === selectedPatientForAdminFile.id || a.patientName === selectedPatientForAdminFile.name || a.patientName === `${selectedPatientForAdminFile.firstName} ${selectedPatientForAdminFile.lastName}`).length === 0 ? (
+                  <p style={{ color: '#64748b', fontSize: '13px', fontStyle: 'italic', margin: '4px 0' }}>No IPD hospitalizations recorded for this patient.</p>
+                ) : (
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Admission ID</th>
+                        <th>Ward & Bed</th>
+                        <th>Admitted Date</th>
+                        <th>Status</th>
+                        <th>Clinical Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {admissions.filter(a => a.patientId === selectedPatientForAdminFile.id || a.patientName === selectedPatientForAdminFile.name || a.patientName === `${selectedPatientForAdminFile.firstName} ${selectedPatientForAdminFile.lastName}`).map(adm => (
+                        <tr key={adm.id}>
+                          <td><strong>{adm.id}</strong></td>
+                          <td>{adm.ward || 'General Ward'} {adm.bedNo ? `(${adm.bedNo})` : ''}</td>
+                          <td>{adm.admissionDate || 'Today'}</td>
+                          <td>
+                            <span className="status-badge" style={{ backgroundColor: adm.status === 'Admitted' ? '#dcfce7' : '#fef3c7', color: adm.status === 'Admitted' ? '#15803d' : '#b45309' }}>
+                              {adm.status}
+                            </span>
+                          </td>
+                          <td>{adm.notes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setSelectedPatientForAdminFile(null)}
+                style={{ padding: '8px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
+              >
+                Close EHR File
+              </button>
+            </div>
           </div>
         </div>
       )}
