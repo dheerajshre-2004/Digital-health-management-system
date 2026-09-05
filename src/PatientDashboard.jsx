@@ -355,7 +355,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       return true;
     };
 
-    const checkIncomingCall = () => {
+    const checkIncomingCall = async () => {
       try {
         const activeCallStr = localStorage.getItem('dhms_active_tele_call');
         if (activeCallStr) {
@@ -364,6 +364,24 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             if (!isVideoCallActive) {
               setIncomingTeleCall(callData);
               playIncomingRingtone();
+              return;
+            }
+          }
+        }
+
+        if (supabase && supabase.from) {
+          const { data } = await supabase
+            .from('dhms_store')
+            .select('value')
+            .eq('key', 'dhms_active_tele_call')
+            .maybeSingle();
+          if (data && data.value) {
+            const callData = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            if (isCallForThisPatient(callData)) {
+              if (!isVideoCallActive) {
+                setIncomingTeleCall(callData);
+                playIncomingRingtone();
+              }
             }
           }
         }
@@ -383,7 +401,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       }
     });
 
-    const pollInterval = setInterval(checkIncomingCall, 1200);
+    const pollInterval = setInterval(checkIncomingCall, 1500);
 
     return () => {
       unsubscribe();
@@ -3462,7 +3480,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </div>
 
             {/* Local Feed */}
-            <div className="local-video-frame" style={{ position: 'relative', overflow: 'hidden' }}>
+            <div 
+              className="local-video-frame" 
+              style={{ 
+                position: 'absolute', 
+                top: '16px', 
+                right: '16px', 
+                width: '115px', 
+                height: '85px', 
+                background: '#1e293b',
+                borderRadius: '12px',
+                border: '2px solid #818cf8',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                overflow: 'hidden', 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 30
+              }}
+            >
               {isCamOn && localMediaStream ? (
                 <video 
                   ref={localVideoRef} 
@@ -3480,16 +3516,45 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </div>
 
             {/* In-Call Controls */}
-            <div className="video-controls-overlay">
+            <div 
+              className="video-controls-overlay"
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '10px 24px',
+                background: 'rgba(15, 23, 42, 0.95)',
+                backdropFilter: 'blur(12px)',
+                borderRadius: '40px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                margin: '0 auto',
+                zIndex: 40,
+                width: 'fit-content'
+              }}
+            >
               <button 
                 type="button" 
                 className={`video-btn ${isMicOn ? 'select' : 'danger'}`} 
                 onClick={() => setIsMicOn(!isMicOn)}
                 title={isMicOn ? "Mute Microphone" : "Unmute Microphone"}
-                style={{ cursor: 'pointer' }}
+                style={{ 
+                  width: '48px',
+                  height: '48px',
+                  minWidth: '48px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: isMicOn ? '#6366f1' : '#ef4444',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                }}
               >
                 {isMicOn ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 ) : (
                   <span style={{ fontSize: '15px', fontWeight: 'bold' }}>🎤❌</span>
                 )}
@@ -3500,37 +3565,69 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 className={`video-btn ${isCamOn ? 'select' : 'danger'}`} 
                 onClick={() => setIsCamOn(!isCamOn)}
                 title={isCamOn ? "Turn Camera Off" : "Turn Camera On"}
-                style={{ cursor: 'pointer' }}
+                style={{ 
+                  width: '48px',
+                  height: '48px',
+                  minWidth: '48px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: isCamOn ? '#6366f1' : '#ef4444',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                }}
               >
                 {isCamOn ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                 ) : (
                   <span style={{ fontSize: '15px', fontWeight: 'bold' }}>📹❌</span>
                 )}
               </button>
 
-              <button className="video-btn danger" onClick={() => {
-                if (localMediaStream) {
-                  localMediaStream.getTracks().forEach(t => t.stop());
-                }
-                setIsVideoCallActive(false);
-                teleSignaling.endCall(activeCallId);
-                const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-                const updated = saved.map(a => a.id === activeCallId ? { ...a, status: 'Completed' } : a);
-                localStorage.setItem('dhms_appointments', JSON.stringify(updated));
-                setTeleconsultations(prev => prev.map(t => t.id === activeCallId ? { ...t, status: 'Completed' } : t));
-                if (window.Swal) {
-                  window.Swal.fire({
-                    title: 'Consultation Ended',
-                    text: 'Consultation ended. You must schedule a new appointment to reconnect.',
-                    icon: 'info',
-                    confirmButtonColor: '#3b82f6'
-                  });
-                } else {
-                  alert("Consultation ended. You must schedule a new appointment to reconnect.");
-                }
-              }} title="End Call">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>
+              <button 
+                type="button"
+                className="video-btn danger" 
+                onClick={() => {
+                  if (localMediaStream) {
+                    localMediaStream.getTracks().forEach(t => t.stop());
+                  }
+                  setIsVideoCallActive(false);
+                  teleSignaling.endCall(activeCallId);
+                  const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+                  const updated = saved.map(a => a.id === activeCallId ? { ...a, status: 'Completed' } : a);
+                  localStorage.setItem('dhms_appointments', JSON.stringify(updated));
+                  setTeleconsultations(prev => prev.map(t => t.id === activeCallId ? { ...t, status: 'Completed' } : t));
+                  if (window.Swal) {
+                    window.Swal.fire({
+                      title: 'Consultation Ended',
+                      text: 'Consultation ended. You must schedule a new appointment to reconnect.',
+                      icon: 'info',
+                      confirmButtonColor: '#3b82f6'
+                    });
+                  } else {
+                    alert("Consultation ended. You must schedule a new appointment to reconnect.");
+                  }
+                }} 
+                title="End Call"
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  minWidth: '48px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>
               </button>
             </div>
           </div>
@@ -3538,7 +3635,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           {/* Call Chat sidebar */}
           <div className={`video-call-chat-sidebar ${teleMobileTab === 'video' ? 'pd-hide-mobile' : ''}`}>
             <div className="chat-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
-              <h3 style={{ margin: 0 }}>Consultation Chat</h3>
+              <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '15px' }}>Consultation Chat</h3>
               <span style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>LIVE</span>
             </div>
             <div className="chat-body-scroller">
@@ -3551,14 +3648,62 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 </div>
               ))}
             </div>
-            <form className="chat-input-row" onSubmit={handleSendChatMessage}>
+            <form 
+              className="chat-input-row" 
+              onSubmit={handleSendChatMessage}
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 14px',
+                background: '#0b132b',
+                borderTop: '1px solid #1e293b',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}
+            >
               <input 
                 type="text" 
                 placeholder={`Ask ${appointedDoctor} a question...`} 
                 value={newChatMessage} 
                 onChange={(e) => setNewChatMessage(e.target.value)} 
+                style={{
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  width: '100%',
+                  height: '46px',
+                  background: '#1e293b',
+                  color: '#ffffff',
+                  border: '1.5px solid #6366f1',
+                  borderRadius: '10px',
+                  padding: '0 14px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
               />
-              <button type="submit">Send</button>
+              <button 
+                type="submit"
+                style={{
+                  flex: '0 0 auto',
+                  width: 'auto',
+                  minWidth: '70px',
+                  height: '46px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '0 18px',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Send
+              </button>
             </form>
           </div>
         </div>
