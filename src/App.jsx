@@ -23,7 +23,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState('patient');
+  const [userRole, setUserRole] = useState('doctor');
   const [loggedInPatient, setLoggedInPatient] = useState(null);
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
   const [loggedInStaff, setLoggedInStaff] = useState(null);
@@ -613,87 +613,270 @@ function App() {
     <div className="auth-container">
       <div className="auth-header">
         <h1>Welcome to <span className="highlight">{isPatientPortal ? "DHMS Patient Portal" : "DHMS"}</span></h1>
-        <p>{isPatientPortal ? "Secure Patient Health Portal for Appointments, Prescriptions & Medical Records" : (isMobileOrPWA ? "Secure Patient Portal Access" : "Secure access portal for patients, doctors, and healthcare administrators")}</p>
+        <p>{isPatientPortal ? "Secure Patient Health Portal for Appointments, Prescriptions & Medical Records" : (isMobileOrPWA ? "Secure Staff Portal Access" : "Secure hospital management portal for doctors, healthcare staff, and administrators")}</p>
       </div>
 
       <div className="auth-card">
-        <form className="auth-form" onSubmit={handleAuthSubmit}>
-          <div className="form-group">
-            <label>{(isPatientPortal || userRole === 'patient') ? 'Patient ID, Email or Phone' : 'Email Address'}</label>
-            <div className="input-wrapper">
-              {(isPatientPortal || userRole === 'patient') ? (
+        {!isPatientPortal && !isMobileOrPWA && (
+          <div className="tabs-container">
+            <button 
+              className={`tab ${activeTab === 'signin' ? 'active' : ''}`}
+              onClick={() => {
+                clearAuthFields();
+                setActiveTab('signin');
+              }}
+            >
+              Sign In
+            </button>
+            <button 
+              className={`tab ${activeTab === 'register' ? 'active' : ''}`}
+              onClick={() => {
+                clearAuthFields();
+                if (userRole === 'patient') setUserRole('doctor');
+                setActiveTab('register');
+              }}
+            >
+              Staff Registration
+            </button>
+          </div>
+        )}
+
+        {registrationSuccessData ? (
+          <div style={{ textAlign: 'center', padding: '10px 0', animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', margin: '0 auto 16px auto' }}>
+              ✓
+            </div>
+            
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>Registration Successful!</h2>
+            
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', textAlign: 'left' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#1e40af' }}>
+                📧 <strong>Staff Credentials Dispatched:</strong> A welcome email containing your Staff ID and portal access credentials has been sent to <strong>{registrationSuccessData.email}</strong>.
+              </p>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '2px dashed #93c5fd', borderRadius: '10px', padding: '16px 20px', textAlign: 'left', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13.5px' }}>
+                <span style={{ color: '#64748b' }}>Staff ID / Identifier:</span>
+                <strong style={{ color: '#1e3a8a', fontSize: '16px' }}>{registrationSuccessData.id}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px' }}>
+                <span style={{ color: '#64748b' }}>Access Password:</span>
+                <strong style={{ color: '#15803d', fontSize: '16px', fontFamily: 'monospace' }}>{registrationSuccessData.password}</strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-submit"
+                onClick={() => {
+                  setSignInIdentifier(registrationSuccessData.email || registrationSuccessData.id);
+                  setSignInPassword(registrationSuccessData.password);
+                  setUserRole(registrationSuccessData.role || 'doctor');
+                  setRegistrationSuccessData(null);
+                  setActiveTab('signin');
+                }}
+              >
+                🚀 Auto-Fill & Proceed to Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  openDefaultMailClient({
+                    patientName: registrationSuccessData.name,
+                    email: registrationSuccessData.email,
+                    patientId: registrationSuccessData.id,
+                    password: registrationSuccessData.password
+                  });
+                }}
+                style={{
+                  padding: '10px 16px',
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  color: '#334155',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✉️ Open in Mail Client
+              </button>
+            </div>
+          </div>
+        ) : activeTab === 'signin' ? (
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            <div className="form-group">
+              <label>{(isPatientPortal || userRole === 'patient') ? 'Patient ID, Email or Phone' : 'Email Address / Staff ID'}</label>
+              <div className="input-wrapper">
+                {(isPatientPortal || userRole === 'patient') ? (
+                  <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                ) : (
+                  <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                )}
+                <input 
+                  type={(isPatientPortal || userRole === 'patient') ? "text" : "text"} 
+                  placeholder={(isPatientPortal || userRole === 'patient') ? "Enter Patient ID (e.g., PT-101) or Email" : "Enter registered email address or ID"} 
+                  required 
+                  value={signInIdentifier}
+                  onChange={(e) => setSignInIdentifier(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Password</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Enter password" 
+                  required 
+                  value={signInPassword}
+                  onChange={(e) => setSignInPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }} 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {(!isPatientPortal && !isMobileOrPWA) && (
+              <div className="form-group">
+                <label>Login As</label>
+                <div className="select-wrapper">
+                  <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                    <option value="" disabled hidden>Select a role</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="receptionist">Receptionist</option>
+                    <option value="laboratory">Laboratory</option>
+                    <option value="pharmacist">Pharmacist</option>
+                    <option value="cash_counter">Cash Counter</option>
+                    <option value="admin">Administrator</option>
+                    <option value="insurance_agent">Insurance Agent / TPA</option>
+                  </select>
+                  <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            <button type="submit" className="btn-submit">
+              {isPatientPortal ? "Sign In to Patient Portal" : "Secure Sign In"}
+            </button>
+          </form>
+        ) : (
+          <form className="auth-form" onSubmit={handleRegisterSubmit} autoComplete="off">
+            <div className="form-group">
+              <label>Full Name</label>
+              <div className="input-wrapper">
                 <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-              ) : (
+                <input 
+                  type="text" 
+                  autoComplete="off"
+                  placeholder="Enter staff full name" 
+                  required 
+                  value={regFullName}
+                  onChange={(e) => setRegFullName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Email Address</label>
+              <div className="input-wrapper">
                 <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                   <polyline points="22,6 12,13 2,6"></polyline>
                 </svg>
-              )}
-              <input 
-                type={(isPatientPortal || userRole === 'patient') ? "text" : "email"} 
-                placeholder={(isPatientPortal || userRole === 'patient') ? "Enter Patient ID (e.g., PT-101) or Email" : "Enter registered email address"} 
-                required 
-                value={signInIdentifier}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  if ((isPatientPortal || userRole === 'patient') && !val.includes('@')) {
-                    val = val.toUpperCase();
-                  }
-                  setSignInIdentifier(val);
-                }}
-              />
+                <input 
+                  type="email" 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_email"
+                  placeholder="Enter official email address" 
+                  required 
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          
-          <div className="form-group">
-            <label>Password</label>
-            <div className="input-wrapper">
-              <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="Enter password" 
-                required 
-                value={signInPassword}
-                onChange={(e) => setSignInPassword(e.target.value)}
-                style={{ paddingRight: '40px' }} 
-              />
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)} 
-                style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
-              >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {(!isPatientPortal && !isMobileOrPWA) && (
+            
             <div className="form-group">
-              <label>Login As </label>
+              <label>Password</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_pwd"
+                  placeholder="Create password" 
+                  required 
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }} 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Staff Role</label>
               <div className="select-wrapper">
                 <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
-                  <option value="" disabled hidden>Select a role</option>
-                  <option value="patient">Patient</option>
+                  <option value="" disabled hidden>Select staff role</option>
                   <option value="doctor">Doctor</option>
+                  <option value="receptionist">Receptionist</option>
                   <option value="laboratory">Laboratory</option>
                   <option value="pharmacist">Pharmacist</option>
-                  <option value="receptionist">Receptionist</option>
                   <option value="cash_counter">Cash Counter</option>
                   <option value="admin">Administrator</option>
                   <option value="insurance_agent">Insurance Agent / TPA</option>
@@ -703,12 +886,12 @@ function App() {
                 </svg>
               </div>
             </div>
-          )}
 
-          <button type="submit" className="btn-submit">
-            {isPatientPortal ? "Sign In to Patient Portal" : "Secure Sign In"}
-          </button>
-        </form>
+            <button type="submit" className="btn-submit">
+              Register Staff Account
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
