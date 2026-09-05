@@ -3,6 +3,7 @@ import './Dashboard.css';
 import CashCounterDashboard from './CashCounterDashboard';
 import { sendPatientWelcomeEmail } from './emailService';
 import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWords } from './payrollService';
+import { teleSignaling, cleanDoctorName } from './telemedicineService';
 
 const DUMMY_DEPARTMENTS = [
   { id: 1, name: 'Cardiology & Intensive Cardiac Care', code: 'CARD', head: 'Dr. Sarah Connor' },
@@ -572,7 +573,24 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [isDoctorMicOn, setIsDoctorMicOn] = useState(true);
   const [isDoctorCamOn, setIsDoctorCamOn] = useState(true);
   const [doctorMediaStream, setDoctorMediaStream] = useState(null);
+  const [doctorRemotePatientStream, setDoctorRemotePatientStream] = useState(null);
   const doctorVideoRef = React.useRef(null);
+  const doctorRemoteVideoRef = React.useRef(null);
+  const docPeerConnRef = React.useRef(null);
+
+  // Start Doctor Video Consultation & Signal Patient
+  const handleStartDoctorCall = (appt) => {
+    setActiveCallAppt(appt);
+    setIsVideoCallActive(true);
+    teleSignaling.initiateCall({
+      appointmentId: appt.id,
+      patientId: appt.patientId,
+      patientName: appt.patientName,
+      doctorId: activeDocObj.id,
+      doctorName: cleanDoctorName(activeDocObj.name),
+      department: activeDocObj.department
+    });
+  };
 
   // Request doctor camera stream when video call starts
   useEffect(() => {
@@ -611,6 +629,44 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       doctorMediaStream.getAudioTracks().forEach(track => { track.enabled = isDoctorMicOn; });
     }
   }, [isDoctorCamOn, isDoctorMicOn, doctorMediaStream]);
+
+  // Establish 2-Way WebRTC Live Stream with Patient
+  useEffect(() => {
+    if (role === 'doctor' && isVideoCallActive && activeCallAppt) {
+      if (docPeerConnRef.current) {
+        docPeerConnRef.current.cleanup();
+      }
+      docPeerConnRef.current = teleSignaling.createPeerConnection(
+        activeCallAppt.id,
+        doctorMediaStream,
+        (remoteStream) => {
+          setDoctorRemotePatientStream(remoteStream);
+          if (doctorRemoteVideoRef.current) {
+            doctorRemoteVideoRef.current.srcObject = remoteStream;
+          }
+        },
+        true // Doctor is initiator
+      );
+    } else {
+      if (docPeerConnRef.current) {
+        docPeerConnRef.current.cleanup();
+        docPeerConnRef.current = null;
+      }
+      setDoctorRemotePatientStream(null);
+    }
+    return () => {
+      if (docPeerConnRef.current) {
+        docPeerConnRef.current.cleanup();
+        docPeerConnRef.current = null;
+      }
+    };
+  }, [role, isVideoCallActive, activeCallAppt, doctorMediaStream]);
+
+  useEffect(() => {
+    if (doctorRemoteVideoRef.current && doctorRemotePatientStream) {
+      doctorRemoteVideoRef.current.srcObject = doctorRemotePatientStream;
+    }
+  }, [doctorRemotePatientStream]);
 
   useEffect(() => {
     if (role !== 'doctor' || !isVideoCallActive || !activeCallAppt) return;
@@ -1201,6 +1257,15 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   const handleEndCall = () => {
     if (!activeCallAppt) return;
+    teleSignaling.endCall(activeCallAppt.id);
+    if (docPeerConnRef.current) {
+      docPeerConnRef.current.cleanup();
+      docPeerConnRef.current = null;
+    }
+    if (doctorMediaStream) {
+      doctorMediaStream.getTracks().forEach(t => t.stop());
+      setDoctorMediaStream(null);
+    }
     const updated = appointments.map(appt => {
       if (appt.id === activeCallAppt.id) {
         return { ...appt, status: 'Completed' };
@@ -1211,6 +1276,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem('dhms_appointments', JSON.stringify(updated));
     setIsVideoCallActive(false);
     setActiveCallAppt(null);
+    setDoctorRemotePatientStream(null);
     if (window.Swal) {
       window.Swal.fire({
         title: 'Session Ended',
@@ -3866,10 +3932,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           <div style={{ display: 'flex', gap: '8px' }}>
                             {appt.type === 'Telemedicine' ? (
                               <button 
-                                onClick={() => {
-                                  setActiveCallAppt(appt);
-                                  setIsVideoCallActive(true);
-                                }}
+                                onClick={() => handleStartDoctorCall(appt)}
                                 style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
                               >
                                 🎥 Connect Call
@@ -4711,15 +4774,24 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           <div className="tele-video-column">
             <div className="tele-video-grid">
               {/* Remote Patient Video Feed */}
-              <div className="tele-video-frame remote">
-                <div className="tele-video-placeholder">
-                  <div className="tele-video-avatar">
-                    {currentPatientObj.firstName?.[0]}{currentPatientObj.lastName?.[0]}
+              <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden' }}>
+                {doctorRemotePatientStream ? (
+                  <video 
+                    ref={doctorRemoteVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
+                ) : (
+                  <div className="tele-video-placeholder">
+                    <div className="tele-video-avatar">
+                      {currentPatientObj.firstName?.[0]}{currentPatientObj.lastName?.[0]}
+                    </div>
+                    <h3>{activeCallAppt.patientName}</h3>
+                    <p>Patient Connection (Ready / Audio Active)</p>
+                    <div className="pulse-circle"></div>
                   </div>
-                  <h3>{activeCallAppt.patientName}</h3>
-                  <p>Patient Connection (Ready)</p>
-                  <div className="pulse-circle"></div>
-                </div>
+                )}
                 <div className="tele-video-label">Patient: {activeCallAppt.patientName}</div>
               </div>
 

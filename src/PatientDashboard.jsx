@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PatientDashboard.css';
+import { teleSignaling, playIncomingRingtone, stopIncomingRingtone, cleanDoctorName } from './telemedicineService';
 
 export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
@@ -331,7 +332,53 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [localMediaStream, setLocalMediaStream] = useState(null);
-  const localVideoRef = React.useRef(null);
+  const [patientRemoteStream, setPatientRemoteStream] = useState(null);
+  const [incomingTeleCall, setIncomingTeleCall] = useState(null);
+  const [teleMobileTab, setTeleMobileTab] = useState('video'); // 'video' | 'chat'
+  const localVideoRef = useRef(null);
+  const patientRemoteVideoRef = useRef(null);
+  const peerConnRef = useRef(null);
+
+  // Listen for real-time incoming doctor calls
+  useEffect(() => {
+    const checkIncomingCall = () => {
+      try {
+        const activeCallStr = localStorage.getItem('dhms_active_tele_call');
+        if (activeCallStr) {
+          const callData = JSON.parse(activeCallStr);
+          const currentPatId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+          if (callData.status === 'calling' && (callData.patientId === currentPatId || !callData.patientId) && (Date.now() - callData.timestamp < 120000)) {
+            if (!isVideoCallActive) {
+              setIncomingTeleCall(callData);
+              playIncomingRingtone();
+            }
+          }
+        }
+      } catch (err) {}
+    };
+
+    checkIncomingCall();
+    const unsubscribe = teleSignaling.subscribe((data) => {
+      const currentPatId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+      if (data.type === 'INCOMING_CALL' && (data.patientId === currentPatId || !data.patientId)) {
+        if (!isVideoCallActive) {
+          setIncomingTeleCall(data);
+          playIncomingRingtone();
+        }
+      } else if (data.type === 'CALL_ENDED' || data.type === 'CALL_DECLINED') {
+        setIncomingTeleCall(null);
+        stopIncomingRingtone();
+      }
+    });
+
+    const pollInterval = setInterval(checkIncomingCall, 1500);
+
+    return () => {
+      unsubscribe();
+      clearInterval(pollInterval);
+      stopIncomingRingtone();
+    };
+  }, [currentPatient?.id, loggedInPatient?.id, isVideoCallActive]);
 
   // Request actual camera/microphone stream when video call starts
   useEffect(() => {
@@ -371,6 +418,63 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }
   }, [isCamOn, isMicOn, localMediaStream]);
 
+  // Establish 2-way WebRTC streaming with Doctor
+  useEffect(() => {
+    if (isVideoCallActive && activeCallId) {
+      if (peerConnRef.current) {
+        peerConnRef.current.cleanup();
+      }
+      peerConnRef.current = teleSignaling.createPeerConnection(
+        activeCallId,
+        localMediaStream,
+        (remoteStream) => {
+          setPatientRemoteStream(remoteStream);
+          if (patientRemoteVideoRef.current) {
+            patientRemoteVideoRef.current.srcObject = remoteStream;
+          }
+        },
+        false
+      );
+    } else {
+      if (peerConnRef.current) {
+        peerConnRef.current.cleanup();
+        peerConnRef.current = null;
+      }
+      setPatientRemoteStream(null);
+    }
+    return () => {
+      if (peerConnRef.current) {
+        peerConnRef.current.cleanup();
+        peerConnRef.current = null;
+      }
+    };
+  }, [isVideoCallActive, activeCallId, localMediaStream]);
+
+  useEffect(() => {
+    if (patientRemoteVideoRef.current && patientRemoteStream) {
+      patientRemoteVideoRef.current.srcObject = patientRemoteStream;
+    }
+  }, [patientRemoteStream]);
+
+  const handleAcceptIncomingCall = () => {
+    if (!incomingTeleCall) return;
+    stopIncomingRingtone();
+    const callData = incomingTeleCall;
+    teleSignaling.acceptCall(callData);
+    setActiveCallId(callData.appointmentId);
+    setIsVideoCallActive(true);
+    setTeleMobileTab('video');
+    setActiveTab('telemedicine');
+    setIncomingTeleCall(null);
+  };
+
+  const handleDeclineIncomingCall = () => {
+    if (!incomingTeleCall) return;
+    stopIncomingRingtone();
+    teleSignaling.declineCall(incomingTeleCall);
+    setIncomingTeleCall(null);
+  };
+
   const handleSendChatMessage = (e) => {
     e.preventDefault();
     if (!newChatMessage.trim() || !activeCallId) return;
@@ -392,7 +496,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     const chatKey = `dhms_tele_chat_${activeCallId}`;
     if (!localStorage.getItem(chatKey)) {
       const activeAppt = JSON.parse(localStorage.getItem('dhms_appointments') || '[]').find(a => a.id === activeCallId);
-      const docName = activeAppt?.doctorName || "Doctor";
+      const docName = cleanDoctorName(activeAppt?.doctorName || "Doctor");
       const initialMsgs = [
         { sender: "doctor", text: `Hello! I am ${docName}. I am ready for our teleconsultation. How can I assist you today?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ];
@@ -3248,28 +3352,81 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const renderTelemedicineClinic = () => {
     if (isVideoCallActive) {
       const activeAppt = JSON.parse(localStorage.getItem('dhms_appointments') || '[]').find(a => a.id === activeCallId) || {};
-      const appointedDoctor = activeAppt.doctorName || "Dr. Gregory House";
+      const rawDoctorName = activeAppt.doctorName || "Dr. Gregory House";
+      const appointedDoctor = cleanDoctorName(rawDoctorName);
       const docDept = activeAppt.department || "Specialist Consultation";
       const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient (You)");
       const patInitials = currentPatient ? `${currentPatient.firstName?.[0] || ''}${currentPatient.lastName?.[0] || ''}` : "PT";
 
       return (
         <div className="pd-video-consult-room">
-          <div className="video-viewport-container">
+          {/* Mobile Tab Switcher */}
+          <div className="pd-mobile-tele-tabs" style={{ display: 'none', background: '#0b132b', padding: '8px', borderBottom: '1px solid #1e293b', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setTeleMobileTab('video')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: teleMobileTab === 'video' ? '#6366f1' : '#1e293b',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              📹 Video Call Feed
+            </button>
+            <button
+              type="button"
+              onClick={() => setTeleMobileTab('chat')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: teleMobileTab === 'chat' ? '#6366f1' : '#1e293b',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              💬 Chat ({callChatMessages.length})
+            </button>
+          </div>
+
+          {/* Video Viewport Container */}
+          <div className={`video-viewport-container ${teleMobileTab === 'chat' ? 'pd-hide-mobile' : ''}`}>
             {/* Remote Feed */}
             <div className="remote-video-frame">
-              <div className="doctor-avatar-screen">
-                <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <h3>{appointedDoctor}</h3>
-                <p>{docDept} • Online & Connected</p>
-                <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>
-                  Encrypted Tele-Link Active
+              {patientRemoteStream ? (
+                <video 
+                  ref={patientRemoteVideoRef} 
+                  autoPlay 
+                  playsInline 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+              ) : (
+                <div className="doctor-avatar-screen">
+                  <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                  <h3>{appointedDoctor}</h3>
+                  <p>{docDept} • Online & Connected</p>
+                  <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>
+                    Encrypted Tele-Link Active
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="video-label-tag">{appointedDoctor} • Live HD</div>
             </div>
 
@@ -3326,6 +3483,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   localMediaStream.getTracks().forEach(t => t.stop());
                 }
                 setIsVideoCallActive(false);
+                teleSignaling.endCall(activeCallId);
                 const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
                 const updated = saved.map(a => a.id === activeCallId ? { ...a, status: 'Completed' } : a);
                 localStorage.setItem('dhms_appointments', JSON.stringify(updated));
@@ -3347,7 +3505,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </div>
 
           {/* Call Chat sidebar */}
-          <div className="video-call-chat-sidebar">
+          <div className={`video-call-chat-sidebar ${teleMobileTab === 'video' ? 'pd-hide-mobile' : ''}`}>
             <div className="chat-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
               <h3 style={{ margin: 0 }}>Consultation Chat</h3>
               <span style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>LIVE</span>
@@ -5288,6 +5446,120 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Real-time Incoming Tele-Call Ringing Popup Modal */}
+      {incomingTeleCall && !isVideoCallActive && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 999999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)',
+            border: '2px solid #6366f1',
+            borderRadius: '24px',
+            padding: '32px 24px',
+            maxWidth: '420px',
+            width: '100%',
+            textAlign: 'center',
+            color: 'white',
+            boxShadow: '0 25px 50px -12px rgba(99, 102, 241, 0.5)'
+          }}>
+            <div style={{
+              width: '84px',
+              height: '84px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              margin: '0 auto 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '38px',
+              boxShadow: '0 0 30px rgba(99, 102, 241, 0.7)',
+              animation: 'bounce 1s infinite alternate'
+            }}>
+              🎥
+            </div>
+
+            <span style={{
+              background: '#10b981',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: '800',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              display: 'inline-block',
+              marginBottom: '12px'
+            }}>
+              Incoming Video Call
+            </span>
+
+            <h2 style={{ margin: '0 0 6px 0', fontSize: '22px', fontWeight: '800', color: '#ffffff' }}>
+              {cleanDoctorName(incomingTeleCall.doctorName)}
+            </h2>
+            <p style={{ margin: '0 0 4px 0', color: '#a5b4fc', fontSize: '14px', fontWeight: '600' }}>
+              {incomingTeleCall.department || 'Specialist Consultation'}
+            </p>
+            <p style={{ margin: '0 0 24px 0', color: '#94a3b8', fontSize: '12px' }}>
+              Appointment Ref: <strong>{incomingTeleCall.appointmentId}</strong>
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={handleDeclineIncomingCall}
+                style={{
+                  padding: '14px',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid #ef4444',
+                  color: '#f87171',
+                  borderRadius: '14px',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ✕ Decline
+              </button>
+              <button
+                type="button"
+                onClick={handleAcceptIncomingCall}
+                style={{
+                  padding: '14px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '14px',
+                  fontWeight: '800',
+                  fontSize: '14.5px',
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(16, 185, 129, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                🎥 Connect Call
+              </button>
+            </div>
           </div>
         </div>
       )}

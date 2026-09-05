@@ -338,6 +338,20 @@
   overflow: hidden;
 }
 
+@media (max-width: 900px) {
+  .tele-workspace-main {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .tele-video-column {
+    border-right: none;
+    border-bottom: 1px solid #1e293b;
+  }
+  .tele-video-grid {
+    min-height: 420px;
+  }
+}
+
 .tele-video-column {
   display: flex;
   flex-direction: column;

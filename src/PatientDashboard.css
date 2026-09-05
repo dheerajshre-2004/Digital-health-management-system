@@ -1418,12 +1418,17 @@
   background-color: #0f172a;
   border-radius: 16px;
   height: calc(100vh - 120px);
+  min-height: 520px;
   display: grid;
   grid-template-columns: 1fr 320px;
   overflow: hidden;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   border: 1px solid #1e293b;
   animation: fadeIn 0.2s ease-out;
+}
+
+.pd-mobile-tele-tabs {
+  display: none;
 }
 
 .video-viewport-container {
@@ -1433,6 +1438,46 @@
   position: relative;
   background-color: #020617;
   gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .pd-video-consult-room {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    min-height: calc(100vh - 110px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    border-radius: 12px;
+  }
+
+  .pd-mobile-tele-tabs {
+    display: flex !important;
+  }
+
+  .video-viewport-container {
+    height: calc(100vh - 160px) !important;
+    min-height: 480px !important;
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+
+  .local-video-frame {
+    top: 16px !important;
+    right: 16px !important;
+    width: 110px !important;
+    height: 85px !important;
+  }
+
+  .video-call-chat-sidebar {
+    height: calc(100vh - 160px) !important;
+    min-height: 480px !important;
+    border-left: none !important;
+    border-top: 1px solid #1e293b !important;
+  }
+
+  .pd-hide-mobile {
+    display: none !important;
+  }
 }
 
 .remote-video-frame {
