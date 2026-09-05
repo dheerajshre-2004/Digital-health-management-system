@@ -1481,8 +1481,10 @@
 }
 
 .remote-video-frame {
+  flex: 1;
+  min-height: 260px;
   background-color: #1e293b;
-  border-radius: 12px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1518,39 +1520,41 @@
   position: absolute;
   bottom: 12px;
   left: 12px;
-  background-color: rgba(15, 23, 42, 0.75);
+  background-color: rgba(15, 23, 42, 0.85);
   color: white;
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  z-index: 10;
 }
 
 .local-video-frame {
   position: absolute;
-  top: 36px;
-  right: 36px;
-  width: 140px;
-  height: 100px;
-  background-color: #334155;
-  border-radius: 8px;
-  border: 2px solid #766df5;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  top: 16px;
+  right: 16px;
+  width: 120px;
+  height: 90px;
+  background-color: #1e293b;
+  border-radius: 12px;
+  border: 2px solid #818cf8;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 25;
 }
 
 .patient-avatar-preview {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background-color: #a855f7;
   color: white;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1561,11 +1565,19 @@
   justify-content: center;
   align-items: center;
   gap: 16px;
+  padding: 10px 20px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(10px);
+  border-radius: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin: 0 auto;
+  z-index: 30;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .video-btn {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   border: none;
   background-color: #334155;
@@ -1574,19 +1586,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
 
 .video-btn:hover {
+  transform: scale(1.08);
   background-color: #475569;
 }
 
 .video-btn.select {
-  background-color: #766df5;
+  background-color: #6366f1;
 }
 
 .video-btn.select:hover {
-  background-color: #5c52e0;
+  background-color: #4f46e5;
 }
 
 .video-btn.danger {
@@ -1598,8 +1612,8 @@
 }
 
 .video-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 /* Call chat panel */
@@ -1675,40 +1689,58 @@
 }
 
 .chat-input-row {
-  padding: 12px 16px;
-  border-top: 1px solid #1e293b;
-  display: flex;
-  gap: 8px;
+  padding: 12px 16px !important;
+  border-top: 1px solid #1e293b !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 10px !important;
+  background: #0b132b !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
 }
 
 .chat-input-row input {
-  flex: 1;
-  background-color: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 10px 14px;
-  color: white;
-  font-size: 13px;
-  outline: none;
+  flex: 1 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 46px !important;
+  background-color: #1e293b !important;
+  border: 1.5px solid #6366f1 !important;
+  border-radius: 10px !important;
+  padding: 0 16px !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+
+.chat-input-row input::placeholder {
+  color: #94a3b8 !important;
 }
 
 .chat-input-row input:focus {
-  border-color: #766df5;
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
 }
 
 .chat-input-row button {
-  background-color: #766df5;
-  color: white;
-  border: none;
-  padding: 0 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
+  flex-shrink: 0 !important;
+  height: 46px !important;
+  padding: 0 22px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4) !important;
 }
 
 .chat-input-row button:hover {
-  background-color: #5c52e0;
+  background: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%) !important;
 }
 
 /* Pulse Animation */

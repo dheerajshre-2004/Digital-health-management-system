@@ -341,13 +341,26 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   // Listen for real-time incoming doctor calls
   useEffect(() => {
+    const isCallForThisPatient = (callData) => {
+      if (!callData || callData.status !== 'calling') return false;
+      if (Date.now() - (callData.timestamp || 0) > 180000) return false;
+      const currentPatId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+      const patFullName = `${currentPatient?.firstName || ''} ${currentPatient?.lastName || ''}`.toLowerCase().trim() || (loggedInPatient?.name || '').toLowerCase();
+      const callPatName = (callData.patientName || '').toLowerCase().trim();
+
+      if (!callData.patientId || callData.patientId === currentPatId) return true;
+      if (callPatName && patFullName && (callPatName.includes(patFullName) || patFullName.includes(callPatName))) return true;
+      const savedAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      if (savedAppts.some(a => a.id === callData.appointmentId && (a.patientId === currentPatId || a.patientName?.toLowerCase().includes(patFullName)))) return true;
+      return true;
+    };
+
     const checkIncomingCall = () => {
       try {
         const activeCallStr = localStorage.getItem('dhms_active_tele_call');
         if (activeCallStr) {
           const callData = JSON.parse(activeCallStr);
-          const currentPatId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
-          if (callData.status === 'calling' && (callData.patientId === currentPatId || !callData.patientId) && (Date.now() - callData.timestamp < 120000)) {
+          if (isCallForThisPatient(callData)) {
             if (!isVideoCallActive) {
               setIncomingTeleCall(callData);
               playIncomingRingtone();
@@ -359,8 +372,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     checkIncomingCall();
     const unsubscribe = teleSignaling.subscribe((data) => {
-      const currentPatId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
-      if (data.type === 'INCOMING_CALL' && (data.patientId === currentPatId || !data.patientId)) {
+      if (data.type === 'INCOMING_CALL' && isCallForThisPatient(data)) {
         if (!isVideoCallActive) {
           setIncomingTeleCall(data);
           playIncomingRingtone();
@@ -371,14 +383,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       }
     });
 
-    const pollInterval = setInterval(checkIncomingCall, 1500);
+    const pollInterval = setInterval(checkIncomingCall, 1200);
 
     return () => {
       unsubscribe();
       clearInterval(pollInterval);
       stopIncomingRingtone();
     };
-  }, [currentPatient?.id, loggedInPatient?.id, isVideoCallActive]);
+  }, [currentPatient?.id, currentPatient?.firstName, loggedInPatient?.name, isVideoCallActive]);
 
   // Request actual camera/microphone stream when video call starts
   useEffect(() => {
@@ -482,14 +494,33 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
     const patientMsg = {
       sender: "patient",
-      text: newChatMessage,
+      text: newChatMessage.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     const updated = [...currentMsgs, patientMsg];
     localStorage.setItem(chatKey, JSON.stringify(updated));
     setCallChatMessages(updated);
     setNewChatMessage('');
+    teleSignaling.broadcast({
+      type: 'CHAT_MESSAGE',
+      callId: activeCallId,
+      message: patientMsg
+    });
   };
+
+  useEffect(() => {
+    const unsub = teleSignaling.subscribe((data) => {
+      if (data.type === 'CHAT_MESSAGE' && data.callId === activeCallId && data.message) {
+        setCallChatMessages(prev => {
+          if (prev.some(m => m.time === data.message.time && m.text === data.message.text && m.sender === data.message.sender)) {
+            return prev;
+          }
+          return [...prev, data.message];
+        });
+      }
+    });
+    return unsub;
+  }, [activeCallId]);
 
   useEffect(() => {
     if (!isVideoCallActive) return;

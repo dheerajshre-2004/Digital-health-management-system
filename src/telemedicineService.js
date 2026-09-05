@@ -1,4 +1,5 @@
-// Comprehensive WebRTC and Telemedicine Service for DHMS
+// Comprehensive WebRTC and Telemedicine Service for DHMS with Supabase Realtime
+import { supabase } from './supabaseClient';
 
 let audioCtx = null;
 let ringtoneInterval = null;
@@ -25,7 +26,7 @@ export function playIncomingRingtone() {
         osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
         osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15); // A5
 
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
 
         osc.connect(gain);
@@ -68,8 +69,12 @@ export function cleanDoctorName(name) {
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ]
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
+  ],
+  iceCandidatePoolSize: 10
 };
 
 class TelemedicineSignaling {
@@ -79,6 +84,7 @@ class TelemedicineSignaling {
       : null;
     this.listeners = new Set();
     this.peerConnections = new Map();
+    this.supabaseChannel = null;
 
     if (this.channel) {
       this.channel.onmessage = (event) => {
@@ -96,9 +102,32 @@ class TelemedicineSignaling {
         }
       });
     }
+
+    this.initSupabaseChannel();
+  }
+
+  initSupabaseChannel() {
+    try {
+      if (supabase && supabase.channel) {
+        this.supabaseChannel = supabase.channel('dhms_tele_realtime_broadcast', {
+          config: { broadcast: { self: false } }
+        });
+
+        this.supabaseChannel
+          .on('broadcast', { event: 'tele_signal' }, ({ payload }) => {
+            this.notifyListeners(payload);
+          })
+          .subscribe((status) => {
+            console.log('[Telemedicine Supabase Channel status]:', status);
+          });
+      }
+    } catch (err) {
+      console.warn("Supabase Realtime Channel init error:", err);
+    }
   }
 
   notifyListeners(data) {
+    if (!data) return;
     this.listeners.forEach(fn => {
       try { fn(data); } catch (e) { console.error(e); }
     });
@@ -118,6 +147,17 @@ class TelemedicineSignaling {
       try {
         localStorage.setItem('dhms_tele_signal_event', JSON.stringify(payload));
       } catch (e) {}
+    }
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'tele_signal',
+          payload: payload
+        });
+      } catch (e) {
+        console.warn("Supabase broadcast send error:", e);
+      }
     }
   }
 
@@ -196,6 +236,7 @@ class TelemedicineSignaling {
 
     pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
+        console.log("[WebRTC] Received remote stream:", event.streams[0].id);
         onRemoteStream(event.streams[0]);
       }
     };
@@ -216,6 +257,7 @@ class TelemedicineSignaling {
 
       try {
         if (msg.type === 'OFFER' && !isInitiator) {
+          console.log("[WebRTC] Received OFFER, creating ANSWER...");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -226,6 +268,7 @@ class TelemedicineSignaling {
             isInitiator: false
           });
         } else if (msg.type === 'ANSWER' && isInitiator) {
+          console.log("[WebRTC] Received ANSWER, setting remote description...");
           if (pc.signalingState !== 'stable') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
           }
@@ -241,10 +284,15 @@ class TelemedicineSignaling {
 
     const unsubscribe = this.subscribe(handleSignal);
 
+    // If initiator (Doctor) or when call starts, create offer
     if (isInitiator) {
-      setTimeout(async () => {
+      const sendOffer = async () => {
         try {
-          const offer = await pc.createOffer();
+          console.log("[WebRTC] Initiator creating offer for call:", callId);
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          });
           await pc.setLocalDescription(offer);
           this.broadcast({
             type: 'OFFER',
@@ -255,7 +303,15 @@ class TelemedicineSignaling {
         } catch (e) {
           console.warn("Offer creation failed:", e);
         }
-      }, 400);
+      };
+
+      setTimeout(sendOffer, 500);
+      // Re-send offer after 2.5s if still disconnected
+      setTimeout(() => {
+        if (pc.connectionState !== 'connected' && pc.connectionState !== 'connecting') {
+          sendOffer();
+        }
+      }, 2500);
     }
 
     return {

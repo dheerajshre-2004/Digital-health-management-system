@@ -692,14 +692,33 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
     const docMsg = {
       sender: "doctor",
-      text: newCallMessage,
+      text: newCallMessage.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     const updated = [...currentMsgs, docMsg];
     localStorage.setItem(chatKey, JSON.stringify(updated));
     setCallChatMessages(updated);
     setNewCallMessage('');
+    teleSignaling.broadcast({
+      type: 'CHAT_MESSAGE',
+      callId: activeCallAppt.id,
+      message: docMsg
+    });
   };
+
+  useEffect(() => {
+    const unsub = teleSignaling.subscribe((data) => {
+      if (data.type === 'CHAT_MESSAGE' && data.callId === activeCallAppt?.id && data.message) {
+        setCallChatMessages(prev => {
+          if (prev.some(m => m.time === data.message.time && m.text === data.message.text && m.sender === data.message.sender)) {
+            return prev;
+          }
+          return [...prev, data.message];
+        });
+      }
+    });
+    return unsub;
+  }, [activeCallAppt?.id]);
 
   const renderClinicalForm = (isTele) => {
     // Standard lab test catalog
