@@ -2204,7 +2204,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       );
     } else if (role === 'doctor') {
       const activeDoctor = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { name: 'Doctor' };
-      const docAppts = appointments.filter(appt => appt.doctorId === activeDoctorId);
+      const activeDocNameNorm = (activeDoctor?.name || '').toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+      const activeDocIdNorm = (activeDoctorId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const docAppts = appointments.filter(a => {
+        if (!a) return false;
+        if (a.doctorId === activeDoctorId) return true;
+        const apptDocIdNorm = (a.doctorId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (apptDocIdNorm && (apptDocIdNorm === activeDocIdNorm || activeDocIdNorm.includes(apptDocIdNorm) || apptDocIdNorm.includes(activeDocIdNorm))) return true;
+        if (a.doctorName && activeDoctor?.name) {
+          const aDocName = a.doctorName.toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+          if (aDocName === activeDocNameNorm || aDocName.includes(activeDocNameNorm) || activeDocNameNorm.includes(aDocName)) return true;
+        }
+        return false;
+      });
       const uniquePatientsCount = new Set(docAppts.map(a => a.patientId)).size;
 
       return (
@@ -3796,11 +3809,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             </div>
           );
         } else {
+          const activeDocNameNorm = (activeDocObj?.name || '').toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+          const activeDocIdNorm = (activeDoctorId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
           const docAppts = appointments.filter(a => {
-            return a.doctorId === activeDoctorId || 
-                   (activeDoctorId === 'dr_house' && (a.doctorId === 'dr_gregory_house' || a.doctorName?.includes('House'))) ||
-                   (activeDoctorId === 'dr_watson' && (a.doctorId === 'dr_john_watson' || a.doctorName?.includes('Watson'))) ||
-                   (activeDoctorId === 'dr_grey' && (a.doctorId === 'dr_meredith_grey' || a.doctorName?.includes('Grey')));
+            if (!a) return false;
+            if (a.doctorId === activeDoctorId) return true;
+            const apptDocIdNorm = (a.doctorId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (apptDocIdNorm && (apptDocIdNorm === activeDocIdNorm || activeDocIdNorm.includes(apptDocIdNorm) || apptDocIdNorm.includes(activeDocIdNorm))) return true;
+            if (a.doctorName && activeDocObj?.name) {
+              const aDocName = a.doctorName.toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+              if (aDocName === activeDocNameNorm || aDocName.includes(activeDocNameNorm) || activeDocNameNorm.includes(aDocName)) return true;
+            }
+            return false;
           });
           return (
             <div className="module-content">
