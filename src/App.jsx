@@ -67,8 +67,8 @@ function App() {
     const roleParam = urlParams.get('role');
     const hashParam = window.location.hash.replace('#', '');
 
-    // Prefer tab-isolated session from sessionStorage
-    const savedSession = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+    // Check persistent session from localStorage first, then tab sessionStorage
+    const savedSession = localStorage.getItem('dhms_active_session') || sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
     
     if (savedSession) {
       try {
@@ -727,7 +727,13 @@ function App() {
                   placeholder={(isPatientPortal || userRole === 'patient') ? "Enter Patient ID (e.g., PT-101) or Email" : "Enter registered email address or ID"} 
                   required 
                   value={signInIdentifier}
-                  onChange={(e) => setSignInIdentifier(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if ((isPatientPortal || userRole === 'patient') && !val.includes('@')) {
+                      val = val.toUpperCase();
+                    }
+                    setSignInIdentifier(val);
+                  }}
                 />
               </div>
             </div>

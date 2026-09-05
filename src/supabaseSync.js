@@ -62,14 +62,14 @@ export function initSupabaseSync() {
     originalSetItem.apply(this, arguments);
 
     // If it's a DHMS-specific key, sync it with Supabase in the background
-    if (key.startsWith('dhms_') && key !== 'dhms_active_session') {
+    if (key.startsWith('dhms_') && key !== 'dhms_active_session' && key !== 'dhms_tab_session') {
       if (updateDebounceTimers[key]) {
         clearTimeout(updateDebounceTimers[key]);
       }
       updateDebounceTimers[key] = setTimeout(() => {
         pushToSupabase(key, value);
         delete updateDebounceTimers[key];
-      }, 500); // 500ms debounce
+      }, 100); // Fast 100ms debounce for instant Supabase sync
 
       // Dispatch storage event locally so other components in the same tab update immediately
       window.dispatchEvent(new Event('storage'));

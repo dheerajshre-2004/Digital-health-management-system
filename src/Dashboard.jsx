@@ -569,13 +569,55 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [callChatMessages, setCallChatMessages] = useState([]);
   const [newCallMessage, setNewCallMessage] = useState('');
   const [teleActiveTab, setTeleActiveTab] = useState('chat');
+  const [isDoctorMicOn, setIsDoctorMicOn] = useState(true);
+  const [isDoctorCamOn, setIsDoctorCamOn] = useState(true);
+  const [doctorMediaStream, setDoctorMediaStream] = useState(null);
+  const doctorVideoRef = React.useRef(null);
+
+  // Request doctor camera stream when video call starts
+  useEffect(() => {
+    if (role === 'doctor' && isVideoCallActive && isDoctorCamOn) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(stream => {
+            setDoctorMediaStream(stream);
+            if (doctorVideoRef.current) {
+              doctorVideoRef.current.srcObject = stream;
+            }
+          })
+          .catch(err => {
+            console.log("Doctor camera access not granted or unavailable:", err);
+          });
+      }
+    } else {
+      if (doctorMediaStream) {
+        doctorMediaStream.getTracks().forEach(track => track.stop());
+        setDoctorMediaStream(null);
+      }
+    }
+    return () => {
+      if (doctorMediaStream) {
+        doctorMediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [role, isVideoCallActive]);
+
+  useEffect(() => {
+    if (doctorVideoRef.current && doctorMediaStream) {
+      doctorVideoRef.current.srcObject = isDoctorCamOn ? doctorMediaStream : null;
+    }
+    if (doctorMediaStream) {
+      doctorMediaStream.getVideoTracks().forEach(track => { track.enabled = isDoctorCamOn; });
+      doctorMediaStream.getAudioTracks().forEach(track => { track.enabled = isDoctorMicOn; });
+    }
+  }, [isDoctorCamOn, isDoctorMicOn, doctorMediaStream]);
 
   useEffect(() => {
     if (role !== 'doctor' || !isVideoCallActive || !activeCallAppt) return;
     const chatKey = `dhms_tele_chat_${activeCallAppt.id}`;
     if (!localStorage.getItem(chatKey)) {
       const initialMsgs = [
-        { sender: "doctor", text: `Hello ${activeCallAppt.patientName}, how can I help you today?`, time: "01:50 PM" }
+        { sender: "doctor", text: `Hello ${activeCallAppt.patientName}, how can I help you today?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ];
       localStorage.setItem(chatKey, JSON.stringify(initialMsgs));
     }
@@ -4661,23 +4703,48 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               </div>
 
               {/* Local Doctor Video Feed */}
-              <div className="tele-video-frame local">
-                <div className="tele-video-placeholder">
-                  <div className="tele-video-avatar doctor">
-                    {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0]}
+              <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden' }}>
+                {isDoctorCamOn && doctorMediaStream ? (
+                  <video 
+                    ref={doctorVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
+                  />
+                ) : (
+                  <div className="tele-video-placeholder">
+                    <div className="tele-video-avatar doctor">
+                      {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}
+                    </div>
+                    <h3>You</h3>
+                    <p>{isDoctorCamOn ? 'Camera Connecting...' : 'Camera Off'}</p>
                   </div>
-                  <h3>You</h3>
-                  <p>Camera Streaming</p>
-                </div>
-                <div className="tele-video-label">Doctor (You)</div>
+                )}
+                <div className="tele-video-label">Doctor (You) {!isDoctorCamOn && '(Cam Off)'}</div>
               </div>
             </div>
 
             {/* Video Controls */}
             <div className="tele-video-controls">
-              <button className="tele-ctrl-btn active" title="Mute Microphone">🎤 Mic</button>
-              <button className="tele-ctrl-btn active" title="Stop Camera">📹 Cam</button>
-              <button className="tele-ctrl-btn" title="Share Screen">🖥️ Share</button>
+              <button 
+                type="button" 
+                className={`tele-ctrl-btn ${isDoctorMicOn ? 'active' : ''}`} 
+                onClick={() => setIsDoctorMicOn(!isDoctorMicOn)} 
+                title={isDoctorMicOn ? "Mute Microphone" : "Unmute Microphone"}
+                style={{ cursor: 'pointer', background: !isDoctorMicOn ? '#ef4444' : undefined, color: 'white' }}
+              >
+                {isDoctorMicOn ? "🎤 Mic On" : "🎤❌ Muted"}
+              </button>
+              <button 
+                type="button" 
+                className={`tele-ctrl-btn ${isDoctorCamOn ? 'active' : ''}`} 
+                onClick={() => setIsDoctorCamOn(!isDoctorCamOn)} 
+                title={isDoctorCamOn ? "Stop Camera" : "Turn On Camera"}
+                style={{ cursor: 'pointer', background: !isDoctorCamOn ? '#ef4444' : undefined, color: 'white' }}
+              >
+                {isDoctorCamOn ? "📹 Cam On" : "📹❌ Cam Off"}
+              </button>
               <button className="tele-ctrl-btn end-call" title="Disconnect Session" onClick={handleEndCall}>
                 📞 End Consultation
               </button>

@@ -327,12 +327,74 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [newTeleTime, setNewTeleTime] = useState('');
   const [newTeleReason, setNewTeleReason] = useState('');
 
+  // Telemedicine Media States & Chat
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isCamOn, setIsCamOn] = useState(true);
+  const [localMediaStream, setLocalMediaStream] = useState(null);
+  const localVideoRef = React.useRef(null);
+
+  // Request actual camera/microphone stream when video call starts
+  useEffect(() => {
+    if (isVideoCallActive && isCamOn) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(stream => {
+            setLocalMediaStream(stream);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = stream;
+            }
+          })
+          .catch(err => {
+            console.log("Webcam / Mic access not granted or not available:", err);
+          });
+      }
+    } else {
+      if (localMediaStream) {
+        localMediaStream.getTracks().forEach(track => track.stop());
+        setLocalMediaStream(null);
+      }
+    }
+    return () => {
+      if (localMediaStream) {
+        localMediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isVideoCallActive]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localMediaStream) {
+      localVideoRef.current.srcObject = isCamOn ? localMediaStream : null;
+    }
+    if (localMediaStream) {
+      localMediaStream.getVideoTracks().forEach(track => { track.enabled = isCamOn; });
+      localMediaStream.getAudioTracks().forEach(track => { track.enabled = isMicOn; });
+    }
+  }, [isCamOn, isMicOn, localMediaStream]);
+
+  const handleSendChatMessage = (e) => {
+    e.preventDefault();
+    if (!newChatMessage.trim() || !activeCallId) return;
+    const chatKey = `dhms_tele_chat_${activeCallId}`;
+    const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
+    const patientMsg = {
+      sender: "patient",
+      text: newChatMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    const updated = [...currentMsgs, patientMsg];
+    localStorage.setItem(chatKey, JSON.stringify(updated));
+    setCallChatMessages(updated);
+    setNewChatMessage('');
+  };
+
   useEffect(() => {
     if (!isVideoCallActive) return;
     const chatKey = `dhms_tele_chat_${activeCallId}`;
     if (!localStorage.getItem(chatKey)) {
+      const activeAppt = JSON.parse(localStorage.getItem('dhms_appointments') || '[]').find(a => a.id === activeCallId);
+      const docName = activeAppt?.doctorName || "Doctor";
       const initialMsgs = [
-        { sender: "doctor", text: "Hello John, I've reviewed your ECG and recent lab values. How have you been feeling since our last visit?", time: "01:50 PM" }
+        { sender: "doctor", text: `Hello! I am ${docName}. I am ready for our teleconsultation. How can I assist you today?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ];
       localStorage.setItem(chatKey, JSON.stringify(initialMsgs));
     }
@@ -343,6 +405,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       const savedAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
       const currentAppt = savedAppts.find(a => a.id === activeCallId);
       if (currentAppt && currentAppt.status === 'Completed') {
+        if (localMediaStream) {
+          localMediaStream.getTracks().forEach(t => t.stop());
+        }
         setIsVideoCallActive(false);
         setTeleconsultations(prev => prev.map(t => t.id === activeCallId ? { ...t, status: 'Completed' } : t));
         if (window.Swal) {
@@ -2125,50 +2190,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setShowOrderLabModal(false);
   };
 
-  const handleSendChatMessage = (e) => {
-    e.preventDefault();
-    if (!newChatMessage.trim()) return;
-
-    const chatKey = `dhms_tele_chat_${activeCallId}`;
-    const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
-
-    const patientMsg = { 
-      sender: "patient", 
-      text: newChatMessage, 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    };
-    
-    const updatedMsgs = [...currentMsgs, patientMsg];
-    localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
-    setCallChatMessages(updatedMsgs);
-    
-    const inputMsg = newChatMessage;
-    setNewChatMessage('');
-
-    setTimeout(() => {
-      let responseText = "Let me make sure we schedule a follow-up test for that.";
-      const query = inputMsg.toLowerCase();
-      if (query.includes("heart") || query.includes("chest") || query.includes("pain")) {
-        responseText = "Any chest discomfort is important. Keep taking the Lisinopril as scheduled, limit physical exertion today, and I'll schedule a cardiac clinic review.";
-      } else if (query.includes("cough") || query.includes("fever") || query.includes("cold")) {
-        responseText = "It sounds like it could be a mild virus. Make sure you hydrate well and monitor your temp. Let me write a prescription for standard symptomatic relief.";
-      } else if (query.includes("side effect") || query.includes("dizzy") || query.includes("medication")) {
-        responseText = "Dizziness can sometimes be a side effect of blood pressure regulation. Please monitor your daily BP readings closely and log them in your Health Console.";
-      } else if (query.includes("hello") || query.includes("hi")) {
-        responseText = "Good day, John. How can I assist you with your health logs today?";
-      }
-
-      const latestMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
-      const updatedWithReply = [...latestMsgs, {
-        sender: "doctor",
-        text: responseText,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }];
-      localStorage.setItem(chatKey, JSON.stringify(updatedWithReply));
-      setCallChatMessages(updatedWithReply);
-    }, 1200);
-  };
-
   const getAllPatientMedications = () => {
     const list = [];
     const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
@@ -3216,6 +3237,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const renderTelemedicineClinic = () => {
     if (isVideoCallActive) {
+      const activeAppt = JSON.parse(localStorage.getItem('dhms_appointments') || '[]').find(a => a.id === activeCallId) || {};
+      const appointedDoctor = activeAppt.doctorName || "Dr. Gregory House";
+      const docDept = activeAppt.department || "Specialist Consultation";
+      const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient (You)");
+      const patInitials = currentPatient ? `${currentPatient.firstName?.[0] || ''}${currentPatient.lastName?.[0] || ''}` : "PT";
+
       return (
         <div className="pd-video-consult-room">
           <div className="video-viewport-container">
@@ -3226,25 +3253,68 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <h3>Dr. Gregory House</h3>
-                <p>Cardiology Specialist (Consulting)</p>
+                <h3>{appointedDoctor}</h3>
+                <p>{docDept} • Online & Connected</p>
+                <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>
+                  Encrypted Tele-Link Active
+                </div>
               </div>
-              <div className="video-label-tag">Dr. Gregory House • HD Stream</div>
+              <div className="video-label-tag">{appointedDoctor} • Live HD</div>
             </div>
 
             {/* Local Feed */}
-            <div className="local-video-frame">
-              <div className="patient-avatar-preview">
-                <span>JD</span>
-              </div>
-              <div className="video-label-tag">John Doe (You)</div>
+            <div className="local-video-frame" style={{ position: 'relative', overflow: 'hidden' }}>
+              {isCamOn && localMediaStream ? (
+                <video 
+                  ref={localVideoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
+                />
+              ) : (
+                <div className="patient-avatar-preview">
+                  <span>{patInitials}</span>
+                </div>
+              )}
+              <div className="video-label-tag">{patName} {!isCamOn && '(Cam Off)'}</div>
             </div>
 
             {/* In-Call Controls */}
             <div className="video-controls-overlay">
-              <button className="video-btn select"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
-              <button className="video-btn select"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></button>
+              <button 
+                type="button" 
+                className={`video-btn ${isMicOn ? 'select' : 'danger'}`} 
+                onClick={() => setIsMicOn(!isMicOn)}
+                title={isMicOn ? "Mute Microphone" : "Unmute Microphone"}
+                style={{ cursor: 'pointer' }}
+              >
+                {isMicOn ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                ) : (
+                  <span style={{ fontSize: '15px', fontWeight: 'bold' }}>🎤❌</span>
+                )}
+              </button>
+
+              <button 
+                type="button" 
+                className={`video-btn ${isCamOn ? 'select' : 'danger'}`} 
+                onClick={() => setIsCamOn(!isCamOn)}
+                title={isCamOn ? "Turn Camera Off" : "Turn Camera On"}
+                style={{ cursor: 'pointer' }}
+              >
+                {isCamOn ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                ) : (
+                  <span style={{ fontSize: '15px', fontWeight: 'bold' }}>📹❌</span>
+                )}
+              </button>
+
               <button className="video-btn danger" onClick={() => {
+                if (localMediaStream) {
+                  localMediaStream.getTracks().forEach(t => t.stop());
+                }
                 setIsVideoCallActive(false);
                 const saved = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
                 const updated = saved.map(a => a.id === activeCallId ? { ...a, status: 'Completed' } : a);
@@ -3268,8 +3338,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
           {/* Call Chat sidebar */}
           <div className="video-call-chat-sidebar">
-            <div className="chat-header">
-              <h3>Consultation Chat</h3>
+            <div className="chat-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+              <h3 style={{ margin: 0 }}>Consultation Chat</h3>
+              <span style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>LIVE</span>
             </div>
             <div className="chat-body-scroller">
               {callChatMessages.map((msg, idx) => (
@@ -3284,7 +3355,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             <form className="chat-input-row" onSubmit={handleSendChatMessage}>
               <input 
                 type="text" 
-                placeholder="Ask Dr. House a question..." 
+                placeholder={`Ask ${appointedDoctor} a question...`} 
                 value={newChatMessage} 
                 onChange={(e) => setNewChatMessage(e.target.value)} 
               />
@@ -4984,22 +5055,37 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
       {/* Online Telemedicine Payment Gateway Modal */}
       {showTelePaymentModal && pendingTeleAppt && (
-        <div className="pd-modal-overlay" onClick={() => !isProcessingTelePay && setShowTelePaymentModal(false)} style={{ zIndex: 10000 }}>
-          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)', color: 'white', padding: '20px 24px', position: 'relative' }}>
+        <div className="pd-modal-overlay" onClick={() => !isProcessingTelePay && setShowTelePaymentModal(false)} style={{ zIndex: 10000, padding: '16px' }}>
+          <div 
+            className="pd-modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '520px', 
+              width: '100%',
+              maxHeight: '92vh',
+              borderRadius: '16px', 
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)', color: 'white', padding: '16px 20px', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
                     🔒 Secure Payment Gateway
                   </span>
-                  <h3 style={{ margin: '8px 0 0 0', fontSize: '18px', fontWeight: '700', color: 'white' }}>
+                  <h3 style={{ margin: '6px 0 0 0', fontSize: '17px', fontWeight: '700', color: 'white' }}>
                     Telemedicine Consultation Fee
                   </h3>
                 </div>
                 {!isProcessingTelePay && (
                   <button 
+                    type="button"
                     onClick={() => setShowTelePaymentModal(false)} 
-                    style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', opacity: 0.8 }}
+                    style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', opacity: 0.85, padding: '4px 8px' }}
                   >
                     &times;
                   </button>
@@ -5007,30 +5093,42 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               </div>
             </div>
 
-            <form onSubmit={handleCompleteTelePayment} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff' }}>
+            {/* Scrollable Form Body */}
+            <form 
+              onSubmit={handleCompleteTelePayment} 
+              style={{ 
+                padding: '18px 22px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '14px', 
+                background: '#ffffff',
+                overflowY: 'auto',
+                flex: 1
+              }}
+            >
               {/* Order Summary Box */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
                   <span style={{ color: '#64748b' }}>Consulting Doctor:</span>
                   <strong style={{ color: '#1e293b' }}>{pendingTeleAppt.doctorName}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
                   <span style={{ color: '#64748b' }}>Department:</span>
                   <span style={{ color: '#334155' }}>{pendingTeleAppt.department}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
                   <span style={{ color: '#64748b' }}>Slot Date & Time:</span>
                   <span style={{ color: '#334155' }}>{pendingTeleAppt.date} at {pendingTeleAppt.time}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontSize: '15px' }}>
-                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Total Payable Amount:</span>
-                  <strong style={{ color: '#7c3aed', fontSize: '17px' }}>₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)}</strong>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '4px', fontSize: '14.5px' }}>
+                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Total Payable:</span>
+                  <strong style={{ color: '#7c3aed', fontSize: '16.5px' }}>₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)}</strong>
                 </div>
               </div>
 
               {/* Payment Methods Selection */}
               <div>
-                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '8px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>
                   Select Payment Method
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -5044,7 +5142,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       type="button"
                       onClick={() => setTelePaymentMethod(method.id)}
                       style={{
-                        padding: '10px 8px',
+                        padding: '8px',
                         borderRadius: '8px',
                         border: telePaymentMethod === method.id ? '2px solid #7c3aed' : '1px solid #e2e8f0',
                         background: telePaymentMethod === method.id ? '#f5f3ff' : '#ffffff',
@@ -5055,7 +5153,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '3px'
                       }}
                     >
                       <span style={{ fontSize: '16px' }}>{method.icon}</span>
@@ -5067,22 +5165,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
               {/* UPI Tab */}
               {telePaymentMethod === 'UPI' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ width: '120px', height: '120px', margin: '0 auto 8px auto', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '32px' }}>📱</span>
-                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>SCAN UPI QR</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '64px', height: '64px', flexShrink: 0, background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '24px' }}>📱</span>
+                      <span style={{ fontSize: '8px', color: '#64748b', fontWeight: 'bold' }}>UPI QR</span>
                     </div>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Scan with GPay, PhonePe, Paytm, or enter UPI ID below</span>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block' }}>Instant UPI Verification</strong>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Scan with GPay, PhonePe, Paytm or enter UPI ID below:</span>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Virtual Payment Address (UPI ID)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Virtual Payment Address (UPI ID)</label>
                     <input
                       type="text"
                       placeholder="e.g. mobile@upi or username@okhdfcbank"
                       value={teleUpiId}
                       onChange={(e) => setTeleUpiId(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
                     />
                   </div>
                 </div>
@@ -5090,37 +5191,37 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
               {/* Card Tab */}
               {telePaymentMethod === 'Card' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Card Number</label>
+                    <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Card Number</label>
                     <input
                       type="text"
                       placeholder="4532 •••• •••• 8890"
                       value={teleCardNumber}
                       onChange={(e) => setTeleCardNumber(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
                     />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Expiry Date</label>
+                      <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Expiry Date</label>
                       <input
                         type="text"
                         placeholder="MM/YY"
                         value={teleCardExpiry}
                         onChange={(e) => setTeleCardExpiry(e.target.value)}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>CVV</label>
+                      <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>CVV</label>
                       <input
                         type="password"
                         placeholder="•••"
                         maxLength="4"
                         value={teleCardCvv}
                         onChange={(e) => setTeleCardCvv(e.target.value)}
-                        style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
                       />
                     </div>
                   </div>
@@ -5129,9 +5230,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
               {/* NetBanking Tab */}
               {telePaymentMethod === 'NetBanking' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Choose Bank</label>
-                  <select style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Select Bank</label>
+                  <select style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}>
                     <option>HDFC Bank</option>
                     <option>State Bank of India (SBI)</option>
                     <option>ICICI Bank</option>
@@ -5141,36 +5242,37 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 </div>
               )}
 
-              <div style={{ marginTop: '6px' }}>
+              {/* Submit / Confirm Button */}
+              <div style={{ marginTop: '4px' }}>
                 <button
                   type="submit"
                   disabled={isProcessingTelePay}
                   style={{
                     width: '100%',
-                    padding: '12px',
+                    padding: '11px',
                     background: isProcessingTelePay ? '#94a3b8' : '#7c3aed',
                     color: 'white',
                     border: 'none',
                     borderRadius: '10px',
                     fontWeight: '700',
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     cursor: isProcessingTelePay ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
                     transition: 'all 0.2s',
-                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)'
                   }}
                 >
                   {isProcessingTelePay ? (
                     <>
-                      <span className="rd-spinner" style={{ width: '16px', height: '16px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></span>
+                      <span className="rd-spinner" style={{ width: '15px', height: '15px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></span>
                       Processing Payment...
                     </>
                   ) : (
                     <>
-                      Pay ₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)} & Confirm Booking
+                      💳 Pay ₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)} & Confirm Booking
                     </>
                   )}
                 </button>
