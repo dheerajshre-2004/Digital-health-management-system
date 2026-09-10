@@ -4967,7 +4967,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           <div className="tele-video-column">
             <div className="tele-video-grid">
               {/* Remote Patient Video Feed */}
-              <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden' }}>
+              <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '240px' }}>
                 <video 
                   ref={(el) => {
                     doctorRemoteVideoRef.current = el;
@@ -4984,16 +4984,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     width: '100%', 
                     height: '100%', 
                     objectFit: 'cover',
-                    display: doctorRemotePatientStream ? 'block' : 'none'
+                    display: doctorRemotePatientStream ? 'block' : 'none',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0
                   }} 
                 />
                 {!doctorRemotePatientStream && (
                   <div className="tele-video-placeholder">
                     <div className="tele-video-avatar">
-                      {currentPatientObj.firstName?.[0]}{currentPatientObj.lastName?.[0]}
+                      {currentPatientObj.firstName?.[0] || 'P'}{currentPatientObj.lastName?.[0] || 'T'}
                     </div>
                     <h3>{activeCallAppt.patientName}</h3>
-                    <p>Patient Connection (Ready / Audio Active)</p>
+                    <p>Connecting Secure HD Video Link...</p>
                     <div className="pulse-circle"></div>
                   </div>
                 )}
@@ -5001,7 +5004,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               </div>
 
               {/* Local Doctor Video Feed */}
-              <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden' }}>
+              <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '240px' }}>
                 <video 
                   ref={(el) => {
                     doctorVideoRef.current = el;
@@ -5020,7 +5023,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     height: '100%', 
                     objectFit: 'cover', 
                     transform: 'scaleX(-1)',
-                    display: isDoctorCamOn && doctorMediaStream ? 'block' : 'none'
+                    display: isDoctorCamOn && doctorMediaStream ? 'block' : 'none',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0
                   }} 
                 />
                 {(!isDoctorCamOn || !doctorMediaStream) && (
@@ -5028,8 +5034,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     <div className="tele-video-avatar doctor">
                       {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}
                     </div>
-                    <h3>You</h3>
-                    <p>{isDoctorCamOn ? 'Camera Connecting...' : 'Camera Off'}</p>
+                    <h3>{doctorsRoster.find(d => d.id === activeDoctorId)?.name || 'Doctor'} (You)</h3>
+                    <p>{isDoctorCamOn ? 'Accessing Camera...' : 'Camera Off'}</p>
                   </div>
                 )}
                 <div className="tele-video-label">Doctor (You) {!isDoctorCamOn && '(Cam Off)'}</div>
