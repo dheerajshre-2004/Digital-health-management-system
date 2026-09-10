@@ -592,37 +592,73 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     });
   };
 
-  // Request doctor camera stream when video call starts
+  // Request doctor camera stream when video call starts with robust constraints & fallbacks
   useEffect(() => {
-    if (role === 'doctor' && isVideoCallActive && isDoctorCamOn) {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          .then(stream => {
-            setDoctorMediaStream(stream);
-            if (doctorVideoRef.current) {
-              doctorVideoRef.current.srcObject = stream;
+    let isSubscribed = true;
+    let acquiredStream = null;
+
+    async function initDoctorMedia() {
+      if (role === 'doctor' && isVideoCallActive) {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            // First attempt: high quality video + audio
+            acquiredStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+              audio: true
+            });
+          } catch (err1) {
+            console.warn("[Doctor] Standard getUserMedia failed, trying basic video constraints:", err1);
+            try {
+              // Fallback 1: basic video + audio
+              acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            } catch (err2) {
+              console.warn("[Doctor] Basic video+audio failed, trying video only:", err2);
+              try {
+                // Fallback 2: video only
+                acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+              } catch (err3) {
+                console.warn("[Doctor] Video only failed, trying audio only:", err3);
+                try {
+                  acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                } catch (err4) {
+                  console.error("[Doctor] All media access attempts failed:", err4);
+                }
+              }
             }
-          })
-          .catch(err => {
-            console.log("Doctor camera access not granted or unavailable:", err);
-          });
-      }
-    } else {
-      if (doctorMediaStream) {
-        doctorMediaStream.getTracks().forEach(track => track.stop());
-        setDoctorMediaStream(null);
+          }
+
+          if (isSubscribed && acquiredStream) {
+            setDoctorMediaStream(acquiredStream);
+            if (doctorVideoRef.current) {
+              doctorVideoRef.current.srcObject = acquiredStream;
+              doctorVideoRef.current.play().catch(() => {});
+            }
+          }
+        }
+      } else {
+        if (doctorMediaStream) {
+          doctorMediaStream.getTracks().forEach(track => track.stop());
+          setDoctorMediaStream(null);
+        }
       }
     }
+
+    initDoctorMedia();
+
     return () => {
-      if (doctorMediaStream) {
-        doctorMediaStream.getTracks().forEach(track => track.stop());
+      isSubscribed = false;
+      if (acquiredStream) {
+        acquiredStream.getTracks().forEach(track => track.stop());
       }
     };
   }, [role, isVideoCallActive]);
 
   useEffect(() => {
     if (doctorVideoRef.current && doctorMediaStream) {
-      doctorVideoRef.current.srcObject = isDoctorCamOn ? doctorMediaStream : null;
+      if (doctorVideoRef.current.srcObject !== doctorMediaStream) {
+        doctorVideoRef.current.srcObject = doctorMediaStream;
+      }
+      doctorVideoRef.current.play().catch(() => {});
     }
     if (doctorMediaStream) {
       doctorMediaStream.getVideoTracks().forEach(track => { track.enabled = isDoctorCamOn; });
@@ -4893,15 +4929,28 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
               {/* Local Doctor Video Feed */}
               <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden' }}>
-                {isDoctorCamOn && doctorMediaStream ? (
-                  <video 
-                    ref={doctorVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-                  />
-                ) : (
+                <video 
+                  ref={(el) => {
+                    doctorVideoRef.current = el;
+                    if (el && doctorMediaStream) {
+                      if (el.srcObject !== doctorMediaStream) {
+                        el.srcObject = doctorMediaStream;
+                      }
+                      el.play().catch(() => {});
+                    }
+                  }} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover', 
+                    transform: 'scaleX(-1)',
+                    display: isDoctorCamOn && doctorMediaStream ? 'block' : 'none'
+                  }} 
+                />
+                {(!isDoctorCamOn || !doctorMediaStream) && (
                   <div className="tele-video-placeholder">
                     <div className="tele-video-avatar doctor">
                       {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}

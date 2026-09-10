@@ -528,23 +528,37 @@ class TelemedicineSignaling {
 
     return {
       pc,
-      updateLocalStream: (newStream) => {
+      updateLocalStream: async (newStream) => {
         if (!newStream || pc.signalingState === 'closed') return;
+        console.log("[WebRTC] Updating local stream tracks on active PeerConnection, total tracks:", newStream.getTracks().length);
         const senders = pc.getSenders();
-        newStream.getTracks().forEach(track => {
+        let addedNewTrack = false;
+
+        for (const track of newStream.getTracks()) {
           const existingSender = senders.find(s => s.track && s.track.kind === track.kind);
           if (existingSender) {
-            existingSender.replaceTrack(track).catch(err => console.warn("[WebRTC] replaceTrack error:", err));
+            try {
+              await existingSender.replaceTrack(track);
+              console.log("[WebRTC] Successfully replaced track:", track.kind);
+            } catch (err) {
+              console.warn("[WebRTC] replaceTrack error:", err);
+            }
           } else {
             try {
               pc.addTrack(track, newStream);
+              addedNewTrack = true;
+              console.log("[WebRTC] Successfully added new track:", track.kind);
             } catch (err) {
               console.warn("[WebRTC] addTrack error:", err);
             }
           }
-        });
-        if (isInitiator && pc.signalingState === 'stable') {
+        }
+
+        if (addedNewTrack || (isInitiator && pc.signalingState === 'stable')) {
           sendOffer();
+        } else if (!isInitiator && addedNewTrack) {
+          // Tell initiator we added tracks so they send a renegotiation offer
+          this.broadcast({ type: 'REQUEST_OFFER', callId });
         }
       },
       cleanup: () => {

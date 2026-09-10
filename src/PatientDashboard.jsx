@@ -422,37 +422,70 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     };
   }, [currentPatient?.id, currentPatient?.firstName, loggedInPatient?.name, isVideoCallActive]);
 
-  // Request actual camera/microphone stream when video call starts
+  // Request actual camera/microphone stream when video call starts with robust fallbacks
   useEffect(() => {
-    if (isVideoCallActive && isCamOn) {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          .then(stream => {
-            setLocalMediaStream(stream);
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = stream;
+    let isSubscribed = true;
+    let acquiredStream = null;
+
+    async function initPatientMedia() {
+      if (isVideoCallActive) {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            acquiredStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+              audio: true
+            });
+          } catch (err1) {
+            console.warn("[Patient] Standard getUserMedia failed, trying basic video constraints:", err1);
+            try {
+              acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            } catch (err2) {
+              console.warn("[Patient] Basic video+audio failed, trying video only:", err2);
+              try {
+                acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+              } catch (err3) {
+                console.warn("[Patient] Video only failed, trying audio only:", err3);
+                try {
+                  acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                } catch (err4) {
+                  console.error("[Patient] All media access attempts failed:", err4);
+                }
+              }
             }
-          })
-          .catch(err => {
-            console.log("Webcam / Mic access not granted or not available:", err);
-          });
-      }
-    } else {
-      if (localMediaStream) {
-        localMediaStream.getTracks().forEach(track => track.stop());
-        setLocalMediaStream(null);
+          }
+
+          if (isSubscribed && acquiredStream) {
+            setLocalMediaStream(acquiredStream);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = acquiredStream;
+              localVideoRef.current.play().catch(() => {});
+            }
+          }
+        }
+      } else {
+        if (localMediaStream) {
+          localMediaStream.getTracks().forEach(track => track.stop());
+          setLocalMediaStream(null);
+        }
       }
     }
+
+    initPatientMedia();
+
     return () => {
-      if (localMediaStream) {
-        localMediaStream.getTracks().forEach(track => track.stop());
+      isSubscribed = false;
+      if (acquiredStream) {
+        acquiredStream.getTracks().forEach(track => track.stop());
       }
     };
   }, [isVideoCallActive]);
 
   useEffect(() => {
     if (localVideoRef.current && localMediaStream) {
-      localVideoRef.current.srcObject = isCamOn ? localMediaStream : null;
+      if (localVideoRef.current.srcObject !== localMediaStream) {
+        localVideoRef.current.srcObject = localMediaStream;
+      }
+      localVideoRef.current.play().catch(() => {});
     }
     if (localMediaStream) {
       localMediaStream.getVideoTracks().forEach(track => { track.enabled = isCamOn; });
@@ -3532,15 +3565,28 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 zIndex: 30
               }}
             >
-              {isCamOn && localMediaStream ? (
-                <video 
-                  ref={localVideoRef} 
-                  autoPlay 
-                  playsInline 
-                  muted 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-                />
-              ) : (
+              <video 
+                ref={(el) => {
+                  localVideoRef.current = el;
+                  if (el && localMediaStream) {
+                    if (el.srcObject !== localMediaStream) {
+                      el.srcObject = localMediaStream;
+                    }
+                    el.play().catch(() => {});
+                  }
+                }} 
+                autoPlay 
+                playsInline 
+                muted 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover', 
+                  transform: 'scaleX(-1)',
+                  display: isCamOn && localMediaStream ? 'block' : 'none'
+                }} 
+              />
+              {(!isCamOn || !localMediaStream) && (
                 <div className="patient-avatar-preview">
                   <span>{patInitials}</span>
                 </div>
