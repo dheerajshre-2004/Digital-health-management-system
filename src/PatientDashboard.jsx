@@ -540,10 +540,88 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }
   }, [patientRemoteStream]);
 
-  const handleAcceptIncomingCall = () => {
+  // Helper to create a fallback simulated digital video stream if physical camera is busy or denied
+  const createPatientFallbackVideoStream = (label, color = '#6366f1') => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      let frame = 0;
+      const draw = () => {
+        frame++;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 640, 480);
+
+        const grad = ctx.createLinearGradient(0, 0, 640, 480);
+        grad.addColorStop(0, '#1e1b4b');
+        grad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 640, 480);
+
+        const radius = 60 + Math.sin(frame * 0.05) * 8;
+        ctx.beginPath();
+        ctx.arc(320, 210, radius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.25;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+
+        ctx.beginPath();
+        ctx.arc(320, 210, 50, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label[0] || 'P', 320, 210);
+
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(label, 320, 310);
+
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#818cf8';
+        ctx.fillText('● Patient Tele-Feed Active', 320, 345);
+      };
+      setInterval(draw, 100);
+      draw();
+      const canvasStream = canvas.captureStream ? canvas.captureStream(15) : null;
+      return canvasStream;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const handleAcceptIncomingCall = async () => {
     if (!incomingTeleCall) return;
     stopIncomingRingtone();
     const callData = incomingTeleCall;
+
+    // Prompt user directly on button click so browser permission modal pops up immediately
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalMediaStream(stream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
+      } catch (e) {
+        console.warn("[Patient] Direct click camera request error:", e);
+        const fallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
+        if (fallback) {
+          setLocalMediaStream(fallback);
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = fallback;
+            localVideoRef.current.play().catch(() => {});
+          }
+        }
+      }
+    }
+
     teleSignaling.acceptCall(callData);
     setActiveCallId(callData.appointmentId);
     setIsVideoCallActive(true);
