@@ -3615,16 +3615,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <div className={`video-viewport-container ${teleMobileTab === 'chat' ? 'pd-hide-mobile' : ''}`}>
             {/* Remote Feed */}
             <div className="remote-video-frame" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Persistent Background Doctor Avatar (Keeps screen alive even during WebRTC track negotiation) */}
+              <div className="doctor-avatar-screen" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
+                <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <h3>{appointedDoctor}</h3>
+                <p>{docDept} • Online & Connected</p>
+                <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>
+                  Encrypted Tele-Link Active
+                </div>
+              </div>
+
+              {/* Doctor Remote Video Feed */}
               <video 
-                ref={(el) => {
-                  patientRemoteVideoRef.current = el;
-                  if (el && patientRemoteStream) {
-                    if (el.srcObject !== patientRemoteStream) {
-                      el.srcObject = patientRemoteStream;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }} 
+                ref={patientRemoteVideoRef}
                 autoPlay 
                 playsInline 
                 onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
@@ -3635,24 +3642,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  zIndex: patientRemoteStream ? 2 : 0,
-                  opacity: patientRemoteStream ? 1 : 0
+                  zIndex: 2,
+                  background: 'transparent'
                 }} 
               />
-              {!patientRemoteStream && (
-                <div className="doctor-avatar-screen" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
-                  <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
-                  <h3>{appointedDoctor}</h3>
-                  <p>{docDept} • Online & Connected</p>
-                  <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>
-                    Encrypted Tele-Link Active
-                  </div>
-                </div>
-              )}
               <div className="video-label-tag" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>{appointedDoctor} • Live HD</div>
             </div>
 
@@ -3676,16 +3669,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 zIndex: 30
               }}
             >
+              {/* Background Local Avatar Placeholder */}
+              <div className="patient-avatar-preview" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span>{patInitials}</span>
+              </div>
+
+              {/* Local Patient Video Feed */}
               <video 
-                ref={(el) => {
-                  localVideoRef.current = el;
-                  if (el && localMediaStream) {
-                    if (el.srcObject !== localMediaStream) {
-                      el.srcObject = localMediaStream;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }} 
+                ref={localVideoRef}
                 autoPlay 
                 playsInline 
                 muted 
@@ -3698,15 +3689,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  zIndex: isCamOn && localMediaStream ? 2 : 0,
-                  opacity: isCamOn && localMediaStream ? 1 : 0
+                  zIndex: isCamOn ? 2 : 0,
+                  opacity: isCamOn ? 1 : 0,
+                  background: 'transparent'
                 }} 
               />
-              {(!isCamOn || !localMediaStream) && (
-                <div className="patient-avatar-preview" style={{ position: 'relative', zIndex: 1 }}>
-                  <span>{patInitials}</span>
-                </div>
-              )}
               <div className="video-label-tag" style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '9px', padding: '1px 6px', zIndex: 10 }}>{patName} {!isCamOn && '(Cam Off)'}</div>
             </div>
 

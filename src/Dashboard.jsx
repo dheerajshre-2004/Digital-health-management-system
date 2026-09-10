@@ -575,7 +575,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [doctorMediaStream, setDoctorMediaStream] = useState(null);
   const [doctorRemotePatientStream, setDoctorRemotePatientStream] = useState(null);
   const doctorVideoRef = React.useRef(null);
-  const [doctorRemoteVideoRef] = [React.useRef(null)];
+  const doctorRemoteVideoRef = React.useRef(null);
   const docPeerConnRef = React.useRef(null);
 
   // Helper to create a fallback simulated digital video stream if physical camera is busy or denied
@@ -4997,16 +4997,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             <div className="tele-video-grid">
               {/* Remote Patient Video Feed */}
               <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '260px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Background Avatar Placeholder (Always rendered beneath video so frame never goes blank) */}
+                <div className="tele-video-placeholder" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div className="tele-video-avatar">
+                    {currentPatientObj.firstName?.[0] || 'P'}{currentPatientObj.lastName?.[0] || 'T'}
+                  </div>
+                  <h3>{activeCallAppt.patientName}</h3>
+                  <p>{doctorRemotePatientStream ? 'Connecting Patient Video Stream...' : 'Waiting for Patient Video...'}</p>
+                  <div className="pulse-circle" style={{ marginTop: '10px' }}></div>
+                </div>
+
+                {/* Patient Remote Video Feed */}
                 <video 
-                  ref={(el) => {
-                    doctorRemoteVideoRef.current = el;
-                    if (el && doctorRemotePatientStream) {
-                      if (el.srcObject !== doctorRemotePatientStream) {
-                        el.srcObject = doctorRemotePatientStream;
-                      }
-                      el.play().catch(() => {});
-                    }
-                  }} 
+                  ref={doctorRemoteVideoRef}
                   autoPlay 
                   playsInline 
                   onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
@@ -5017,35 +5020,27 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    zIndex: doctorRemotePatientStream ? 2 : 0,
-                    opacity: doctorRemotePatientStream ? 1 : 0
+                    zIndex: 2,
+                    background: 'transparent'
                   }} 
                 />
-                {!doctorRemotePatientStream && (
-                  <div className="tele-video-placeholder" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px' }}>
-                    <div className="tele-video-avatar">
-                      {currentPatientObj.firstName?.[0] || 'P'}{currentPatientObj.lastName?.[0] || 'T'}
-                    </div>
-                    <h3>{activeCallAppt.patientName}</h3>
-                    <p>Connecting Secure HD Video Link...</p>
-                    <div className="pulse-circle" style={{ marginTop: '10px' }}></div>
-                  </div>
-                )}
                 <div className="tele-video-label" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>Patient: {activeCallAppt.patientName}</div>
               </div>
 
               {/* Local Doctor Video Feed */}
               <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '260px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Background Doctor Avatar Placeholder */}
+                <div className="tele-video-placeholder" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div className="tele-video-avatar doctor">
+                    {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}
+                  </div>
+                  <h3>{doctorsRoster.find(d => d.id === activeDoctorId)?.name || 'Doctor'} (You)</h3>
+                  <p>{isDoctorCamOn ? 'Accessing Camera...' : 'Camera Off'}</p>
+                </div>
+
+                {/* Local Doctor Video Feed */}
                 <video 
-                  ref={(el) => {
-                    doctorVideoRef.current = el;
-                    if (el && doctorMediaStream) {
-                      if (el.srcObject !== doctorMediaStream) {
-                        el.srcObject = doctorMediaStream;
-                      }
-                      el.play().catch(() => {});
-                    }
-                  }} 
+                  ref={doctorVideoRef}
                   autoPlay 
                   playsInline 
                   muted 
@@ -5058,19 +5053,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    zIndex: isDoctorCamOn && doctorMediaStream ? 2 : 0,
-                    opacity: isDoctorCamOn && doctorMediaStream ? 1 : 0
+                    zIndex: isDoctorCamOn ? 2 : 0,
+                    opacity: isDoctorCamOn ? 1 : 0,
+                    background: 'transparent'
                   }} 
                 />
-                {(!isDoctorCamOn || !doctorMediaStream) && (
-                  <div className="tele-video-placeholder" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px' }}>
-                    <div className="tele-video-avatar doctor">
-                      {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}
-                    </div>
-                    <h3>{doctorsRoster.find(d => d.id === activeDoctorId)?.name || 'Doctor'} (You)</h3>
-                    <p>{isDoctorCamOn ? 'Accessing Camera...' : 'Camera Off'}</p>
-                  </div>
-                )}
                 <div className="tele-video-label" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>Doctor (You) {!isDoctorCamOn && '(Cam Off)'}</div>
               </div>
             </div>
