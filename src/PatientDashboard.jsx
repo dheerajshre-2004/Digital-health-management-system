@@ -422,6 +422,77 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     };
   }, [currentPatient?.id, currentPatient?.firstName, loggedInPatient?.name, isVideoCallActive]);
 
+  // Helper to create a fallback simulated digital video stream for Patient if camera is denied/busy
+  const createPatientFallbackVideoStream = (label = 'Patient', color = '#6366f1') => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      let frame = 0;
+      const draw = () => {
+        frame++;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 640, 480);
+
+        const grad = ctx.createLinearGradient(0, 0, 640, 480);
+        grad.addColorStop(0, '#1e1b4b');
+        grad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 640, 480);
+
+        const radius = 60 + Math.sin(frame * 0.05) * 8;
+        ctx.beginPath();
+        ctx.arc(320, 210, radius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.25;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+
+        ctx.beginPath();
+        ctx.arc(320, 210, 50, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText((label || 'P')[0] || 'P', 320, 210);
+
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(label || 'Patient', 320, 310);
+
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#818cf8';
+        ctx.fillText('● Live Digital Tele-Feed Active', 320, 345);
+      };
+      setInterval(draw, 100);
+      draw();
+      const canvasStream = canvas.captureStream ? canvas.captureStream(15) : null;
+      if (canvasStream) {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            const ctxAudio = new AudioContext();
+            const osc = ctxAudio.createOscillator();
+            const dst = osc.connect(ctxAudio.createMediaStreamDestination());
+            osc.start();
+            const audioTrack = dst.stream.getAudioTracks()[0];
+            if (audioTrack) {
+              audioTrack.enabled = false;
+              canvasStream.addTrack(audioTrack);
+            }
+          }
+        } catch (audioErr) {}
+      }
+      return canvasStream;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Request actual camera/microphone stream when video call starts with robust fallbacks
   useEffect(() => {
     let isSubscribed = true;
@@ -429,6 +500,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     async function initPatientMedia() {
       if (isVideoCallActive) {
+        const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           try {
             acquiredStream = await navigator.mediaDevices.getUserMedia({
@@ -448,7 +520,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 try {
                   acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 } catch (err4) {
-                  console.error("[Patient] All media access attempts failed:", err4);
+                  console.warn("[Patient] Hardware media unavailable, using live digital tele-feed:", err4);
+                  const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+                  if (fallback) acquiredStream = fallback;
                 }
               }
             }
@@ -458,6 +532,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             setLocalMediaStream(acquiredStream);
             if (localVideoRef.current) {
               localVideoRef.current.srcObject = acquiredStream;
+              localVideoRef.current.play().catch(() => {});
+            }
+          }
+        } else {
+          const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+          if (fallback && isSubscribed) {
+            setLocalMediaStream(fallback);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = fallback;
               localVideoRef.current.play().catch(() => {});
             }
           }
@@ -539,61 +622,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       patientRemoteVideoRef.current.play().catch(() => {});
     }
   }, [patientRemoteStream]);
-
-  // Helper to create a fallback simulated digital video stream if physical camera is busy or denied
-  const createPatientFallbackVideoStream = (label, color = '#6366f1') => {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx = canvas.getContext('2d');
-      let frame = 0;
-      const draw = () => {
-        frame++;
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, 640, 480);
-
-        const grad = ctx.createLinearGradient(0, 0, 640, 480);
-        grad.addColorStop(0, '#1e1b4b');
-        grad.addColorStop(1, '#0f172a');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 640, 480);
-
-        const radius = 60 + Math.sin(frame * 0.05) * 8;
-        ctx.beginPath();
-        ctx.arc(320, 210, radius, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.25;
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-
-        ctx.beginPath();
-        ctx.arc(320, 210, 50, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 36px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label[0] || 'P', 320, 210);
-
-        ctx.font = 'bold 22px sans-serif';
-        ctx.fillStyle = '#f8fafc';
-        ctx.fillText(label, 320, 310);
-
-        ctx.font = '14px sans-serif';
-        ctx.fillStyle = '#818cf8';
-        ctx.fillText('● Patient Tele-Feed Active', 320, 345);
-      };
-      setInterval(draw, 100);
-      draw();
-      const canvasStream = canvas.captureStream ? canvas.captureStream(15) : null;
-      return canvasStream;
-    } catch (e) {
-      return null;
-    }
-  };
 
   const handleAcceptIncomingCall = async () => {
     if (!incomingTeleCall) return;
@@ -3586,7 +3614,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           {/* Video Viewport Container */}
           <div className={`video-viewport-container ${teleMobileTab === 'chat' ? 'pd-hide-mobile' : ''}`}>
             {/* Remote Feed */}
-            <div className="remote-video-frame">
+            <div className="remote-video-frame" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <video 
                 ref={(el) => {
                   patientRemoteVideoRef.current = el;
@@ -3599,15 +3627,20 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 }} 
                 autoPlay 
                 playsInline 
+                onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
                 style={{ 
                   width: '100%', 
                   height: '100%', 
                   objectFit: 'cover',
-                  display: patientRemoteStream ? 'block' : 'none'
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  zIndex: patientRemoteStream ? 2 : 0,
+                  opacity: patientRemoteStream ? 1 : 0
                 }} 
               />
               {!patientRemoteStream && (
-                <div className="doctor-avatar-screen">
+                <div className="doctor-avatar-screen" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
                   <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -3620,7 +3653,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
                 </div>
               )}
-              <div className="video-label-tag">{appointedDoctor} • Live HD</div>
+              <div className="video-label-tag" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>{appointedDoctor} • Live HD</div>
             </div>
 
             {/* Local Feed */}
@@ -3656,20 +3689,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                 autoPlay 
                 playsInline 
                 muted 
+                onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
                 style={{ 
                   width: '100%', 
                   height: '100%', 
                   objectFit: 'cover', 
                   transform: 'scaleX(-1)',
-                  display: isCamOn && localMediaStream ? 'block' : 'none'
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  zIndex: isCamOn && localMediaStream ? 2 : 0,
+                  opacity: isCamOn && localMediaStream ? 1 : 0
                 }} 
               />
               {(!isCamOn || !localMediaStream) && (
-                <div className="patient-avatar-preview">
+                <div className="patient-avatar-preview" style={{ position: 'relative', zIndex: 1 }}>
                   <span>{patInitials}</span>
                 </div>
               )}
-              <div className="video-label-tag">{patName} {!isCamOn && '(Cam Off)'}</div>
+              <div className="video-label-tag" style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '9px', padding: '1px 6px', zIndex: 10 }}>{patName} {!isCamOn && '(Cam Off)'}</div>
             </div>
 
             {/* In-Call Controls */}

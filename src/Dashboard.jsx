@@ -575,7 +575,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [doctorMediaStream, setDoctorMediaStream] = useState(null);
   const [doctorRemotePatientStream, setDoctorRemotePatientStream] = useState(null);
   const doctorVideoRef = React.useRef(null);
-  const doctorRemoteVideoRef = React.useRef(null);
+  const [doctorRemoteVideoRef] = [React.useRef(null)];
   const docPeerConnRef = React.useRef(null);
 
   // Helper to create a fallback simulated digital video stream if physical camera is busy or denied
@@ -617,12 +617,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         ctx.font = 'bold 36px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label.replace('Dr. ', '')[0] || 'D', 320, 210);
+        ctx.fillText((label || 'Doctor').replace('Dr. ', '')[0] || 'D', 320, 210);
 
         // Name
         ctx.font = 'bold 22px sans-serif';
         ctx.fillStyle = '#f8fafc';
-        ctx.fillText(label, 320, 310);
+        ctx.fillText(label || 'Doctor', 320, 310);
 
         // Live status
         ctx.font = '14px sans-serif';
@@ -632,6 +632,23 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       setInterval(draw, 100);
       draw();
       const canvasStream = canvas.captureStream ? canvas.captureStream(15) : null;
+      if (canvasStream) {
+        // Add a silent audio track so WebRTC media negotiation succeeds
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            const ctxAudio = new AudioContext();
+            const osc = ctxAudio.createOscillator();
+            const dst = osc.connect(ctxAudio.createMediaStreamDestination());
+            osc.start();
+            const audioTrack = dst.stream.getAudioTracks()[0];
+            if (audioTrack) {
+              audioTrack.enabled = false; // Muted tone
+              canvasStream.addTrack(audioTrack);
+            }
+          }
+        } catch (audioErr) {}
+      }
       return canvasStream;
     } catch (e) {
       return null;
@@ -642,6 +659,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const handleStartDoctorCall = async (appt) => {
     setActiveCallAppt(appt);
     setIsVideoCallActive(true);
+
+    const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care' };
 
     // Prompt user directly on button click so browser permission modal pops up immediately
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -661,9 +680,9 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       appointmentId: appt.id,
       patientId: appt.patientId,
       patientName: appt.patientName,
-      doctorId: activeDocObj.id,
-      doctorName: cleanDoctorName(activeDocObj.name),
-      department: activeDocObj.department
+      doctorId: docObj.id,
+      doctorName: cleanDoctorName(docObj.name),
+      department: docObj.department
     });
   };
 
@@ -675,6 +694,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     async function initDoctorMedia() {
       if (role === 'doctor' && isVideoCallActive) {
         if (!doctorMediaStream) {
+          const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care' };
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
               acquiredStream = await navigator.mediaDevices.getUserMedia({
@@ -692,7 +712,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                   } catch (err4) {
                     console.warn("[Doctor] Hardware camera unavailable, generating digital live stream:", err4);
-                    const fallback = createFallbackVideoStream(activeDocObj.name || "Doctor", "#10b981");
+                    const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
                     if (fallback) acquiredStream = fallback;
                   }
                 }
@@ -703,6 +723,15 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               setDoctorMediaStream(acquiredStream);
               if (doctorVideoRef.current) {
                 doctorVideoRef.current.srcObject = acquiredStream;
+                doctorVideoRef.current.play().catch(() => {});
+              }
+            }
+          } else {
+            const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+            if (fallback && isSubscribed) {
+              setDoctorMediaStream(fallback);
+              if (doctorVideoRef.current) {
+                doctorVideoRef.current.srcObject = fallback;
                 doctorVideoRef.current.play().catch(() => {});
               }
             }
@@ -4967,7 +4996,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           <div className="tele-video-column">
             <div className="tele-video-grid">
               {/* Remote Patient Video Feed */}
-              <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '240px' }}>
+              <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '260px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <video 
                   ref={(el) => {
                     doctorRemoteVideoRef.current = el;
@@ -4980,31 +5009,33 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   }} 
                   autoPlay 
                   playsInline 
+                  onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
                   style={{ 
                     width: '100%', 
                     height: '100%', 
                     objectFit: 'cover',
-                    display: doctorRemotePatientStream ? 'block' : 'none',
                     position: 'absolute',
                     top: 0,
-                    left: 0
+                    left: 0,
+                    zIndex: doctorRemotePatientStream ? 2 : 0,
+                    opacity: doctorRemotePatientStream ? 1 : 0
                   }} 
                 />
                 {!doctorRemotePatientStream && (
-                  <div className="tele-video-placeholder">
+                  <div className="tele-video-placeholder" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px' }}>
                     <div className="tele-video-avatar">
                       {currentPatientObj.firstName?.[0] || 'P'}{currentPatientObj.lastName?.[0] || 'T'}
                     </div>
                     <h3>{activeCallAppt.patientName}</h3>
                     <p>Connecting Secure HD Video Link...</p>
-                    <div className="pulse-circle"></div>
+                    <div className="pulse-circle" style={{ marginTop: '10px' }}></div>
                   </div>
                 )}
-                <div className="tele-video-label">Patient: {activeCallAppt.patientName}</div>
+                <div className="tele-video-label" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>Patient: {activeCallAppt.patientName}</div>
               </div>
 
               {/* Local Doctor Video Feed */}
-              <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '240px' }}>
+              <div className="tele-video-frame local" style={{ position: 'relative', overflow: 'hidden', background: '#0f172a', minHeight: '260px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <video 
                   ref={(el) => {
                     doctorVideoRef.current = el;
@@ -5018,19 +5049,21 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   autoPlay 
                   playsInline 
                   muted 
+                  onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
                   style={{ 
                     width: '100%', 
                     height: '100%', 
                     objectFit: 'cover', 
                     transform: 'scaleX(-1)',
-                    display: isDoctorCamOn && doctorMediaStream ? 'block' : 'none',
                     position: 'absolute',
                     top: 0,
-                    left: 0
+                    left: 0,
+                    zIndex: isDoctorCamOn && doctorMediaStream ? 2 : 0,
+                    opacity: isDoctorCamOn && doctorMediaStream ? 1 : 0
                   }} 
                 />
                 {(!isDoctorCamOn || !doctorMediaStream) && (
-                  <div className="tele-video-placeholder">
+                  <div className="tele-video-placeholder" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px' }}>
                     <div className="tele-video-avatar doctor">
                       {doctorsRoster.find(d => d.id === activeDoctorId)?.name?.replace('Dr. ', '')?.[0] || 'D'}
                     </div>
@@ -5038,7 +5071,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     <p>{isDoctorCamOn ? 'Accessing Camera...' : 'Camera Off'}</p>
                   </div>
                 )}
-                <div className="tele-video-label">Doctor (You) {!isDoctorCamOn && '(Cam Off)'}</div>
+                <div className="tele-video-label" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>Doctor (You) {!isDoctorCamOn && '(Cam Off)'}</div>
               </div>
             </div>
 
