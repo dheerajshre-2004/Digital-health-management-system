@@ -10,11 +10,28 @@ import InsuranceDashboard from './InsuranceDashboard';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 
 function App() {
+  // Detection for Patient Portal vs Staff Portal
+  const urlParams = new URLSearchParams(window.location.search);
+  const portalParam = urlParams.get('portal');
+  const roleParam = urlParams.get('role');
+  const isExplicitStaff = portalParam === 'staff' || (roleParam && roleParam !== 'patient');
+  
+  const isPatientPortal = !isExplicitStaff && (
+    import.meta.env.VITE_APP_MODE === 'patient' ||
+    portalParam === 'patient' ||
+    window.location.pathname.startsWith('/patient') ||
+    window.location.hostname.toLowerCase().includes('patient') ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState('doctor');
+  const [userRole, setUserRole] = useState(isPatientPortal ? 'patient' : 'doctor');
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
   const [loggedInStaff, setLoggedInStaff] = useState(null);
+  const [loggedInPatient, setLoggedInPatient] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState(null);
 
@@ -24,6 +41,10 @@ function App() {
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regDob, setRegDob] = useState('');
+  const [regGender, setRegGender] = useState('male');
+  const [regBloodGroup, setRegBloodGroup] = useState('O+');
 
   const clearAuthFields = () => {
     setSignInIdentifier('');
@@ -31,6 +52,8 @@ function App() {
     setRegFullName('');
     setRegEmail('');
     setRegPassword('');
+    setRegPhone('');
+    setRegDob('');
   };
 
   const saveTabSession = (sessionData) => {
@@ -50,20 +73,17 @@ function App() {
   };
 
   useEffect(() => {
-    // Check URL parameters for explicit role testing (e.g. ?role=receptionist, ?role=doctor, etc.)
-    const urlParams = new URLSearchParams(window.location.search);
-    const roleParam = urlParams.get('role');
-    const hashParam = window.location.hash.replace('#', '');
-
     // Check persistent session from localStorage first, then tab sessionStorage
     const savedSession = localStorage.getItem('dhms_active_session') || sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
     
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
-        if (session.role && session.role !== 'patient') {
+        if (session.role) {
           setUserRole(session.role);
-          if (session.role === 'doctor') {
+          if (session.role === 'patient') {
+            setLoggedInPatient(session.user);
+          } else if (session.role === 'doctor') {
             setLoggedInDoctor(session.user);
           } else if (session.user) {
             setLoggedInStaff(session.user);
@@ -73,9 +93,9 @@ function App() {
       } catch (err) {
         console.error("Failed to restore session:", err);
       }
-    } else if (roleParam || hashParam) {
-      const targetRole = roleParam || hashParam;
-      if (targetRole !== 'patient') {
+    } else if (roleParam || window.location.hash.replace('#', '')) {
+      const targetRole = roleParam || window.location.hash.replace('#', '');
+      if (targetRole) {
         setUserRole(targetRole);
       }
     }
@@ -192,7 +212,30 @@ function App() {
     const emailVal = signInIdentifier.trim();
     const passwordVal = signInPassword;
     
-    if (userRole === 'doctor') {
+    if (userRole === 'patient' || isPatientPortal) {
+      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      const matched = patientsList.find(p => 
+        (p.id && p.id.toLowerCase() === emailVal.toLowerCase()) ||
+        (p.email && p.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (p.phone && p.phone.replace(/\D/g, '') === emailVal.replace(/\D/g, '')) ||
+        (p.name && p.name.toLowerCase() === emailVal.toLowerCase())
+      );
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          setSignInPassword('');
+          return;
+        }
+        clearAuthFields();
+        setLoggedInPatient(matched);
+        setUserRole('patient');
+        setIsAuthenticated(true);
+        saveTabSession({ role: 'patient', user: matched });
+      } else {
+        alert('Patient record not found. Please verify your Patient ID, Email, or Phone number.');
+        setSignInPassword('');
+      }
+    } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       const matched = doctorsList.find(d => 
         (d.email && d.email.toLowerCase() === emailVal.toLowerCase()) ||
@@ -340,7 +383,46 @@ function App() {
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
-    if (userRole === 'doctor') {
+    if (userRole === 'patient' || isPatientPortal) {
+      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      if (patientsList.some(p => p.email && p.email.toLowerCase() === emailVal.toLowerCase())) {
+        alert('A patient account already exists with this email address.');
+        return;
+      }
+      const newId = `PAT-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newPatient = {
+        id: newId,
+        name: nameVal,
+        email: emailVal,
+        phone: regPhone || '9876543210',
+        dob: regDob || '1995-01-01',
+        gender: regGender || 'Male',
+        bloodGroup: regBloodGroup || 'O+',
+        allergies: 'None reported',
+        chronicConditions: 'None',
+        password: passwordVal,
+        createdAt: new Date().toISOString()
+      };
+      const updated = [newPatient, ...patientsList];
+      localStorage.setItem('dhms_patients', JSON.stringify(updated));
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: regPhone
+      });
+
+      setRegistrationSuccessData({
+        role: 'patient',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
+      clearAuthFields();
+    } else if (userRole === 'doctor') {
       const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
       if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
@@ -524,9 +606,13 @@ function App() {
     setIsAuthenticated(false);
     setLoggedInDoctor(null);
     setLoggedInStaff(null);
+    setLoggedInPatient(null);
   };
 
   if (isAuthenticated) {
+    if (userRole === 'patient' || isPatientPortal) {
+      return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
+    }
     if (userRole === 'receptionist') {
       return <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
@@ -549,7 +635,11 @@ function App() {
     <div className="auth-container">
       <div className="auth-header">
         <h1>Welcome to <span className="highlight">DHMS</span></h1>
-        <p>Secure hospital management portal for doctors, healthcare staff, and administrators</p>
+        <p>
+          {isPatientPortal 
+            ? "Secure Digital Health & Telemedicine Portal for Citizens & Patients" 
+            : "Secure hospital management portal for doctors, healthcare staff, and administrators"}
+        </p>
       </div>
 
       <div className="auth-card">
@@ -561,7 +651,7 @@ function App() {
               setActiveTab('signin');
             }}
           >
-            Sign In
+            {isPatientPortal ? 'Citizen Sign In' : 'Sign In'}
           </button>
           <button 
             className={`tab ${activeTab === 'register' ? 'active' : ''}`}
@@ -570,7 +660,7 @@ function App() {
               setActiveTab('register');
             }}
           >
-            Staff Registration
+            {isPatientPortal ? 'New Patient Registration' : 'Staff Registration'}
           </button>
         </div>
 
@@ -584,13 +674,13 @@ function App() {
             
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', textAlign: 'left' }}>
               <p style={{ margin: 0, fontSize: '13px', color: '#1e40af' }}>
-                📧 <strong>Staff Credentials Dispatched:</strong> A welcome email containing your Staff ID and portal access credentials has been sent to <strong>{registrationSuccessData.email}</strong>.
+                📧 <strong>{registrationSuccessData.role === 'patient' ? 'Patient' : 'Staff'} Credentials Dispatched:</strong> A welcome email containing your {registrationSuccessData.role === 'patient' ? 'Patient ID' : 'Staff ID'} and portal access credentials has been sent to <strong>{registrationSuccessData.email}</strong>.
               </p>
             </div>
 
             <div style={{ background: '#f8fafc', border: '2px dashed #93c5fd', borderRadius: '10px', padding: '16px 20px', textAlign: 'left', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13.5px' }}>
-                <span style={{ color: '#64748b' }}>Staff ID / Identifier:</span>
+                <span style={{ color: '#64748b' }}>{registrationSuccessData.role === 'patient' ? 'Patient ID / UHID:' : 'Staff ID / Identifier:'}</span>
                 <strong style={{ color: '#1e3a8a', fontSize: '16px' }}>{registrationSuccessData.id}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px' }}>
@@ -606,7 +696,7 @@ function App() {
                 onClick={() => {
                   setSignInIdentifier(registrationSuccessData.email || registrationSuccessData.id);
                   setSignInPassword(registrationSuccessData.password);
-                  setUserRole(registrationSuccessData.role || 'doctor');
+                  setUserRole(registrationSuccessData.role || (isPatientPortal ? 'patient' : 'doctor'));
                   setRegistrationSuccessData(null);
                   setActiveTab('signin');
                 }}
@@ -642,7 +732,7 @@ function App() {
         ) : activeTab === 'signin' ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
-              <label>Email Address / Staff ID</label>
+              <label>{isPatientPortal ? 'Patient ID / Email / Mobile Number' : 'Email Address / Staff ID'}</label>
               <div className="input-wrapper">
                 <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
@@ -650,7 +740,7 @@ function App() {
                 </svg>
                 <input 
                   type="text" 
-                  placeholder="Enter registered email address or ID" 
+                  placeholder={isPatientPortal ? "e.g. PAT-1001, email or mobile" : "Enter registered email address or ID"} 
                   required 
                   value={signInIdentifier}
                   onChange={(e) => setSignInIdentifier(e.target.value)}
@@ -693,27 +783,155 @@ function App() {
               </div>
             </div>
 
+            {!isPatientPortal && (
+              <div className="form-group">
+                <label>Login As</label>
+                <div className="select-wrapper">
+                  <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                    <option value="" disabled hidden>Select a role</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="receptionist">Receptionist</option>
+                    <option value="laboratory">Laboratory</option>
+                    <option value="pharmacist">Pharmacist</option>
+                    <option value="cash_counter">Cash Counter</option>
+                    <option value="admin">Administrator</option>
+                    <option value="insurance_agent">Insurance Agent / TPA</option>
+                  </select>
+                  <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            <button type="submit" className="btn-submit">
+              {isPatientPortal ? 'Sign In to Patient Portal' : 'Secure Sign In'}
+            </button>
+          </form>
+        ) : isPatientPortal ? (
+          <form className="auth-form" onSubmit={handleRegisterSubmit} autoComplete="off">
             <div className="form-group">
-              <label>Login As</label>
-              <div className="select-wrapper">
-                <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
-                  <option value="" disabled hidden>Select a role</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="receptionist">Receptionist</option>
-                  <option value="laboratory">Laboratory</option>
-                  <option value="pharmacist">Pharmacist</option>
-                  <option value="cash_counter">Cash Counter</option>
-                  <option value="admin">Administrator</option>
-                  <option value="insurance_agent">Insurance Agent / TPA</option>
-                </select>
-                <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
+              <label>Full Legal Name</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
                 </svg>
+                <input 
+                  type="text" 
+                  autoComplete="off"
+                  placeholder="Enter patient full name" 
+                  required 
+                  value={regFullName}
+                  onChange={(e) => setRegFullName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Email Address</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <input 
+                  type="email" 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_email"
+                  placeholder="Enter email address" 
+                  required 
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Mobile / Phone Number</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <input 
+                  type="tel" 
+                  placeholder="Enter mobile number" 
+                  required 
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label>Date of Birth</label>
+                <input 
+                  type="date" 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px' }}
+                  required 
+                  value={regDob}
+                  onChange={(e) => setRegDob(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Blood Group</label>
+                <select 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px' }}
+                  value={regBloodGroup}
+                  onChange={(e) => setRegBloodGroup(e.target.value)}
+                >
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Password</label>
+              <div className="input-wrapper">
+                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  autoComplete="new-password"
+                  name="dhms_new_reg_pwd"
+                  placeholder="Create password" 
+                  required 
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }} 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  style={{ position: 'absolute', right: '14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, zIndex: 3 }}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
 
             <button type="submit" className="btn-submit">
-              Secure Sign In
+              Register Patient Account
             </button>
           </form>
         ) : (
@@ -784,7 +1002,7 @@ function App() {
                     </svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
                       <circle cx="12" cy="12" r="3"></circle>
                     </svg>
                   )}
@@ -816,6 +1034,24 @@ function App() {
             </button>
           </form>
         )}
+
+        <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
+          {isPatientPortal ? (
+            <a 
+              href="?portal=staff" 
+              style={{ color: '#475569', fontSize: '13px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              🏢 Are you hospital staff? <strong>Switch to Staff Portal →</strong>
+            </a>
+          ) : (
+            <a 
+              href="?portal=patient" 
+              style={{ color: '#0284c7', fontSize: '13px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              🏥 Are you a patient or citizen? <strong>Switch to Patient Portal →</strong>
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

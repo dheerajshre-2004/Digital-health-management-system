@@ -8,7 +8,16 @@ function AppLoader() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "DHMS - Hospital Management System";
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPatient = import.meta.env.VITE_APP_MODE === 'patient' ||
+      urlParams.get('portal') === 'patient' ||
+      window.location.pathname.startsWith('/patient') ||
+      window.matchMedia('(display-mode: standalone)').matches ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    document.title = isPatient 
+      ? "DHMS - Patient & Citizen Health Portal" 
+      : "DHMS - Hospital Management System";
 
     async function loadData() {
       // Pull latest state from Supabase
