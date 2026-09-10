@@ -371,7 +371,7 @@ class TelemedicineSignaling {
     return endObj;
   }
 
-  // WebRTC Peer Connection Helper with Robust Candidate Queueing, Stream Upgrades, and Track Accumulation
+  // WebRTC Peer Connection Helper with Pre-allocated Transceivers, Robust Candidate Queueing, and Seamless Track Upgrades
   createPeerConnection(callId, localStream, onRemoteStream, isInitiator = false) {
     const pc = new RTCPeerConnection(rtcConfig);
     this.peerConnections.set(callId, pc);
@@ -379,10 +379,24 @@ class TelemedicineSignaling {
     let isRemoteDescSet = false;
     const remoteStream = new MediaStream();
 
+    // Pre-allocate sendrecv transceivers for both audio and video so SDP negotiation always reserves both media channels
+    try {
+      pc.addTransceiver('audio', { direction: 'sendrecv' });
+      pc.addTransceiver('video', { direction: 'sendrecv' });
+    } catch (e) {
+      console.warn("[WebRTC] addTransceiver note:", e);
+    }
+
     if (localStream) {
+      const senders = pc.getSenders();
       localStream.getTracks().forEach(track => {
         try {
-          pc.addTrack(track, localStream);
+          const matchingSender = senders.find(s => (s.track && s.track.kind === track.kind) || (!s.track && s.kind === track.kind));
+          if (matchingSender) {
+            matchingSender.replaceTrack(track).catch(() => {});
+          } else {
+            pc.addTrack(track, localStream);
+          }
         } catch (err) {
           console.warn("[WebRTC] addTrack error:", err);
         }
@@ -397,16 +411,21 @@ class TelemedicineSignaling {
             remoteStream.addTrack(t);
           }
         });
+        onRemoteStream(event.streams[0]);
       } else if (event.track) {
         if (!remoteStream.getTracks().some(existing => existing.id === event.track.id)) {
           remoteStream.addTrack(event.track);
         }
+        onRemoteStream(remoteStream);
       }
-      onRemoteStream(remoteStream);
 
       event.track.onunmute = () => {
         console.log("[WebRTC] Track unmuted:", event.track.kind);
-        onRemoteStream(remoteStream);
+        if (event.streams && event.streams[0]) {
+          onRemoteStream(event.streams[0]);
+        } else {
+          onRemoteStream(remoteStream);
+        }
       };
     };
 
@@ -435,6 +454,10 @@ class TelemedicineSignaling {
     const sendOffer = async () => {
       try {
         if (pc.signalingState === 'closed') return;
+        if (pc.signalingState !== 'stable') {
+          console.log("[WebRTC] Signaling state not stable (" + pc.signalingState + "), delaying offer...");
+          return;
+        }
         console.log("[WebRTC] Sending offer for call:", callId);
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
@@ -458,6 +481,7 @@ class TelemedicineSignaling {
       try {
         if (msg.type === 'OFFER' && !isInitiator) {
           console.log("[WebRTC] Received OFFER, creating ANSWER...");
+          if (pc.signalingState === 'closed') return;
           await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
           isRemoteDescSet = true;
           await flushPendingCandidates();
@@ -472,7 +496,7 @@ class TelemedicineSignaling {
           });
         } else if (msg.type === 'ANSWER' && isInitiator) {
           console.log("[WebRTC] Received ANSWER, setting remote description...");
-          if (pc.signalingState !== 'stable' && pc.signalingState !== 'closed') {
+          if (pc.signalingState === 'have-local-offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
             isRemoteDescSet = true;
             await flushPendingCandidates();
@@ -517,13 +541,13 @@ class TelemedicineSignaling {
       const heartbeat = setInterval(() => {
         if (pc.connectionState === 'connected' || pc.signalingState === 'closed') {
           clearInterval(heartbeat);
-        } else {
+        } else if (pc.signalingState === 'stable') {
           sendOffer();
         }
-      }, 3000);
+      }, 3500);
 
-      // Clean up heartbeat after 30s
-      setTimeout(() => clearInterval(heartbeat), 30000);
+      // Clean up heartbeat after 35s
+      setTimeout(() => clearInterval(heartbeat), 35000);
     }
 
     return {
@@ -535,9 +559,10 @@ class TelemedicineSignaling {
         let addedNewTrack = false;
 
         for (const track of newStream.getTracks()) {
-          const existingSender = senders.find(s => s.track && s.track.kind === track.kind);
+          const existingSender = senders.find(s => (s.track && s.track.kind === track.kind) || (!s.track && (s.kind === track.kind || !s._assignedKind)));
           if (existingSender) {
             try {
+              existingSender._assignedKind = track.kind;
               await existingSender.replaceTrack(track);
               console.log("[WebRTC] Successfully replaced track:", track.kind);
             } catch (err) {

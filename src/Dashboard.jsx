@@ -672,7 +672,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           doctorVideoRef.current.play().catch(() => {});
         }
       } catch (e) {
-        console.warn("[Doctor] Direct click camera request error:", e);
+        console.warn("[Doctor] Direct click camera request note, falling back to media init:", e);
       }
     }
 
@@ -716,6 +716,15 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     if (fallback) acquiredStream = fallback;
                   }
                 }
+              }
+            }
+
+            // If acquired stream only has audio (hardware webcam busy in another tab), attach digital video track
+            if (acquiredStream && acquiredStream.getVideoTracks().length === 0) {
+              const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+              if (fallback) {
+                const vTrack = fallback.getVideoTracks()[0];
+                if (vTrack) acquiredStream.addTrack(vTrack);
               }
             }
 

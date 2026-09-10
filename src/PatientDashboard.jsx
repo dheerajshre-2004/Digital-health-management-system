@@ -529,6 +529,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           }
 
           if (isSubscribed && acquiredStream) {
+            // If acquired stream only has audio (webcam locked by doctor tab on same PC), attach digital tele-feed
+            if (acquiredStream.getVideoTracks().length === 0) {
+              const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+              if (fallback) {
+                const vTrack = fallback.getVideoTracks()[0];
+                if (vTrack) acquiredStream.addTrack(vTrack);
+              }
+            }
+
             setLocalMediaStream(acquiredStream);
             if (localVideoRef.current) {
               localVideoRef.current.srcObject = acquiredStream;
@@ -628,10 +637,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     stopIncomingRingtone();
     const callData = incomingTeleCall;
 
+    const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+
     // Prompt user directly on button click so browser permission modal pops up immediately
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (stream && stream.getVideoTracks().length === 0) {
+          const fallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
+          if (fallback) {
+            const vTrack = fallback.getVideoTracks()[0];
+            if (vTrack) stream.addTrack(vTrack);
+          }
+        }
         setLocalMediaStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
