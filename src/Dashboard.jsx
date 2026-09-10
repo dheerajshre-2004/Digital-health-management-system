@@ -633,20 +633,21 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   // Establish 2-Way WebRTC Live Stream with Patient
   useEffect(() => {
     if (role === 'doctor' && isVideoCallActive && activeCallAppt) {
-      if (docPeerConnRef.current) {
-        docPeerConnRef.current.cleanup();
+      if (!docPeerConnRef.current) {
+        docPeerConnRef.current = teleSignaling.createPeerConnection(
+          activeCallAppt.id,
+          doctorMediaStream,
+          (remoteStream) => {
+            console.log("[Doctor] Received remote patient stream with tracks:", remoteStream.getTracks().length);
+            setDoctorRemotePatientStream(remoteStream);
+            if (doctorRemoteVideoRef.current) {
+              doctorRemoteVideoRef.current.srcObject = remoteStream;
+              doctorRemoteVideoRef.current.play().catch(() => {});
+            }
+          },
+          true // Doctor is initiator
+        );
       }
-      docPeerConnRef.current = teleSignaling.createPeerConnection(
-        activeCallAppt.id,
-        doctorMediaStream,
-        (remoteStream) => {
-          setDoctorRemotePatientStream(remoteStream);
-          if (doctorRemoteVideoRef.current) {
-            doctorRemoteVideoRef.current.srcObject = remoteStream;
-          }
-        },
-        true // Doctor is initiator
-      );
     } else {
       if (docPeerConnRef.current) {
         docPeerConnRef.current.cleanup();
@@ -660,11 +661,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         docPeerConnRef.current = null;
       }
     };
-  }, [role, isVideoCallActive, activeCallAppt, doctorMediaStream]);
+  }, [role, isVideoCallActive, activeCallAppt?.id]);
+
+  // Dynamically update stream tracks without resetting the peer connection
+  useEffect(() => {
+    if (docPeerConnRef.current && doctorMediaStream) {
+      docPeerConnRef.current.updateLocalStream(doctorMediaStream);
+    }
+  }, [doctorMediaStream]);
 
   useEffect(() => {
     if (doctorRemoteVideoRef.current && doctorRemotePatientStream) {
       doctorRemoteVideoRef.current.srcObject = doctorRemotePatientStream;
+      doctorRemoteVideoRef.current.play().catch(() => {});
     }
   }, [doctorRemotePatientStream]);
 
@@ -707,7 +716,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   };
 
   useEffect(() => {
+    if (!isVideoCallActive || !activeCallAppt) return;
+
     const unsub = teleSignaling.subscribe((data) => {
+      // 1. In-call chat messages
       if (data.type === 'CHAT_MESSAGE' && data.callId === activeCallAppt?.id && data.message) {
         setCallChatMessages(prev => {
           if (prev.some(m => m.time === data.message.time && m.text === data.message.text && m.sender === data.message.sender)) {
@@ -716,9 +728,62 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           return [...prev, data.message];
         });
       }
+
+      // 2. Patient / Peer ended or declined the call
+      if ((data.type === 'CALL_ENDED' || data.type === 'CALL_DECLINED') && (data.appointmentId === activeCallAppt?.id || data.callId === activeCallAppt?.id)) {
+        console.log("[Doctor] Received CALL_ENDED signal from peer:", data);
+        if (docPeerConnRef.current) {
+          docPeerConnRef.current.cleanup();
+          docPeerConnRef.current = null;
+        }
+        if (doctorMediaStream) {
+          doctorMediaStream.getTracks().forEach(t => t.stop());
+          setDoctorMediaStream(null);
+        }
+        setIsVideoCallActive(false);
+        setActiveCallAppt(null);
+        setDoctorRemotePatientStream(null);
+
+        // Mark appointment completed locally
+        setAppointments(prev => prev.map(a => a.id === activeCallAppt.id ? { ...a, status: 'Completed' } : a));
+
+        if (window.Swal) {
+          window.Swal.fire({
+            title: 'Call Ended',
+            text: 'The patient has disconnected and ended the consultation session.',
+            icon: 'info',
+            confirmButtonColor: '#3b82f6'
+          });
+        } else {
+          alert('The patient has disconnected and ended the consultation session.');
+        }
+      }
     });
-    return unsub;
-  }, [activeCallAppt?.id]);
+
+    // 3. Status monitor: If appointment marked completed/cancelled or call record deleted
+    const pollInterval = setInterval(() => {
+      const savedAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const current = savedAppts.find(a => a.id === activeCallAppt.id);
+      if (current && (current.status === 'Completed' || current.status === 'Cancelled')) {
+        if (docPeerConnRef.current) {
+          docPeerConnRef.current.cleanup();
+          docPeerConnRef.current = null;
+        }
+        if (doctorMediaStream) {
+          doctorMediaStream.getTracks().forEach(t => t.stop());
+          setDoctorMediaStream(null);
+        }
+        setIsVideoCallActive(false);
+        setActiveCallAppt(null);
+        setDoctorRemotePatientStream(null);
+      }
+    }, 1000);
+
+    return () => {
+      unsub();
+      clearInterval(pollInterval);
+    };
+  }, [isVideoCallActive, activeCallAppt?.id, doctorMediaStream]);
 
   const renderClinicalForm = (isTele) => {
     // Standard lab test catalog
@@ -4794,14 +4859,26 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             <div className="tele-video-grid">
               {/* Remote Patient Video Feed */}
               <div className="tele-video-frame remote" style={{ position: 'relative', overflow: 'hidden' }}>
-                {doctorRemotePatientStream ? (
-                  <video 
-                    ref={doctorRemoteVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                  />
-                ) : (
+                <video 
+                  ref={(el) => {
+                    doctorRemoteVideoRef.current = el;
+                    if (el && doctorRemotePatientStream) {
+                      if (el.srcObject !== doctorRemotePatientStream) {
+                        el.srcObject = doctorRemotePatientStream;
+                      }
+                      el.play().catch(() => {});
+                    }
+                  }} 
+                  autoPlay 
+                  playsInline 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover',
+                    display: doctorRemotePatientStream ? 'block' : 'none'
+                  }} 
+                />
+                {!doctorRemotePatientStream && (
                   <div className="tele-video-placeholder">
                     <div className="tele-video-avatar">
                       {currentPatientObj.firstName?.[0]}{currentPatientObj.lastName?.[0]}

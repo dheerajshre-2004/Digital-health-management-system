@@ -3,6 +3,104 @@ import { supabase } from './supabaseClient';
 
 let audioCtx = null;
 let ringtoneInterval = null;
+let activeNotification = null;
+let titleBlinkInterval = null;
+let originalDocTitle = '';
+
+// Pre-unlock AudioContext on user interaction
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+  };
+  window.addEventListener('click', unlockAudio);
+  window.addEventListener('touchstart', unlockAudio);
+}
+
+// Request native browser notification permission
+export function requestNotificationPermission() {
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((perm) => {
+        console.log('[Telemedicine] Notification permission granted:', perm);
+      }).catch(() => {});
+    }
+  }
+}
+
+// Show native OS notification & phone vibration
+export function showIncomingCallNotification(callData) {
+  if (!callData) return;
+  const docName = cleanDoctorName(callData.doctorName);
+  const dept = callData.department || 'Specialist Consultation';
+
+  // 1. Phone Vibration (Android / mobile devices)
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try {
+      navigator.vibrate([500, 250, 500, 250, 500, 250, 500]);
+    } catch (e) {}
+  }
+
+  // 2. Native OS / Browser Notification (displays even when app is minimized / backgrounded)
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      if (activeNotification) {
+        activeNotification.close();
+      }
+      activeNotification = new Notification(`🚨 Incoming Video Call: ${docName}`, {
+        body: `${dept} is calling you now. Click to answer your consultation.`,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: 'dhms_tele_incoming_call',
+        requireInteraction: true,
+        vibrate: [500, 250, 500]
+      });
+
+      activeNotification.onclick = function () {
+        window.focus();
+        this.close();
+      };
+    } catch (e) {
+      console.warn("Notification error:", e);
+    }
+  }
+
+  // 3. Document Title Blinking Alert
+  if (typeof document !== 'undefined') {
+    if (!originalDocTitle) originalDocTitle = document.title;
+    if (titleBlinkInterval) clearInterval(titleBlinkInterval);
+    let toggle = false;
+    titleBlinkInterval = setInterval(() => {
+      document.title = toggle ? `📞 INCOMING CALL: ${docName}!` : `🔔 (1) DOCTOR IS CALLING YOU...`;
+      toggle = !toggle;
+    }, 800);
+  }
+}
+
+export function clearIncomingCallNotification() {
+  if (activeNotification) {
+    try { activeNotification.close(); } catch (e) {}
+    activeNotification = null;
+  }
+  if (titleBlinkInterval) {
+    clearInterval(titleBlinkInterval);
+    titleBlinkInterval = null;
+  }
+  if (originalDocTitle && typeof document !== 'undefined') {
+    document.title = originalDocTitle;
+    originalDocTitle = '';
+  }
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try { navigator.vibrate(0); } catch (e) {}
+  }
+}
 
 // Ringtone chime using Web Audio API
 export function playIncomingRingtone() {
@@ -56,6 +154,7 @@ export function stopIncomingRingtone() {
       audioCtx.suspend();
     } catch (e) {}
   }
+  clearIncomingCallNotification();
 }
 
 // Clean duplicate Dr. prefixes like "Dr. Dr.Hemavathi Rao" -> "Dr. Hemavathi Rao"
@@ -65,14 +164,15 @@ export function cleanDoctorName(name) {
   return `Dr. ${cleaned}`;
 }
 
-// WebRTC Configuration
+// WebRTC Configuration with comprehensive STUN servers for cross-network connectivity
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' }
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' }
   ],
   iceCandidatePoolSize: 10
 };
@@ -158,6 +258,14 @@ class TelemedicineSignaling {
       } catch (e) {
         console.warn("Supabase broadcast send error:", e);
       }
+    }
+    // Direct store sync to guaranteed table for WebRTC signals
+    if (supabase && supabase.from && payload.type && payload.type !== 'CHAT_MESSAGE') {
+      try {
+        supabase.from('dhms_store')
+          .upsert({ key: 'dhms_tele_signal_event', value: payload, updated_at: new Date().toISOString() })
+          .then(() => {});
+      } catch (e) {}
     }
   }
 
@@ -263,12 +371,13 @@ class TelemedicineSignaling {
     return endObj;
   }
 
-  // WebRTC Peer Connection Helper with Robust Candidate Queueing and Re-negotiation
+  // WebRTC Peer Connection Helper with Robust Candidate Queueing, Stream Upgrades, and Track Accumulation
   createPeerConnection(callId, localStream, onRemoteStream, isInitiator = false) {
     const pc = new RTCPeerConnection(rtcConfig);
     this.peerConnections.set(callId, pc);
     const pendingCandidates = [];
     let isRemoteDescSet = false;
+    const remoteStream = new MediaStream();
 
     if (localStream) {
       localStream.getTracks().forEach(track => {
@@ -281,13 +390,24 @@ class TelemedicineSignaling {
     }
 
     pc.ontrack = (event) => {
+      console.log("[WebRTC] ontrack received track:", event.track.kind, event.track.id);
       if (event.streams && event.streams[0]) {
-        console.log("[WebRTC] Received remote stream:", event.streams[0].id);
-        onRemoteStream(event.streams[0]);
+        event.streams[0].getTracks().forEach(t => {
+          if (!remoteStream.getTracks().some(existing => existing.id === t.id)) {
+            remoteStream.addTrack(t);
+          }
+        });
       } else if (event.track) {
-        const inboundStream = new MediaStream([event.track]);
-        onRemoteStream(inboundStream);
+        if (!remoteStream.getTracks().some(existing => existing.id === event.track.id)) {
+          remoteStream.addTrack(event.track);
+        }
       }
+      onRemoteStream(remoteStream);
+
+      event.track.onunmute = () => {
+        console.log("[WebRTC] Track unmuted:", event.track.kind);
+        onRemoteStream(remoteStream);
+      };
     };
 
     pc.onicecandidate = (event) => {
@@ -384,7 +504,6 @@ class TelemedicineSignaling {
         type: 'PATIENT_READY_FOR_CALL',
         callId
       });
-      // Also request offer after 1.5s if not connected yet
       setTimeout(() => {
         if (!isRemoteDescSet && pc.connectionState !== 'connected') {
           this.broadcast({ type: 'REQUEST_OFFER', callId });
@@ -409,6 +528,25 @@ class TelemedicineSignaling {
 
     return {
       pc,
+      updateLocalStream: (newStream) => {
+        if (!newStream || pc.signalingState === 'closed') return;
+        const senders = pc.getSenders();
+        newStream.getTracks().forEach(track => {
+          const existingSender = senders.find(s => s.track && s.track.kind === track.kind);
+          if (existingSender) {
+            existingSender.replaceTrack(track).catch(err => console.warn("[WebRTC] replaceTrack error:", err));
+          } else {
+            try {
+              pc.addTrack(track, newStream);
+            } catch (err) {
+              console.warn("[WebRTC] addTrack error:", err);
+            }
+          }
+        });
+        if (isInitiator && pc.signalingState === 'stable') {
+          sendOffer();
+        }
+      },
       cleanup: () => {
         unsubscribe();
         try {

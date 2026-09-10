@@ -7,18 +7,8 @@ import { fetchSupabaseData, initSupabaseSync } from './supabaseSync'
 function AppLoader() {
   const [loading, setLoading] = useState(true);
 
-  const isPatientPortal = 
-    import.meta.env.VITE_APP_MODE === 'patient' ||
-    new URLSearchParams(window.location.search).get('portal') === 'patient' ||
-    window.location.pathname.startsWith('/patient') ||
-    window.location.hostname.toLowerCase().includes('patient');
-
   useEffect(() => {
-    if (isPatientPortal) {
-      document.title = "DHMS - Patient Health Portal";
-    } else {
-      document.title = "DHMS - Hospital Management System";
-    }
+    document.title = "DHMS - Hospital Management System";
 
     async function loadData() {
       // Pull latest state from Supabase
@@ -28,7 +18,7 @@ function AppLoader() {
       setLoading(false);
     }
     loadData();
-  }, [isPatientPortal]);
+  }, []);
 
   if (loading) {
     return (
@@ -52,7 +42,7 @@ function AppLoader() {
           marginBottom: '20px'
         }} />
         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.05em' }}>
-          {isPatientPortal ? "DHMS Patient Portal" : "DHMS Portal"}
+          DHMS Portal
         </h2>
         <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '8px' }}>Syncing secure database with Supabase...</p>
         <style>{`

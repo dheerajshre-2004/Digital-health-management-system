@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './PatientDashboard.css';
-import { teleSignaling, playIncomingRingtone, stopIncomingRingtone, cleanDoctorName } from './telemedicineService';
+import { 
+  teleSignaling, 
+  playIncomingRingtone, 
+  stopIncomingRingtone, 
+  cleanDoctorName,
+  requestNotificationPermission,
+  showIncomingCallNotification,
+  clearIncomingCallNotification 
+} from './telemedicineService';
 
 export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
@@ -339,8 +347,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const patientRemoteVideoRef = useRef(null);
   const peerConnRef = useRef(null);
 
-  // Listen for real-time incoming doctor calls
+  // Listen for real-time incoming doctor calls and request notification permissions
   useEffect(() => {
+    // Request OS notification permission early so background calls trigger system alerts
+    requestNotificationPermission();
+
     const isCallForThisPatient = (callData) => {
       if (!callData || callData.status !== 'calling') return false;
       if (Date.now() - (callData.timestamp || 0) > 180000) return false;
@@ -355,17 +366,22 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       return true;
     };
 
+    const handleTriggerIncoming = (callData) => {
+      if (!isVideoCallActive) {
+        setIncomingTeleCall(callData);
+        playIncomingRingtone();
+        showIncomingCallNotification(callData);
+      }
+    };
+
     const checkIncomingCall = async () => {
       try {
         const activeCallStr = localStorage.getItem('dhms_active_tele_call');
         if (activeCallStr) {
           const callData = JSON.parse(activeCallStr);
           if (isCallForThisPatient(callData)) {
-            if (!isVideoCallActive) {
-              setIncomingTeleCall(callData);
-              playIncomingRingtone();
-              return;
-            }
+            handleTriggerIncoming(callData);
+            return;
           }
         }
 
@@ -378,10 +394,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           if (data && data.value) {
             const callData = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
             if (isCallForThisPatient(callData)) {
-              if (!isVideoCallActive) {
-                setIncomingTeleCall(callData);
-                playIncomingRingtone();
-              }
+              handleTriggerIncoming(callData);
             }
           }
         }
@@ -391,13 +404,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     checkIncomingCall();
     const unsubscribe = teleSignaling.subscribe((data) => {
       if (data.type === 'INCOMING_CALL' && isCallForThisPatient(data)) {
-        if (!isVideoCallActive) {
-          setIncomingTeleCall(data);
-          playIncomingRingtone();
-        }
+        handleTriggerIncoming(data);
       } else if (data.type === 'CALL_ENDED' || data.type === 'CALL_DECLINED') {
         setIncomingTeleCall(null);
         stopIncomingRingtone();
+        clearIncomingCallNotification();
       }
     });
 
@@ -407,6 +418,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       unsubscribe();
       clearInterval(pollInterval);
       stopIncomingRingtone();
+      clearIncomingCallNotification();
     };
   }, [currentPatient?.id, currentPatient?.firstName, loggedInPatient?.name, isVideoCallActive]);
 
@@ -451,20 +463,21 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   // Establish 2-way WebRTC streaming with Doctor
   useEffect(() => {
     if (isVideoCallActive && activeCallId) {
-      if (peerConnRef.current) {
-        peerConnRef.current.cleanup();
+      if (!peerConnRef.current) {
+        peerConnRef.current = teleSignaling.createPeerConnection(
+          activeCallId,
+          localMediaStream,
+          (remoteStream) => {
+            console.log("[Patient] Received remote doctor stream with tracks:", remoteStream.getTracks().length);
+            setPatientRemoteStream(remoteStream);
+            if (patientRemoteVideoRef.current) {
+              patientRemoteVideoRef.current.srcObject = remoteStream;
+              patientRemoteVideoRef.current.play().catch(() => {});
+            }
+          },
+          false
+        );
       }
-      peerConnRef.current = teleSignaling.createPeerConnection(
-        activeCallId,
-        localMediaStream,
-        (remoteStream) => {
-          setPatientRemoteStream(remoteStream);
-          if (patientRemoteVideoRef.current) {
-            patientRemoteVideoRef.current.srcObject = remoteStream;
-          }
-        },
-        false
-      );
     } else {
       if (peerConnRef.current) {
         peerConnRef.current.cleanup();
@@ -478,11 +491,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         peerConnRef.current = null;
       }
     };
-  }, [isVideoCallActive, activeCallId, localMediaStream]);
+  }, [isVideoCallActive, activeCallId]);
+
+  // Dynamically update stream tracks without resetting the peer connection
+  useEffect(() => {
+    if (peerConnRef.current && localMediaStream) {
+      peerConnRef.current.updateLocalStream(localMediaStream);
+    }
+  }, [localMediaStream]);
 
   useEffect(() => {
     if (patientRemoteVideoRef.current && patientRemoteStream) {
       patientRemoteVideoRef.current.srcObject = patientRemoteStream;
+      patientRemoteVideoRef.current.play().catch(() => {});
     }
   }, [patientRemoteStream]);
 
@@ -3455,14 +3476,26 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <div className={`video-viewport-container ${teleMobileTab === 'chat' ? 'pd-hide-mobile' : ''}`}>
             {/* Remote Feed */}
             <div className="remote-video-frame">
-              {patientRemoteStream ? (
-                <video 
-                  ref={patientRemoteVideoRef} 
-                  autoPlay 
-                  playsInline 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                />
-              ) : (
+              <video 
+                ref={(el) => {
+                  patientRemoteVideoRef.current = el;
+                  if (el && patientRemoteStream) {
+                    if (el.srcObject !== patientRemoteStream) {
+                      el.srcObject = patientRemoteStream;
+                    }
+                    el.play().catch(() => {});
+                  }
+                }} 
+                autoPlay 
+                playsInline 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover',
+                  display: patientRemoteStream ? 'block' : 'none'
+                }} 
+              />
+              {!patientRemoteStream && (
                 <div className="doctor-avatar-screen">
                   <svg className="pulse-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>

@@ -63,13 +63,20 @@ export function initSupabaseSync() {
 
     // If it's a DHMS-specific key, sync it with Supabase in the background
     if (key.startsWith('dhms_') && key !== 'dhms_active_session' && key !== 'dhms_tab_session') {
-      if (updateDebounceTimers[key]) {
-        clearTimeout(updateDebounceTimers[key]);
-      }
-      updateDebounceTimers[key] = setTimeout(() => {
+      const isUrgentKey = key === 'dhms_active_tele_call' || key === 'dhms_tele_signal_event' || key.startsWith('dhms_signal_');
+      
+      if (isUrgentKey) {
+        // Immediate sync without debounce for instant real-time call & WebRTC signaling
         pushToSupabase(key, value);
-        delete updateDebounceTimers[key];
-      }, 100); // Fast 100ms debounce for instant Supabase sync
+      } else {
+        if (updateDebounceTimers[key]) {
+          clearTimeout(updateDebounceTimers[key]);
+        }
+        updateDebounceTimers[key] = setTimeout(() => {
+          pushToSupabase(key, value);
+          delete updateDebounceTimers[key];
+        }, 100);
+      }
 
       // Dispatch storage event locally so other components in the same tab update immediately
       window.dispatchEvent(new Event('storage'));
