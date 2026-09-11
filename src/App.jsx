@@ -8,6 +8,8 @@ import PharmacistDashboard from './PharmacistDashboard';
 import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
+import LanguageSelector from './LanguageSelector';
+import { t } from './i18nService';
 
 function App() {
   // Detection for Patient Portal vs Staff Portal
@@ -633,12 +635,16 @@ function App() {
 
   return (
     <div className="auth-container">
+      <div style={{ position: 'absolute', top: '20px', right: '24px', zIndex: 100 }}>
+        <LanguageSelector />
+      </div>
+
       <div className="auth-header">
-        <h1>Welcome to <span className="highlight">DHMS</span></h1>
+        <h1>{t('welcome')} <span className="highlight">DHMS</span></h1>
         <p>
           {isPatientPortal 
-            ? "Secure Digital Health & Telemedicine Portal for Citizens & Patients" 
-            : "Secure hospital management portal for doctors, healthcare staff, and administrators"}
+            ? t('patientPortal') + " — " + t('appName') 
+            : t('staffPortal') + " — " + t('hospitalName')}
         </p>
       </div>
 

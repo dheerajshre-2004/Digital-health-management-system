@@ -1,0 +1,431 @@
+/* BedManagement.css - Live ICU & Hospital Bed Matrix UI */
+.bed-matrix-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.bed-matrix-modal {
+  width: 100%;
+  max-width: 1200px;
+  height: 90vh;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f8fafc;
+  font-family: inherit;
+}
+
+.bed-matrix-header {
+  padding: 16px 24px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bed-matrix-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bed-matrix-header-title h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bed-live-chip {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid #10b981;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bed-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse 1.5s infinite;
+}
+
+.bed-close-btn {
+  background: #334155;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.5rem;
+  cursor: pointer;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.bed-close-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+/* Metrics Top Bar */
+.bed-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px 24px;
+  background: #0b132b;
+  border-bottom: 1px solid #1e293b;
+}
+
+.bed-metric-card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bed-metric-icon {
+  font-size: 1.75rem;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bed-metric-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.bed-metric-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.bed-metric-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Main Content Area with Filters & Floor Plan */
+.bed-matrix-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Left Sidebar - Ward Categories */
+.bed-wards-sidebar {
+  width: 250px;
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.bed-ward-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  padding: 12px 14px;
+  border-radius: 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+}
+
+.bed-ward-btn:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.bed-ward-btn.active {
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.bed-ward-count {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+/* Floor Plan Grid */
+.bed-floor-plan {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bed-legend-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #1e293b;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.bed-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.bed-legend-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.bed-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* Individual Bed Card */
+.bed-card {
+  background: #1e293b;
+  border: 2px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bed-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.bed-card.vacant {
+  border-color: #10b981;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, #1e293b 100%);
+}
+
+.bed-card.occupied {
+  border-color: #ef4444;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, #1e293b 100%);
+}
+
+.bed-card.reserved {
+  border-color: #f59e0b;
+  background: linear-gradient(180deg, rgba(245, 158, 11 steering, 0.08) 0%, #1e293b 100%);
+}
+
+.bed-card.cleaning {
+  border-color: #a855f7;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.08) 0%, #1e293b 100%);
+}
+
+.bed-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bed-id-badge {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.bed-status-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.bed-card.vacant .bed-status-tag { background: #064e3b; color: #34d399; }
+.bed-card.occupied .bed-status-tag { background: #7f1d1d; color: #fca5a5; }
+.bed-card.reserved .bed-status-tag { background: #78350f; color: #fcd34d; }
+.bed-card.cleaning .bed-status-tag { background: #581c87; color: #d8b4fe; }
+
+.bed-card-patient {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bed-card-meta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bed-equipment-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.bed-equip-tag {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Modal Form for Admit / Transfer / Details */
+.bed-action-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 500px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  padding: 24px;
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bed-action-panel h3 {
+  margin: 0;
+  color: #38bdf8;
+  font-size: 1.2rem;
+}
+
+.bed-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bed-form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.bed-form-group input,
+.bed-form-group select {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.bed-form-group input:focus,
+.bed-form-group select:focus {
+  border-color: #38bdf8;
+}
+
+.bed-action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.bed-btn-primary {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bed-btn-danger {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bed-btn-secondary {
+  background: #334155;
+  color: #cbd5e1;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* RTL Support */
+.rtl-mode .bed-wards-sidebar {
+  border-right: none;
+  border-left: 1px solid #1e293b;
+}
+
+.rtl-mode .bed-ward-btn {
+  text-align: right;
+}

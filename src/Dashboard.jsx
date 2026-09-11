@@ -4,6 +4,14 @@ import CashCounterDashboard from './CashCounterDashboard';
 import { sendPatientWelcomeEmail } from './emailService';
 import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWords } from './payrollService';
 import { teleSignaling, cleanDoctorName } from './telemedicineService';
+import BedManagementModal from './BedManagementModal';
+import LanguageSelector from './LanguageSelector';
+import { t } from './i18nService';
+import { 
+  sendAppointmentWhatsApp, 
+  sendPrescriptionWhatsApp, 
+  sendTeleconsultationInviteWhatsApp 
+} from './whatsappService';
 
 const DUMMY_DEPARTMENTS = [
   { id: 1, name: 'Cardiology & Intensive Cardiac Care', code: 'CARD', head: 'Dr. Sarah Connor' },
@@ -24,6 +32,7 @@ const DOCTORS = [
 
 export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [activeView, setActiveView] = useState('overview');
+  const [showBedModal, setShowBedModal] = useState(false);
 
   // Admin Authority Transfer States
   const [transferEmail, setTransferEmail] = useState('');
@@ -5245,8 +5254,31 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       {/* Dashboard Main Area */}
       <div className="dashboard-main">
         <header className="topbar">
-          <div className="topbar-title">{role.toUpperCase()} Dashboard</div>
+          <div className="topbar-title">{role.toUpperCase()} {t('dashboard')}</div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              type="button"
+              onClick={() => setShowBedModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)'
+              }}
+            >
+              🛏️ {t('bedMatrix')}
+            </button>
+
+            <LanguageSelector />
+
             {role === 'doctor' && (
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', background: '#f1f5f9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                 {activeDocObj.name} ({activeDocObj.department})
@@ -5267,6 +5299,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           )}
         </main>
       </div>
+
+      {/* Live ICU & Bed Occupancy Matrix Modal */}
+      {showBedModal && (
+        <BedManagementModal onClose={() => setShowBedModal(false)} />
+      )}
 
       {/* Doctor Checkup Modal */}
       {selectedApptForCheckup && (

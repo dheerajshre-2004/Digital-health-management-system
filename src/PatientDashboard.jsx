@@ -9,6 +9,15 @@ import {
   showIncomingCallNotification,
   clearIncomingCallNotification 
 } from './telemedicineService';
+import LanguageSelector from './LanguageSelector';
+import { t } from './i18nService';
+import PillTracker from './PillTracker';
+import { 
+  sendAppointmentWhatsApp, 
+  sendPrescriptionWhatsApp, 
+  sendLabReportWhatsApp,
+  sendDailyPillReminderWhatsApp 
+} from './whatsappService';
 
 export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
@@ -30,6 +39,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const VALID_TABS = [
     'health_console',
     'digital_profile',
+    'pill_tracker',
     'visit_history',
     'ehr_records',
     'laboratory',
@@ -4619,6 +4629,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <span className="pd-logo-sub">Health Console</span>
         </div>
         <div className="pd-topbar-right">
+          <LanguageSelector style={{ marginRight: '8px' }} />
+
           <div className="pd-profile-info">
             <div className="pd-avatar">{(currentPatient?.firstName?.[0] || "J").toUpperCase()}</div>
             <div className="pd-user-details">
@@ -4685,6 +4697,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
               Digital Patient Profile
             </li>
+            <li className={activeTab === 'pill_tracker' ? 'active' : ''} onClick={() => navigateTab('pill_tracker')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path><path d="m14.83 14.83 4.24 4.24"></path><path d="m9.17 14.83-4.24 4.24"></path><circle cx="12" cy="12" r="4"></circle></svg>
+              💊 Smart Pill Tracker
+            </li>
             <li className={activeTab === 'visit_history' ? 'active' : ''} onClick={() => navigateTab('visit_history')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               Visit History Logs
@@ -4716,6 +4732,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         <main className="pd-main">
           {activeTab === 'health_console' && renderHealthConsole()}
           {activeTab === 'digital_profile' && renderPatientProfile()}
+          {activeTab === 'pill_tracker' && (
+            <div style={{ padding: '4px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', color: '#1e293b' }}>💊 Smart Medication & Pill Tracker</h2>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Track your daily prescriptions, earn adherence streaks, and send reminders to WhatsApp.</p>
+              </div>
+              <PillTracker 
+                patientId={currentPatient?.id || loggedInPatient?.id || 'PT-80234'} 
+                patientName={currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || 'Patient')}
+                patientPhone={currentPatient?.phone || loggedInPatient?.phone || ''}
+              />
+            </div>
+          )}
           {activeTab === 'visit_history' && renderVisitHistory()}
           {activeTab === 'ehr_records' && renderEHRRecords()}
           {activeTab === 'laboratory' && renderLaboratoryCenter()}

@@ -1,0 +1,312 @@
+/* PillTracker.css - Smart Medication Tracker & Adherence Gamification */
+
+.pill-tracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.3s ease;
+  font-family: inherit;
+}
+
+/* Gamification Score Banner */
+.pill-gamification-banner {
+  background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+  border: 1px solid #4338ca;
+  border-radius: 16px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 24px;
+  align-items: center;
+  box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.3);
+  color: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .pill-gamification-banner {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pill-score-circle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.pill-score-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: conic-gradient(#10b981 calc(var(--score-pct) * 1%), #334155 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+}
+
+.pill-score-inner {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pill-score-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.pill-score-label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pill-streak-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pill-streak-count {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill-streak-sub {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+/* Badges Grid */
+.pill-badges-grid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pill-badge-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.pill-badge-item.unlocked {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fcd34d;
+}
+
+.pill-badge-item.locked {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+/* WhatsApp Reminder Quick Dispatch Bar */
+.pill-whatsapp-bar {
+  background: #064e3b;
+  border: 1px solid #059669;
+  border-radius: 12px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #d1fae5;
+}
+
+.pill-whatsapp-bar strong {
+  color: #ffffff;
+  display: block;
+}
+
+.pill-whatsapp-btn {
+  background: #25d366;
+  color: #064e3b;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);
+}
+
+.pill-whatsapp-btn:hover {
+  background: #1ebc57;
+  transform: translateY(-1px);
+}
+
+/* Slot Buckets (Morning, Afternoon, Night) */
+.pill-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.pill-slot-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.pill-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 12px;
+}
+
+.pill-slot-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pill-slot-time {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.pill-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Pill Item Box */
+.pill-item-box {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+}
+
+.pill-item-box.taken {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.pill-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pill-item-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill-item-box.taken .pill-item-name {
+  text-decoration: line-through;
+  color: #166534;
+}
+
+.pill-item-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.pill-take-toggle-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pill-take-toggle-btn:hover {
+  background: #2563eb;
+}
+
+.pill-item-box.taken .pill-take-toggle-btn {
+  background: #10b981;
+}
+
+.pill-item-box.taken .pill-take-toggle-btn:hover {
+  background: #059669;
+}
+
+/* Add Custom Medicine Form */
+.pill-add-form {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pill-add-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.pill-add-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}

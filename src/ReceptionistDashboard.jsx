@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
 import './ReceptionistDashboard.css';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
+import BedManagementModal from './BedManagementModal';
+import LanguageSelector from './LanguageSelector';
+import { t } from './i18nService';
+import { 
+  sendAppointmentWhatsApp, 
+  sendPrescriptionWhatsApp, 
+  sendLabReportWhatsApp, 
+  openWhatsAppMessage 
+} from './whatsappService';
 
 export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('register_patient');
+  const [showBedModal, setShowBedModal] = useState(false);
 
   // Load initial datasets from localStorage
   const [patients, setPatients] = useState(() => {
@@ -564,6 +574,18 @@ End of Generated Health Summary Report
                 style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '9px 16px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
               >
                 📋 Copy Credentials
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => {
+                  const patName = `${patientData.firstName} ${patientData.lastName}`.trim();
+                  const msg = `🏥 *APOLLO SUPER SPECIALTY MEDICAL CENTER*\n*Welcome to DHMS Healthcare*\n\nHello *${patName}*,\nYour patient profile has been registered successfully.\n\n📋 *Your Portal Access Credentials:*\n• *Patient UHID / ID:* ${generatedId}\n• *Password:* ${generatedPassword}\n• *Portal Link:* https://dhms.org\n\n❤️ _"Thank you for choosing our hospital and we will always take care of you."_\n_DHMS Patient Desk_`;
+                  openWhatsAppMessage(patientData.phone, msg);
+                }}
+                style={{ background: '#25d366', color: '#064e3b', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                💬 Send via WhatsApp
               </button>
 
               {patientData.email && (
@@ -2402,6 +2424,29 @@ End of Generated Health Summary Report
           <span className="rd-logo-sub">Front Desk Operations</span>
         </div>
         <div className="rd-topbar-right">
+          <button 
+            type="button"
+            onClick={() => setShowBedModal(true)}
+            style={{
+              background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontWeight: '700',
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)'
+            }}
+          >
+            🛏️ {t('bedMatrix')}
+          </button>
+
+          <LanguageSelector />
+
           <div className="rd-profile-info">
             <div className="rd-avatar">{loggedInStaff?.name ? loggedInStaff.name.charAt(0) : 'R'}</div>
             <div className="rd-user-details">
@@ -3363,6 +3408,10 @@ End of Generated Health Summary Report
             </div>
           </div>
         </div>
+      )}
+      {/* Live ICU & Bed Occupancy Matrix Modal */}
+      {showBedModal && (
+        <BedManagementModal onClose={() => setShowBedModal(false)} />
       )}
     </div>
   );
