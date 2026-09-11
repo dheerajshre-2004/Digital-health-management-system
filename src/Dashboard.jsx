@@ -6,6 +6,8 @@ import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWor
 import { teleSignaling, cleanDoctorName } from './telemedicineService';
 import BedManagementModal from './BedManagementModal';
 import LanguageSelector from './LanguageSelector';
+import BloodBankManagement from './BloodBank';
+import OperationTheatreManagement from './OperationTheatre';
 import { t } from './i18nService';
 import { 
   sendAppointmentWhatsApp, 
@@ -2316,6 +2318,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Beds & Wards' },
+          { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
+          { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'pharmacy', label: 'Pharmacy Stock & Meds' },
           { id: 'laboratory', label: 'Diagnostic Lab Orders' },
           { id: 'insurance_claims', label: 'Insurance & TPA Claims' },
@@ -2328,6 +2332,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Ward' },
+          { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
+          { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'slot_management', label: 'Manage Slot Capacity' },
           { id: 'prescriptions', label: 'Prescription History' },
           { id: 'labs', label: 'Lab Orders History' },
@@ -2466,6 +2472,14 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div className="stat-value">{totalClaimsCount} Claims</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                 {insuranceClaims.filter(c => c.status === 'Approved' || c.status === 'Settled').length} Approved / Settled
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #dc2626', cursor: 'pointer' }} onClick={() => setActiveView('blood_bank')}>
+              <h3>Blood Bank Reserve</h3>
+              <div className="stat-value">{JSON.parse(localStorage.getItem('dhms_blood_stock') || '[]').filter(b => b.status === 'Available').length} Units</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                Cross-Match & Component Registry
               </div>
             </div>
           </div>
@@ -3727,6 +3741,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 )}
               </tbody>
             </table>
+          </div>
+        );
+
+      case 'operation_theatre':
+        return (
+          <div className="module-content">
+            <OperationTheatreManagement role={role} loggedInUser={role === 'doctor' ? activeDocObj : { name: 'System Administrator', email: 'admin@dhms.org' }} />
+          </div>
+        );
+
+      case 'blood_bank':
+        return (
+          <div className="module-content">
+            <BloodBankManagement role={role} loggedInUser={role === 'doctor' ? activeDocObj : { name: 'System Administrator', email: 'admin@dhms.org' }} />
           </div>
         );
 

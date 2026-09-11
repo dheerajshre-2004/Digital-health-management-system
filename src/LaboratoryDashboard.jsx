@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './LaboratoryDashboard.css';
+import BloodBankManagement from './BloodBank';
 
 export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -309,6 +310,10 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
               Lab Facilities & Services
             </li>
+            <li className={activeTab === 'blood_bank' ? 'active' : ''} onClick={() => setActiveTab('blood_bank')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+              Blood Bank & Transfusion
+            </li>
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               Staff Attendance Log
@@ -616,6 +621,12 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'blood_bank' && (
+            <div className="lab-view-container animate-fade-in" style={{ padding: '0 4px' }}>
+              <BloodBankManagement role="laboratory" loggedInUser={loggedInStaff || { name: 'Laboratory Specialist' }} />
             </div>
           )}
 

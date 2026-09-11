@@ -1,0 +1,518 @@
+/* Operation Theatre (OT) & CSSD Module Styles */
+
+.ot-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+  width: 100%;
+}
+
+.ot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.ot-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ot-header-icon {
+  width: 40px;
+  height: 40px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ot-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ot-header p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ot-actions-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.ot-btn-primary {
+  background: #4338ca;
+  color: #ffffff;
+}
+
+.ot-btn-primary:hover {
+  background: #3730a3;
+}
+
+.ot-btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.ot-btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.ot-btn-success {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.ot-btn-success:hover {
+  background: #15803d;
+}
+
+.ot-btn-warning {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.ot-btn-warning:hover {
+  background: #d97706;
+}
+
+/* Nav Subtabs */
+.ot-subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.ot-tab-item {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.ot-tab-item:hover {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.ot-tab-item.active {
+  color: #4338ca;
+  background: #eef2ff;
+}
+
+.ot-tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #4338ca;
+  border-radius: 2px;
+}
+
+.ot-tab-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  margin-left: 6px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.ot-tab-item.active .ot-tab-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* Summary Grid */
+.ot-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.ot-metric-card {
+  background: #ffffff;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ot-metric-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ot-metric-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ot-metric-sub {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+/* OT Room Visual Status Board */
+.ot-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.ot-room-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.ot-room-card.in-surgery {
+  border-left: 4px solid #ef4444;
+  background: #fffafa;
+}
+
+.ot-room-card.available {
+  border-left: 4px solid #10b981;
+}
+
+.ot-room-card.scheduled {
+  border-left: 4px solid #3b82f6;
+}
+
+.ot-room-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ot-room-type {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Data Tables */
+.ot-table-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+}
+
+.ot-filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #f8fafc;
+}
+
+.ot-search-input {
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 280px;
+  outline: none;
+  background: #ffffff;
+}
+
+.ot-select-filter {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  outline: none;
+}
+
+.ot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.ot-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ot-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.ot-table tr:hover {
+  background: #fafafa;
+}
+
+/* Status Badges */
+.ot-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ot-badge-insurgery {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.ot-badge-scheduled {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.ot-badge-pacu {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.ot-badge-completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ot-badge-sterile {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ot-badge-issued {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.ot-badge-cleaning {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Modal Windows */
+.ot-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+
+.ot-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 760px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.ot-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.ot-modal-header h3 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ot-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.ot-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ot-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ot-form-group label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ot-form-group input,
+.ot-form-group select,
+.ot-form-group textarea {
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13.5px;
+  outline: none;
+  font-family: inherit;
+}
+
+.ot-form-group input:focus,
+.ot-form-group select:focus,
+.ot-form-group textarea:focus {
+  border-color: #4338ca;
+}
+
+.ot-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #f8fafc;
+}
+
+/* WHO Surgical Safety Checklist 3-Phases Layout */
+.who-phase-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.who-phase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.who-phase-title {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.who-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.who-item-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #4338ca;
+  cursor: pointer;
+}
+
+/* Aldrete Score Slider / Select Grid */
+.aldrete-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.aldrete-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
