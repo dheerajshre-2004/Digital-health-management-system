@@ -33,7 +33,7 @@ const INITIAL_BEDS = [
   { id: 'DLX-402', ward: 'deluxe', room: 'Suite 402', type: 'Luxury Executive Suite', status: 'vacant', patientName: '', patientId: '', doctor: '', diagnosis: '', admitDate: '', oxygen: 'Private Console', vitals: '' }
 ];
 
-export default function BedManagementModal({ onClose }) {
+export default function BedManagementModal({ onClose, inline = false }) {
   const [beds, setBeds] = useState(() => {
     try {
       const saved = localStorage.getItem('dhms_beds_inventory');
@@ -201,335 +201,340 @@ export default function BedManagementModal({ onClose }) {
     setSelectedBed(null);
   };
 
-  return (
-    <div className="bed-matrix-overlay" onClick={onClose}>
-      <div className="bed-matrix-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="bed-matrix-header">
-          <div className="bed-matrix-header-title">
-            <h2>🛏️ {t('bedManagementTitle')}</h2>
-            <span className="bed-live-chip">
-              <span className="bed-live-dot"></span>
-              LIVE HOSPITAL CENSUS
-            </span>
-          </div>
+  const content = (
+    <div className={`bed-matrix-modal ${inline ? 'bed-matrix-inline' : ''}`} onClick={(e) => e.stopPropagation()}>
+      {/* Header */}
+      <div className="bed-matrix-header">
+        <div className="bed-matrix-header-title">
+          <h2>Inpatient & ICU Bed Matrix</h2>
+          <span className="bed-live-chip">
+            <span className="bed-live-dot"></span>
+            LIVE CENSUS
+          </span>
+        </div>
+        {!inline && onClose && (
           <button className="bed-close-btn" onClick={onClose}>×</button>
-        </div>
+        )}
+      </div>
 
-        {/* Live Metrics HUD */}
-        <div className="bed-metrics-grid">
-          <div className="bed-metric-card">
-            <div className="bed-metric-icon">🏥</div>
-            <div className="bed-metric-info">
-              <span className="bed-metric-val">{totalCount}</span>
-              <span className="bed-metric-label">{t('totalBeds')}</span>
-            </div>
-          </div>
-          <div className="bed-metric-card" style={{ borderLeft: '4px solid #ef4444' }}>
-            <div className="bed-metric-icon" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>🔴</div>
-            <div className="bed-metric-info">
-              <span className="bed-metric-val">{occupiedCount}</span>
-              <span className="bed-metric-label">{t('occupiedBeds')} ({Math.round((occupiedCount / totalCount) * 100)}%)</span>
-            </div>
-          </div>
-          <div className="bed-metric-card" style={{ borderLeft: '4px solid #10b981' }}>
-            <div className="bed-metric-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>🟢</div>
-            <div className="bed-metric-info">
-              <span className="bed-metric-val">{vacantCount}</span>
-              <span className="bed-metric-label">{t('availableBeds')}</span>
-            </div>
-          </div>
-          <div className="bed-metric-card" style={{ borderLeft: '4px solid #38bdf8' }}>
-            <div className="bed-metric-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>🫁</div>
-            <div className="bed-metric-info">
-              <span className="bed-metric-val">{icuUtilPercent}%</span>
-              <span className="bed-metric-label">{t('icuOccupancy')} ({icuOccupied}/{icuBeds.length})</span>
-            </div>
-          </div>
-          <div className="bed-metric-card" style={{ borderLeft: '4px solid #a855f7' }}>
-            <div className="bed-metric-icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>⚡</div>
-            <div className="bed-metric-info">
-              <span className="bed-metric-val">{readyVentilators}</span>
-              <span className="bed-metric-label">{t('ventilatorsAvailable')}</span>
-            </div>
+      {/* Live Metrics HUD */}
+      <div className="bed-metrics-grid">
+        <div className="bed-metric-card">
+          <div className="bed-metric-info">
+            <span className="bed-metric-val">{totalCount}</span>
+            <span className="bed-metric-label">Total Beds</span>
           </div>
         </div>
+        <div className="bed-metric-card" style={{ borderLeft: '4px solid #dc2626' }}>
+          <div className="bed-metric-info">
+            <span className="bed-metric-val" style={{ color: '#dc2626' }}>{occupiedCount}</span>
+            <span className="bed-metric-label">Occupied ({Math.round((occupiedCount / totalCount) * 100)}%)</span>
+          </div>
+        </div>
+        <div className="bed-metric-card" style={{ borderLeft: '4px solid #16a34a' }}>
+          <div className="bed-metric-info">
+            <span className="bed-metric-val" style={{ color: '#16a34a' }}>{vacantCount}</span>
+            <span className="bed-metric-label">Available / Vacant</span>
+          </div>
+        </div>
+        <div className="bed-metric-card" style={{ borderLeft: '4px solid #2563eb' }}>
+          <div className="bed-metric-info">
+            <span className="bed-metric-val" style={{ color: '#2563eb' }}>{icuUtilPercent}%</span>
+            <span className="bed-metric-label">ICU Occupancy ({icuOccupied}/{icuBeds.length})</span>
+          </div>
+        </div>
+        <div className="bed-metric-card" style={{ borderLeft: '4px solid #475569' }}>
+          <div className="bed-metric-info">
+            <span className="bed-metric-val">{readyVentilators}</span>
+            <span className="bed-metric-label">Ventilators Ready</span>
+          </div>
+        </div>
+      </div>
 
-        {/* Main Body */}
-        <div className="bed-matrix-body">
-          {/* Left Ward Filter Sidebar */}
-          <div className="bed-wards-sidebar">
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('all')}
-            >
-              <span>🏢 {t('allWards')}</span>
-              <span className="bed-ward-count">{beds.length}</span>
-            </button>
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'icu' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('icu')}
-            >
-              <span>🔴 {t('icuWard')}</span>
-              <span className="bed-ward-count">{beds.filter(b => b.ward === 'icu').length}</span>
-            </button>
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'emergency' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('emergency')}
-            >
-              <span>🚨 {t('emergencyWard')}</span>
-              <span className="bed-ward-count">{beds.filter(b => b.ward === 'emergency').length}</span>
-            </button>
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'general' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('general')}
-            >
-              <span>🔵 {t('generalWard')}</span>
-              <span className="bed-ward-count">{beds.filter(b => b.ward === 'general').length}</span>
-            </button>
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'maternity' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('maternity')}
-            >
-              <span>🟣 {t('maternityWard')}</span>
-              <span className="bed-ward-count">{beds.filter(b => b.ward === 'maternity').length}</span>
-            </button>
-            <button 
-              className={`bed-ward-btn ${selectedWard === 'deluxe' ? 'active' : ''}`}
-              onClick={() => setSelectedWard('deluxe')}
-            >
-              <span>👑 {t('deluxeWard')}</span>
-              <span className="bed-ward-count">{beds.filter(b => b.ward === 'deluxe').length}</span>
-            </button>
+      {/* Main Body */}
+      <div className="bed-matrix-body">
+        {/* Left Ward Filter Sidebar */}
+        <div className="bed-wards-sidebar">
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'all' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('all')}
+          >
+            <span>All Wards & Wings</span>
+            <span className="bed-ward-count">{beds.length}</span>
+          </button>
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'icu' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('icu')}
+          >
+            <span>ICU & Critical Care</span>
+            <span className="bed-ward-count">{beds.filter(b => b.ward === 'icu').length}</span>
+          </button>
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'emergency' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('emergency')}
+          >
+            <span>Emergency & Trauma</span>
+            <span className="bed-ward-count">{beds.filter(b => b.ward === 'emergency').length}</span>
+          </button>
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'general' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('general')}
+          >
+            <span>General Medical Ward</span>
+            <span className="bed-ward-count">{beds.filter(b => b.ward === 'general').length}</span>
+          </button>
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'maternity' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('maternity')}
+          >
+            <span>Maternity & Pediatric</span>
+            <span className="bed-ward-count">{beds.filter(b => b.ward === 'maternity').length}</span>
+          </button>
+          <button 
+            className={`bed-ward-btn ${selectedWard === 'deluxe' ? 'active' : ''}`}
+            onClick={() => setSelectedWard('deluxe')}
+          >
+            <span>Deluxe Private Suites</span>
+            <span className="bed-ward-count">{beds.filter(b => b.ward === 'deluxe').length}</span>
+          </button>
+        </div>
+
+        {/* Floor Plan Grid */}
+        <div className="bed-floor-plan">
+          <div className="bed-legend-bar">
+            <div className="bed-legend-item">
+              <span className="bed-legend-box" style={{ background: '#16a34a' }}></span>
+              <span>Vacant (Click to Admit)</span>
+            </div>
+            <div className="bed-legend-item">
+              <span className="bed-legend-box" style={{ background: '#dc2626' }}></span>
+              <span>Occupied (Click for Details)</span>
+            </div>
+            <div className="bed-legend-item">
+              <span className="bed-legend-box" style={{ background: '#d97706' }}></span>
+              <span>Reserved</span>
+            </div>
+            <div className="bed-legend-item">
+              <span className="bed-legend-box" style={{ background: '#7c3aed' }}></span>
+              <span>Sanitizing</span>
+            </div>
           </div>
 
-          {/* Floor Plan Grid */}
-          <div className="bed-floor-plan">
-            <div className="bed-legend-bar">
-              <div className="bed-legend-item">
-                <span className="bed-legend-box" style={{ background: '#10b981' }}></span>
-                <span>{t('vacant')} (Click to Admit)</span>
-              </div>
-              <div className="bed-legend-item">
-                <span className="bed-legend-box" style={{ background: '#ef4444' }}></span>
-                <span>{t('occupied')} (Click for Details)</span>
-              </div>
-              <div className="bed-legend-item">
-                <span className="bed-legend-box" style={{ background: '#f59e0b' }}></span>
-                <span>{t('reserved')}</span>
-              </div>
-              <div className="bed-legend-item">
-                <span className="bed-legend-box" style={{ background: '#a855f7' }}></span>
-                <span>{t('cleaning')}</span>
-              </div>
-            </div>
-
-            <div className="bed-grid-layout">
-              {filteredBeds.map(bed => (
-                <div 
-                  key={bed.id} 
-                  className={`bed-card ${bed.status}`}
-                  onClick={() => handleBedClick(bed)}
-                >
-                  <div className="bed-card-header">
-                    <span className="bed-id-badge">{bed.id}</span>
-                    <span className="bed-status-tag">{t(bed.status)}</span>
-                  </div>
-
-                  <div className="bed-card-meta">
-                    <span style={{ color: '#38bdf8', fontWeight: '600' }}>{bed.type}</span>
-                    <span>Room: {bed.room}</span>
-                  </div>
-
-                  {bed.status === 'occupied' && (
-                    <div style={{ marginTop: '4px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
-                      <div className="bed-card-patient">👤 {bed.patientName}</div>
-                      <div className="bed-card-meta">
-                        <span>🩺 {bed.doctor}</span>
-                        <span>📋 {bed.diagnosis}</span>
-                        {bed.vitals && <span style={{ color: '#4ade80' }}>📊 {bed.vitals}</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {bed.status === 'reserved' && (
-                    <div style={{ marginTop: '4px', color: '#fcd34d', fontSize: '0.8rem' }}>
-                      ⏳ {bed.patientName}
-                    </div>
-                  )}
-
-                  {bed.status === 'cleaning' && (
-                    <div style={{ marginTop: '4px', color: '#d8b4fe', fontSize: '0.8rem' }}>
-                      🧼 Sanitization In Progress
-                    </div>
-                  )}
-
-                  <div className="bed-equipment-row">
-                    <span className="bed-equip-tag">{bed.oxygen}</span>
-                  </div>
+          <div className="bed-grid-layout">
+            {filteredBeds.map(bed => (
+              <div 
+                key={bed.id} 
+                className={`bed-card ${bed.status}`}
+                onClick={() => handleBedClick(bed)}
+              >
+                <div className="bed-card-header">
+                  <span className="bed-id-badge">{bed.id}</span>
+                  <span className="bed-status-tag">{bed.status.toUpperCase()}</span>
                 </div>
-              ))}
-            </div>
+
+                <div className="bed-card-meta">
+                  <span style={{ color: '#0284c7', fontWeight: '600' }}>{bed.type}</span>
+                  <span>Room: {bed.room}</span>
+                </div>
+
+                {bed.status === 'occupied' && (
+                  <div style={{ marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+                    <div className="bed-card-patient">{bed.patientName}</div>
+                    <div className="bed-card-meta">
+                      <span>Doctor: {bed.doctor}</span>
+                      <span>Diagnosis: {bed.diagnosis}</span>
+                      {bed.vitals && <span style={{ color: '#0f766e', fontWeight: '600' }}>Vitals: {bed.vitals}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {bed.status === 'reserved' && (
+                  <div style={{ marginTop: '6px', color: '#b45309', fontSize: '0.8rem', fontWeight: '600' }}>
+                    Reserved: {bed.patientName}
+                  </div>
+                )}
+
+                {bed.status === 'cleaning' && (
+                  <div style={{ marginTop: '6px', color: '#7c3aed', fontSize: '0.8rem', fontWeight: '600' }}>
+                    Sanitization In Progress
+                  </div>
+                )}
+
+                <div className="bed-equipment-row">
+                  <span className="bed-equip-tag">{bed.oxygen}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* Selected Bed Details / Actions Modal */}
-        {selectedBed && !showAdmitForm && !showTransferForm && (
-          <div className="bed-action-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Bed Details — {selectedBed.id} ({selectedBed.type})</h3>
-            <p style={{ margin: '0', color: '#94a3b8', fontSize: '0.85rem' }}>
-              Ward: <strong style={{ color: '#f8fafc' }}>{selectedBed.ward.toUpperCase()}</strong> • Room: <strong style={{ color: '#f8fafc' }}>{selectedBed.room}</strong> • Status: <strong style={{ color: selectedBed.status === 'vacant' ? '#10b981' : '#ef4444' }}>{t(selectedBed.status)}</strong>
-            </p>
+      {/* Selected Bed Details / Actions Modal */}
+      {selectedBed && !showAdmitForm && !showTransferForm && (
+        <div className="bed-action-panel" onClick={(e) => e.stopPropagation()}>
+          <h3>Bed Details: {selectedBed.id} ({selectedBed.type})</h3>
+          <p style={{ margin: '0', color: '#64748b', fontSize: '0.85rem' }}>
+            Ward: <strong style={{ color: '#1e293b' }}>{selectedBed.ward.toUpperCase()}</strong> • Room: <strong style={{ color: '#1e293b' }}>{selectedBed.room}</strong> • Status: <strong style={{ color: selectedBed.status === 'vacant' ? '#16a34a' : '#dc2626' }}>{selectedBed.status.toUpperCase()}</strong>
+          </p>
+
+          {selectedBed.status === 'occupied' && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '6px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div><strong>Patient:</strong> {selectedBed.patientName} ({selectedBed.patientId})</div>
+              <div><strong>Attending Doctor:</strong> {selectedBed.doctor}</div>
+              <div><strong>Diagnosis:</strong> {selectedBed.diagnosis}</div>
+              <div><strong>Admitted On:</strong> {selectedBed.admitDate}</div>
+              <div><strong>Support:</strong> {selectedBed.oxygen}</div>
+              {selectedBed.vitals && <div style={{ color: '#0f766e', fontWeight: '600' }}><strong>Live Vitals:</strong> {selectedBed.vitals}</div>}
+            </div>
+          )}
+
+          {selectedBed.status === 'cleaning' && (
+            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', padding: '12px', borderRadius: '6px', fontSize: '0.85rem', color: '#6d28d9' }}>
+              Housekeeping sanitization cycle underway. Inspect and mark ready when complete.
+            </div>
+          )}
+
+          <div className="bed-action-buttons">
+            {selectedBed.status === 'vacant' && (
+              <button className="bed-btn-primary" onClick={() => handleOpenAdmit(selectedBed)}>
+                Admit Patient
+              </button>
+            )}
 
             {selectedBed.status === 'occupied' && (
-              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div><strong>Patient:</strong> {selectedBed.patientName} ({selectedBed.patientId})</div>
-                <div><strong>Attending Doctor:</strong> {selectedBed.doctor}</div>
-                <div><strong>Diagnosis:</strong> {selectedBed.diagnosis}</div>
-                <div><strong>Admitted On:</strong> {selectedBed.admitDate}</div>
-                <div><strong>Support:</strong> {selectedBed.oxygen}</div>
-                {selectedBed.vitals && <div style={{ color: '#4ade80' }}><strong>Live Vitals:</strong> {selectedBed.vitals}</div>}
-              </div>
+              <>
+                <button className="bed-btn-primary" onClick={() => handleOpenTransfer(selectedBed)}>
+                  Transfer Bed
+                </button>
+                <button className="bed-btn-danger" onClick={() => handleDischarge(selectedBed.id)}>
+                  Discharge & Sanitize
+                </button>
+              </>
             )}
 
             {selectedBed.status === 'cleaning' && (
-              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', color: '#d8b4fe' }}>
-                🧹 Housekeeping has sanitized this bed. Mark ready when inspection is complete.
-              </div>
+              <button className="bed-btn-primary" style={{ background: '#16a34a' }} onClick={() => handleCompleteSanitize(selectedBed.id)}>
+                Mark Sanitized & Ready
+              </button>
             )}
 
-            <div className="bed-action-buttons">
-              {selectedBed.status === 'vacant' && (
-                <button className="bed-btn-primary" onClick={() => handleOpenAdmit(selectedBed)}>
-                  ➕ {t('admitPatient')}
-                </button>
-              )}
-
-              {selectedBed.status === 'occupied' && (
-                <>
-                  <button className="bed-btn-primary" onClick={() => handleOpenTransfer(selectedBed)}>
-                    🔄 {t('transferBed')}
-                  </button>
-                  <button className="bed-btn-danger" onClick={() => handleDischarge(selectedBed.id)}>
-                    🚪 {t('dischargeClean')}
-                  </button>
-                </>
-              )}
-
-              {selectedBed.status === 'cleaning' && (
-                <button className="bed-btn-primary" style={{ background: '#10b981' }} onClick={() => handleCompleteSanitize(selectedBed.id)}>
-                  ✓ Mark Sanitized & Available
-                </button>
-              )}
-
-              <button className="bed-btn-secondary" onClick={() => setSelectedBed(null)}>
-                {t('close')}
-              </button>
-            </div>
+            <button className="bed-btn-secondary" onClick={() => setSelectedBed(null)}>
+              Close
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Admit Patient Form Modal */}
-        {showAdmitForm && selectedBed && (
-          <form className="bed-action-panel" onSubmit={submitAdmit} onClick={(e) => e.stopPropagation()}>
-            <h3>➕ {t('admitPatient')} to {selectedBed.id}</h3>
-            
-            <div className="bed-form-group">
-              <label>{t('patientName')} *</label>
-              <input 
-                type="text" 
-                required 
-                placeholder="e.g. Ramesh Kumar"
-                value={admitPatName}
-                onChange={(e) => setAdmitPatName(e.target.value)}
-              />
-            </div>
+      {/* Admit Patient Form Modal */}
+      {showAdmitForm && selectedBed && (
+        <form className="bed-action-panel" onSubmit={submitAdmit} onClick={(e) => e.stopPropagation()}>
+          <h3>Admit Patient to Bed {selectedBed.id}</h3>
+          
+          <div className="bed-form-group">
+            <label>Patient Name *</label>
+            <input 
+              type="text" 
+              required 
+              placeholder="e.g. Ramesh Kumar"
+              value={admitPatName}
+              onChange={(e) => setAdmitPatName(e.target.value)}
+            />
+          </div>
 
-            <div className="bed-form-group">
-              <label>Patient Medical Record Number (MRN / ID)</label>
-              <input 
-                type="text" 
-                value={admitPatId}
-                onChange={(e) => setAdmitPatId(e.target.value)}
-              />
-            </div>
+          <div className="bed-form-group">
+            <label>Patient Medical Record Number (MRN / ID)</label>
+            <input 
+              type="text" 
+              value={admitPatId}
+              onChange={(e) => setAdmitPatId(e.target.value)}
+            />
+          </div>
 
-            <div className="bed-form-group">
-              <label>{t('attendingDoctor')}</label>
-              <select value={admitDoctor} onChange={(e) => setAdmitDoctor(e.target.value)}>
-                <option value="Dr. Sarah Connor">Dr. Sarah Connor (Cardiology & Critical Care)</option>
-                <option value="Dr. Gregory House">Dr. Gregory House (Diagnostic Medicine)</option>
-                <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery / Trauma)</option>
-                <option value="Dr. Hemavathi Rao">Dr. Hemavathi Rao (Internal Medicine)</option>
-              </select>
-            </div>
+          <div className="bed-form-group">
+            <label>Attending Doctor</label>
+            <select value={admitDoctor} onChange={(e) => setAdmitDoctor(e.target.value)}>
+              <option value="Dr. Sarah Connor">Dr. Sarah Connor (Cardiology & Critical Care)</option>
+              <option value="Dr. Gregory House">Dr. Gregory House (Diagnostic Medicine)</option>
+              <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery / Trauma)</option>
+              <option value="Dr. Hemavathi Rao">Dr. Hemavathi Rao (Internal Medicine)</option>
+            </select>
+          </div>
 
-            <div className="bed-form-group">
-              <label>{t('diagnosis')}</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Acute Myocardial Infarction / Post-Op Recovery"
-                value={admitDiagnosis}
-                onChange={(e) => setAdmitDiagnosis(e.target.value)}
-              />
-            </div>
+          <div className="bed-form-group">
+            <label>Diagnosis</label>
+            <input 
+              type="text" 
+              placeholder="e.g. Acute Myocardial Infarction / Post-Op Recovery"
+              value={admitDiagnosis}
+              onChange={(e) => setAdmitDiagnosis(e.target.value)}
+            />
+          </div>
 
-            <div className="bed-form-group">
-              <label>{t('oxygenRequired')}</label>
-              <select value={admitOxygen} onChange={(e) => setAdmitOxygen(e.target.value)}>
-                <option value="Room Air">Room Air (No support)</option>
-                <option value="Nasal Cannula (2-4L O2)">Nasal Cannula (2-4L O2)</option>
-                <option value="High-Flow Mask (6-10L O2)">High-Flow Mask (6-10L O2)</option>
-                <option value="BiPAP / CPAP Machine">BiPAP / CPAP Machine</option>
-                <option value="Mechanical Ventilator (Intubated)">Mechanical Ventilator (Intubated)</option>
-              </select>
-            </div>
+          <div className="bed-form-group">
+            <label>Oxygen Support Required</label>
+            <select value={admitOxygen} onChange={(e) => setAdmitOxygen(e.target.value)}>
+              <option value="Room Air">Room Air (No support)</option>
+              <option value="Nasal Cannula (2-4L O2)">Nasal Cannula (2-4L O2)</option>
+              <option value="High-Flow Mask (6-10L O2)">High-Flow Mask (6-10L O2)</option>
+              <option value="BiPAP / CPAP Machine">BiPAP / CPAP Machine</option>
+              <option value="Mechanical Ventilator (Intubated)">Mechanical Ventilator (Intubated)</option>
+            </select>
+          </div>
 
-            <div className="bed-action-buttons">
-              <button type="submit" className="bed-btn-primary">
-                ✓ Confirm Admission
-              </button>
-              <button type="button" className="bed-btn-secondary" onClick={() => setShowAdmitForm(false)}>
-                {t('cancel')}
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="bed-action-buttons">
+            <button type="submit" className="bed-btn-primary">
+              Confirm Admission
+            </button>
+            <button type="button" className="bed-btn-secondary" onClick={() => setShowAdmitForm(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
-        {/* Transfer Bed Modal */}
-        {showTransferForm && selectedBed && (
-          <form className="bed-action-panel" onSubmit={submitTransfer} onClick={(e) => e.stopPropagation()}>
-            <h3>🔄 {t('transferBed')} for {selectedBed.patientName}</h3>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
-              Current: <strong>{selectedBed.id}</strong> ({selectedBed.ward.toUpperCase()})
-            </p>
+      {/* Transfer Bed Modal */}
+      {showTransferForm && selectedBed && (
+        <form className="bed-action-panel" onSubmit={submitTransfer} onClick={(e) => e.stopPropagation()}>
+          <h3>Transfer Bed for {selectedBed.patientName}</h3>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>
+            Current: <strong>{selectedBed.id}</strong> ({selectedBed.ward.toUpperCase()})
+          </p>
 
-            <div className="bed-form-group">
-              <label>Select Target Vacant Bed *</label>
-              <select 
-                value={targetBedId} 
-                onChange={(e) => setTargetBedId(e.target.value)}
-                required
-              >
-                {beds.filter(b => b.status === 'vacant' && b.id !== selectedBed.id).map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.id} — {b.ward.toUpperCase()} ({b.type}, Room {b.room})
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="bed-form-group">
+            <label>Select Target Vacant Bed *</label>
+            <select 
+              value={targetBedId} 
+              onChange={(e) => setTargetBedId(e.target.value)}
+              required
+            >
+              {beds.filter(b => b.status === 'vacant' && b.id !== selectedBed.id).map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.id} — {b.ward.toUpperCase()} ({b.type}, Room {b.room})
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div className="bed-action-buttons">
-              <button type="submit" className="bed-btn-primary">
-                ✓ Confirm Transfer
-              </button>
-              <button type="button" className="bed-btn-secondary" onClick={() => setShowTransferForm(false)}>
-                {t('cancel')}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+          <div className="bed-action-buttons">
+            <button type="submit" className="bed-btn-primary">
+              Confirm Transfer
+            </button>
+            <button type="button" className="bed-btn-secondary" onClick={() => setShowTransferForm(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+
+  if (inline) {
+    return <div className="bed-matrix-inline-container">{content}</div>;
+  }
+
+  return (
+    <div className="bed-matrix-overlay" onClick={onClose}>
+      {content}
     </div>
   );
 }

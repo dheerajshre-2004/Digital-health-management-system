@@ -4889,118 +4889,126 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       <div className="module-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
-            <h2> Inpatient Ward & Patient Bedside Care</h2>
+            <h2>Inpatient Ward & Bedside Clinical Care</h2>
             <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Monitor admitted inpatients under care, view bedside medication ledger, and perform clinical discharge sign-offs.</p>
           </div>
-          <span style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700' }}>
+          <span style={{ background: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '700' }}>
             Active Inpatients: {admittedList.filter(a => a.status === 'Admitted').length}
           </span>
         </div>
 
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Admission ID</th>
-              <th>Patient Name & ID</th>
-              <th>Ward & Bed Allocation</th>
-              <th>Admitted On</th>
-              <th>Clinical Indication / Diagnosis</th>
-              <th>Medications Administered</th>
-              <th>Status</th>
-              <th>Clinical Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {admittedList.length === 0 ? (
+        {/* Integrated Live Bed Matrix */}
+        <div style={{ marginBottom: '32px' }}>
+          <BedManagementModal inline={true} />
+        </div>
+
+        <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+          <h3 style={{ fontSize: '16px', color: '#1e293b', marginBottom: '12px' }}>Active Inpatient Roster & Clinical Sign-off</h3>
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontStyle: 'italic' }}>
-                  No patients currently in the Inpatient Ward.
-                </td>
+                <th>Admission ID</th>
+                <th>Patient Name & ID</th>
+                <th>Ward & Bed Allocation</th>
+                <th>Admitted On</th>
+                <th>Clinical Indication / Diagnosis</th>
+                <th>Medications Administered</th>
+                <th>Status</th>
+                <th>Clinical Action</th>
               </tr>
-            ) : (
-              admittedList.map(adm => {
-                const daysStayed = Math.max(1, Math.ceil((new Date() - new Date(adm.admissionDate || new Date().toISOString().split('T')[0])) / (1000 * 60 * 60 * 24)));
-                return (
-                  <tr key={adm.id}>
-                    <td><strong style={{ color: '#4338ca' }}>{adm.id}</strong></td>
-                    <td>
-                      <strong>{adm.patientName}</strong>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.patientId}</div>
-                    </td>
-                    <td>
-                      <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                        {adm.ward || 'General Ward A'}
-                      </span>
-                      {adm.bedNo && (
-                        <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>
-                          ✓ {adm.bedNo}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div>{adm.admissionDate || 'Today'}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>Day {daysStayed} of stay</div>
-                    </td>
-                    <td style={{ maxWidth: '200px' }}>
-                      <div style={{ fontSize: '12px', color: '#334155' }}>{adm.notes || 'Under clinical observation.'}</div>
-                    </td>
-                    <td>
-                      {adm.medications && adm.medications.length > 0 ? (
-                        <div style={{ fontSize: '12px', color: '#0f172a' }}>
-                          {adm.medications.length} items ({adm.medications.map(m => m.name).join(', ')})
-                        </div>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>No meds administered</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="status-badge" style={{
-                        backgroundColor: adm.status === 'Admitted' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#e0e7ff' : '#fef3c7',
-                        color: adm.status === 'Admitted' ? '#15803d' : adm.status?.includes('Discharge') ? '#4338ca' : '#b45309'
-                      }}>
-                        {adm.status}
-                      </span>
-                    </td>
-                    <td>
-                      {adm.status === 'Admitted' ? (
-                        <button
-                          onClick={() => {
-                            setSelectedAdmForDischarge(adm);
-                            setDischargeForm({
-                              condition: 'Stable / Cured',
-                              notes: `Patient hospitalized for ${adm.notes || 'clinical care'}. Vitals stable, symptom relief achieved. Safe for discharge.`,
-                              takeHomeMeds: adm.medications ? adm.medications.map(m => `${m.name} - ${m.instructions || 'Twice Daily after meals'}`).join('\n') : 'Paracetamol 500mg - As needed for pain',
-                              followUpDate: 'In 7 Days at OPD Room 101'
-                            });
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            background: '#4338ca',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          🏁 Discharge Sign-off
-                        </button>
-                      ) : adm.status?.includes('Discharge') ? (
-                        <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 'bold' }}>✓ Signed & At Billing</span>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>Awaiting IPD Desk</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {admittedList.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#64748b', fontStyle: 'italic' }}>
+                    No patients currently in the Inpatient Ward.
+                  </td>
+                </tr>
+              ) : (
+                admittedList.map(adm => {
+                  const daysStayed = Math.max(1, Math.ceil((new Date() - new Date(adm.admissionDate || new Date().toISOString().split('T')[0])) / (1000 * 60 * 60 * 24)));
+                  return (
+                    <tr key={adm.id}>
+                      <td><strong style={{ color: '#2563eb' }}>{adm.id}</strong></td>
+                      <td>
+                        <strong>{adm.patientName}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{adm.patientId}</div>
+                      </td>
+                      <td>
+                        <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                          {adm.ward || 'General Ward A'}
+                        </span>
+                        {adm.bedNo && (
+                          <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginTop: '2px' }}>
+                            ✓ {adm.bedNo}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div>{adm.admissionDate || 'Today'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>Day {daysStayed} of stay</div>
+                      </td>
+                      <td style={{ maxWidth: '200px' }}>
+                        <div style={{ fontSize: '12px', color: '#334155' }}>{adm.notes || 'Under clinical observation.'}</div>
+                      </td>
+                      <td>
+                        {adm.medications && adm.medications.length > 0 ? (
+                          <div style={{ fontSize: '12px', color: '#0f172a' }}>
+                            {adm.medications.length} items ({adm.medications.map(m => m.name).join(', ')})
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>No meds administered</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="status-badge" style={{
+                          backgroundColor: adm.status === 'Admitted' ? '#dcfce7' : adm.status?.includes('Discharge') ? '#eff6ff' : '#fef3c7',
+                          color: adm.status === 'Admitted' ? '#15803d' : adm.status?.includes('Discharge') ? '#1d4ed8' : '#b45309'
+                        }}>
+                          {adm.status}
+                        </span>
+                      </td>
+                      <td>
+                        {adm.status === 'Admitted' ? (
+                          <button
+                            onClick={() => {
+                              setSelectedAdmForDischarge(adm);
+                              setDischargeForm({
+                                condition: 'Stable / Cured',
+                                notes: `Patient hospitalized for ${adm.notes || 'clinical care'}. Vitals stable, symptom relief achieved. Safe for discharge.`,
+                                takeHomeMeds: adm.medications ? adm.medications.map(m => `${m.name} - ${m.instructions || 'Twice Daily after meals'}`).join('\n') : 'Paracetamol 500mg - As needed for pain',
+                                followUpDate: 'In 7 Days at OPD Room 101'
+                              });
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#2563eb',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            Discharge Sign-off
+                          </button>
+                        ) : adm.status?.includes('Discharge') ? (
+                          <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>✓ Signed & At Billing</span>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#b45309', fontWeight: 'bold' }}>Awaiting IPD Desk</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -5288,21 +5296,20 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               type="button"
               onClick={() => setShowBedModal(true)}
               style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                fontWeight: '700',
+                background: '#f8fafc',
+                color: '#1e293b',
+                border: '1px solid #cbd5e1',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontWeight: '600',
                 fontSize: '12.5px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)'
+                gap: '6px'
               }}
             >
-              🛏️ {t('bedMatrix')}
+              Bed Matrix
             </button>
 
             <LanguageSelector />

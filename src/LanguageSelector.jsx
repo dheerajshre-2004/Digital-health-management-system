@@ -17,27 +17,26 @@ export default function LanguageSelector({ style = {} }) {
 
   return (
     <div className="dhms-lang-selector-wrapper" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', ...style }}>
-      <span style={{ fontSize: '1rem' }}>🌐</span>
       <select 
         value={lang} 
         onChange={handleChange}
         className="dhms-lang-dropdown"
+        aria-label="Language Selector"
         style={{
-          background: '#1e293b',
-          color: '#f8fafc',
-          border: '1px solid #3b82f6',
-          borderRadius: '8px',
-          padding: '4px 10px',
-          fontSize: '0.85rem',
+          background: '#f8fafc',
+          color: '#1e293b',
+          border: '1px solid #cbd5e1',
+          borderRadius: '6px',
+          padding: '5px 10px',
+          fontSize: '0.82rem',
           fontWeight: '600',
           cursor: 'pointer',
-          outline: 'none',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+          outline: 'none'
         }}
       >
         {SUPPORTED_LANGUAGES.map(l => (
           <option key={l.code} value={l.code}>
-            {l.flag} {l.nativeName} ({l.name})
+            {l.name} ({l.nativeName})
           </option>
         ))}
       </select>

@@ -1,12 +1,13 @@
-/* BedManagement.css - Live ICU & Hospital Bed Matrix UI */
+/* BedManagement.css - Clinical Hospital Inpatient & ICU Bed Matrix UI */
+
 .bed-matrix-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   z-index: 99999;
   display: flex;
   align-items: center;
@@ -18,21 +19,33 @@
   width: 100%;
   max-width: 1200px;
   height: 90vh;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  color: #f8fafc;
+  color: #1e293b;
   font-family: inherit;
+}
+
+.bed-matrix-inline-container {
+  width: 100%;
+}
+
+.bed-matrix-modal.bed-matrix-inline {
+  max-width: 100%;
+  height: auto;
+  min-height: 750px;
+  box-shadow: none;
+  border-radius: 10px;
 }
 
 .bed-matrix-header {
   padding: 16px 24px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -46,44 +59,31 @@
 
 .bed-matrix-header-title h2 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: #38bdf8;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: #0f172a;
 }
 
 .bed-live-chip {
-  background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
-  border: 1px solid #10b981;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
   padding: 2px 10px;
-  border-radius: 20px;
-  font-size: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bed-live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  animation: pulse 1.5s infinite;
+  letter-spacing: 0.03em;
 }
 
 .bed-close-btn {
-  background: #334155;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.5rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 1.25rem;
   cursor: pointer;
-  border-radius: 8px;
-  width: 36px;
-  height: 36px;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -91,35 +91,29 @@
 }
 
 .bed-close-btn:hover {
-  background: #ef4444;
-  color: white;
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
 }
 
 /* Metrics Top Bar */
 .bed-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  padding: 16px 24px;
-  background: #0b132b;
-  border-bottom: 1px solid #1e293b;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 14px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .bed-metric-card {
-  background: #1e293b;
-  border-radius: 12px;
-  padding: 12px 16px;
-  border: 1px solid #334155;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
   display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.bed-metric-icon {
-  font-size: 1.75rem;
-  padding: 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  flex-direction: column;
+  gap: 4px;
 }
 
 .bed-metric-info {
@@ -128,16 +122,17 @@
 }
 
 .bed-metric-val {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 .bed-metric-label {
-  font-size: 0.75rem;
-  color: #94a3b8;
+  font-size: 0.72rem;
+  color: #64748b;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* Main Content Area with Filters & Floor Plan */
@@ -149,283 +144,310 @@
 
 /* Left Sidebar - Ward Categories */
 .bed-wards-sidebar {
-  width: 250px;
-  background: #0f172a;
-  border-right: 1px solid #1e293b;
+  width: 240px;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   overflow-y: auto;
 }
 
 .bed-ward-btn {
   background: transparent;
   border: 1px solid transparent;
-  color: #94a3b8;
-  padding: 12px 14px;
-  border-radius: 10px;
+  color: #475569;
+  padding: 10px 12px;
+  border-radius: 6px;
   text-align: left;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .bed-ward-btn:hover {
-  background: #1e293b;
-  color: #f8fafc;
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .bed-ward-btn.active {
-  background: #2563eb;
-  color: white;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #1e40af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .bed-ward-count {
-  background: rgba(0, 0, 0, 0.25);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.bed-ward-btn.active .bed-ward-count {
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 /* Floor Plan Grid */
 .bed-floor-plan {
   flex: 1;
-  padding: 24px;
+  padding: 20px 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  background: #ffffff;
 }
 
 .bed-legend-bar {
   display: flex;
-  gap: 16px;
   align-items: center;
+  gap: 20px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #475569;
   flex-wrap: wrap;
-  background: #1e293b;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 0.8rem;
 }
 
 .bed-legend-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
 }
 
 .bed-legend-box {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
 }
 
 .bed-grid-layout {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
-/* Individual Bed Card */
+/* Bed Card */
 .bed-card {
-  background: #1e293b;
-  border: 2px solid #334155;
-  border-radius: 12px;
-  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
   cursor: pointer;
-  position: relative;
   transition: all 0.2s;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  position: relative;
 }
 
 .bed-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  border-color: #94a3b8;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 .bed-card.vacant {
-  border-color: #10b981;
-  background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, #1e293b 100%);
+  border-left: 4px solid #16a34a;
 }
 
 .bed-card.occupied {
-  border-color: #ef4444;
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, #1e293b 100%);
+  border-left: 4px solid #dc2626;
+  background: #fffafa;
 }
 
 .bed-card.reserved {
-  border-color: #f59e0b;
-  background: linear-gradient(180deg, rgba(245, 158, 11 steering, 0.08) 0%, #1e293b 100%);
+  border-left: 4px solid #d97706;
+  background: #fffdfa;
 }
 
 .bed-card.cleaning {
-  border-color: #a855f7;
-  background: linear-gradient(180deg, rgba(168, 85, 247, 0.08) 0%, #1e293b 100%);
+  border-left: 4px solid #7c3aed;
+  background: #faf5ff;
 }
 
 .bed-card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
 }
 
 .bed-id-badge {
-  font-weight: 800;
-  font-size: 0.95rem;
-  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .bed-status-tag {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
+  text-transform: uppercase;
   padding: 2px 6px;
   border-radius: 4px;
-  text-transform: uppercase;
 }
 
-.bed-card.vacant .bed-status-tag { background: #064e3b; color: #34d399; }
-.bed-card.occupied .bed-status-tag { background: #7f1d1d; color: #fca5a5; }
-.bed-card.reserved .bed-status-tag { background: #78350f; color: #fcd34d; }
-.bed-card.cleaning .bed-status-tag { background: #581c87; color: #d8b4fe; }
+.bed-card.vacant .bed-status-tag {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.bed-card.occupied .bed-status-tag {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.bed-card.reserved .bed-status-tag {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.bed-card.cleaning .bed-status-tag {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
 
 .bed-card-patient {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #f8fafc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #0f172a;
 }
 
 .bed-card-meta {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #64748b;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .bed-equipment-row {
-  display: flex;
-  gap: 6px;
   margin-top: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .bed-equip-tag {
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
+  font-size: 0.68rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
-/* Modal Form for Admit / Transfer / Details */
+/* Bed Action Dialogs / Panels */
 .bed-action-panel {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
-  max-width: 500px;
-  background: #1e293b;
-  border: 1px solid #475569;
-  border-radius: 14px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
-  padding: 24px;
-  z-index: 100000;
+  bottom: 24px;
+  right: 24px;
+  width: 360px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  z-index: 100;
 }
 
 .bed-action-panel h3 {
   margin: 0;
-  color: #38bdf8;
-  font-size: 1.2rem;
-}
-
-.bed-form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.bed-form-group label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #cbd5e1;
-}
-
-.bed-form-group input,
-.bed-form-group select {
-  background: #0f172a;
-  border: 1px solid #334155;
-  color: #f8fafc;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  outline: none;
-}
-
-.bed-form-group input:focus,
-.bed-form-group select:focus {
-  border-color: #38bdf8;
+  font-size: 0.95rem;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .bed-action-buttons {
   display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .bed-btn-primary {
+  flex: 1;
   background: #2563eb;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.bed-btn-danger {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.bed-btn-secondary {
-  background: #334155;
-  color: #cbd5e1;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* RTL Support */
-.rtl-mode .bed-wards-sidebar {
-  border-right: none;
-  border-left: 1px solid #1e293b;
+.bed-btn-primary:hover {
+  background: #1d4ed8;
 }
 
-.rtl-mode .bed-ward-btn {
-  text-align: right;
+.bed-btn-danger {
+  flex: 1;
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bed-btn-danger:hover {
+  background: #b91c1c;
+}
+
+.bed-btn-secondary {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bed-btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+/* Form Styles */
+.bed-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bed-form-group label {
+  font-size: 0.75rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.bed-form-group input,
+.bed-form-group select {
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  outline: none;
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.bed-form-group input:focus,
+.bed-form-group select:focus {
+  border-color: #2563eb;
 }
