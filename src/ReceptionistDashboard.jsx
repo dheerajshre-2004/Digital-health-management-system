@@ -343,33 +343,31 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       feeType: bookingFeeType,
       consultationFee: formattedFee,
       doctorConsultationRate: `₹${docFee.toFixed(2)}`,
-      feeStatus: collectFeeNow ? "Paid" : "Unpaid",
-      paymentMethod: collectFeeNow ? feePaymentMode : "Pay at Counter"
+      feeStatus: "Unpaid",
+      paymentMethod: "Pay at Cash Counter",
+      invoiceId: invoiceId
     };
 
     const updatedAppts = [newAppt, ...appointments];
     setAppointments(updatedAppts);
     localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
 
-    // If collected upfront, generate paid invoice in central billing
-    if (collectFeeNow) {
-      const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-      const newInvoice = {
-        id: invoiceId,
-        patientId: patientId,
-        patientName: patientName,
-        date: appointmentData.date || new Date().toISOString().split('T')[0],
-        paymentDate: new Date().toISOString().split('T')[0],
-        amount: formattedFee,
-        status: 'Paid',
-        type: feeTypeLabel,
-        paymentMethod: feePaymentMode,
-        paymentRemarks: feeRemarks || 'Collected Upfront at Reception'
-      };
-      const updatedBilling = [newInvoice, ...currentBilling];
-      setBillingList(updatedBilling);
-      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
-    }
+    // Automatically send Unpaid invoice to Central Cash Counter
+    const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const newInvoice = {
+      id: invoiceId,
+      patientId: patientId,
+      patientName: patientName,
+      date: appointmentData.date || new Date().toISOString().split('T')[0],
+      amount: formattedFee,
+      status: 'Unpaid',
+      type: feeTypeLabel,
+      appointmentId: apptId,
+      paymentRemarks: 'Forwarded to Central Cash Counter for payment collection'
+    };
+    const updatedBilling = [newInvoice, ...currentBilling];
+    setBillingList(updatedBilling);
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
 
     if (window.dispatchEvent) {
       window.dispatchEvent(new Event('storage'));
@@ -1175,57 +1173,20 @@ End of Generated Health Summary Report
                             textAlign: 'center'
                           }}
                         >
-                          <div>📑 Combined Fee</div>
-                          <div style={{ fontSize: '12px', marginTop: '2px', color: '#7c3aed' }}>₹{(150.00 + docFee).toFixed(2)}</div>
+                          <div>Combined Fee</div>
+                          <div style={{ fontSize: '12px', marginTop: '2px', color: '#4338ca' }}>₹{(150.00 + docFee).toFixed(2)}</div>
                         </button>
                       </div>
                       {selectedDoc && (
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                          ✓ Selected: <strong>{selectedDoc.name}</strong> ({selectedDoc.specialty}) • Consultation Rate: <strong>₹{docFee.toFixed(2)}</strong>
+                          Selected: <strong>{selectedDoc.name}</strong> ({selectedDoc.specialty}) • Consultation Rate: <strong>₹{docFee.toFixed(2)}</strong>
                         </div>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', paddingTop: '6px', borderTop: '1px dashed #e2e8f0' }}>
-                      <input 
-                        type="checkbox" 
-                        id="collect-fee-now" 
-                        checked={collectFeeNow} 
-                        onChange={(e) => setCollectFeeNow(e.target.checked)} 
-                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                      />
-                      <label htmlFor="collect-fee-now" style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }}>
-                        Collect Fee Now at Reception (Issue Paid Slip Directly)
-                      </label>
+                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#475569', marginBottom: '8px' }}>
+                      <strong>Payment Notice:</strong> All consultation and booking fees are routed directly to the <strong>Central Cash Counter</strong>. No cash collection at reception desk.
                     </div>
-
-                    {collectFeeNow && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px', animation: 'fadeIn 0.2s' }}>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Payment Mode</label>
-                          <select 
-                            value={feePaymentMode} 
-                            onChange={(e) => setFeePaymentMode(e.target.value)}
-                            style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', fontSize: '13px', background: 'white' }}
-                          >
-                            <option value="Physical Cash Payment">Physical Cash Payment</option>
-                            <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
-                            <option value="Online Card Payment">Online Card Payment</option>
-                            <option value="Insurance Cover / Claim">Insurance Cover / Claim</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Reference / Notes</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. Cash received / UPI Ref" 
-                            value={feeRemarks} 
-                            onChange={(e) => setFeeRemarks(e.target.value)} 
-                            style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', fontSize: '13px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })()}
@@ -1330,7 +1291,7 @@ End of Generated Health Summary Report
                               cursor: 'pointer'
                             }}
                           >
-                            💳 Collect / Bill Fee
+                            Forward Fee to Cash Counter
                           </button>
                         )}
                         {appt.transactionId && (
@@ -2850,7 +2811,7 @@ End of Generated Health Summary Report
         </div>
       )}
 
-      {/* Pay at Counter / Invoice Generation Modal */}
+      {/* Forward to Cash Counter / Invoice Generation Modal */}
       {billingModalAppt && (() => {
         const docFee = getDoctorConsultationFee(billingModalAppt.doctorId || billingModalAppt.doctorName);
         return (
@@ -2858,7 +2819,7 @@ End of Generated Health Summary Report
             <div className="rd-modal-content" style={{ maxWidth: '460px' }}>
               <div className="rd-modal-header">
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>💳 Collect / Generate Fee Invoice</h3>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>Forward Fee to Cash Counter</h3>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>Doctor: <strong>{billingModalAppt.doctorName}</strong> ({billingModalAppt.department || 'OPD'})</span>
                 </div>
                 <button className="rd-btn-close" onClick={() => setBillingModalAppt(null)}>&times;</button>
@@ -2899,12 +2860,12 @@ End of Generated Health Summary Report
                     }} 
                     style={{ border: '1px solid #cbd5e1', padding: '9px 12px', borderRadius: '6px', fontSize: '13.5px', outline: 'none', backgroundColor: 'white', fontWeight: '600' }}
                   >
-                    <option value="Consultation Fee">🩺 Doctor Consultation Fee (₹{docFee.toFixed(2)})</option>
-                    <option value="Appointment Fee">🎟️ Appointment Booking Fee (₹150.00)</option>
-                    <option value="Appointment + Consultation Fee">📑 Combined (Appointment + Consultation) (₹{(150.00 + docFee).toFixed(2)})</option>
-                    <option value="Lab Diagnostics">🧪 Lab Diagnostics (₹450.00)</option>
-                    <option value="Prescription Co-pay">💊 Prescription Co-pay (₹250.00)</option>
-                    <option value="Hospital Ward Charge">🏥 Hospital Ward Charge (₹800.00)</option>
+                    <option value="Consultation Fee">Doctor Consultation Fee (₹{docFee.toFixed(2)})</option>
+                    <option value="Appointment Fee">Appointment Booking Fee (₹150.00)</option>
+                    <option value="Appointment + Consultation Fee">Combined Appointment + Consultation (₹{(150.00 + docFee).toFixed(2)})</option>
+                    <option value="Lab Diagnostics">Lab Diagnostics (₹450.00)</option>
+                    <option value="Prescription Co-pay">Prescription Co-pay (₹250.00)</option>
+                    <option value="Hospital Ward Charge">Hospital Ward Charge (₹800.00)</option>
                   </select>
                 </div>
 
@@ -2931,30 +2892,26 @@ End of Generated Health Summary Report
                     className="rd-btn-primary"
                     onClick={() => {
                       const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
-                      const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
-                      
                       const newInvoice = {
-                        id: invoiceId,
+                        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
                         patientId: billingModalAppt.patientId,
                         patientName: billingModalAppt.patientName,
                         date: billingModalAppt.date || new Date().toISOString().split('T')[0],
-                        paymentDate: new Date().toISOString().split('T')[0],
                         amount: cleanAmount,
-                        status: 'Paid',
+                        status: 'Unpaid',
                         type: `${billingModalType} (${billingModalAppt.doctorName})`,
-                        paymentMethod: 'Physical Cash Payment',
-                        paymentRemarks: 'Collected Upfront at Reception Desk'
+                        appointmentId: billingModalAppt.id
                       };
                       const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-                      const updatedBilling = [newInvoice, ...allBilling];
-                      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
-                      setBillingList(updatedBilling);
+                      const updated = [newInvoice, ...allBilling];
+                      localStorage.setItem('dhms_billing', JSON.stringify(updated));
+                      setBillingList(updated);
 
-                      // Update appointment status to Paid
+                      // Update appointment invoice link
                       const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
                       const updatedAppts = allAppts.map(a => {
                         if (a.id === billingModalAppt.id) {
-                          return { ...a, feeStatus: 'Paid', consultationFee: cleanAmount, paymentMethod: 'Physical Cash Payment' };
+                          return { ...a, feeStatus: 'Unpaid (At Cash Counter)', consultationFee: cleanAmount, invoiceId: newInvoice.id };
                         }
                         return a;
                       });
@@ -2966,47 +2923,41 @@ End of Generated Health Summary Report
                       }
 
                       setBillingModalAppt(null);
-                      alert(`✓ Payment of ${cleanAmount} collected at desk! Receipt generated successfully.`);
-                    }}
-                    style={{ flex: 1, padding: '10px 12px', background: '#10b981', fontSize: '13px', fontWeight: '700' }}
-                  >
-                    ✓ Collect at Desk (Paid)
-                  </button>
-
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      const cleanAmount = `₹${parseFloat(billingModalFee || 0).toFixed(2)}`;
-                      const newInvoice = {
-                        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-                        patientId: billingModalAppt.patientId,
-                        patientName: billingModalAppt.patientName,
-                        date: billingModalAppt.date,
-                        amount: cleanAmount,
-                        status: 'Unpaid',
-                        type: `${billingModalType} (${billingModalAppt.doctorName})`,
-                        appointmentId: billingModalAppt.id
-                      };
-                      const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-                      const updated = [newInvoice, ...allBilling];
-                      localStorage.setItem('dhms_billing', JSON.stringify(updated));
-                      setBillingList(updated);
-                      setBillingModalAppt(null);
-                      alert(`Invoice of ${cleanAmount} sent to Central Cash Desk successfully!`);
+                      alert(`Invoice of ${cleanAmount} forwarded to Central Cash Counter for payment collection.`);
                     }}
                     style={{
                       flex: 1,
-                      padding: '10px 12px',
-                      background: '#f8fafc',
-                      border: '1px solid #cbd5e1',
-                      color: '#334155',
+                      padding: '10px 14px',
+                      background: '#2563eb',
+                      color: 'white',
+                      border: 'none',
                       borderRadius: '6px',
                       fontWeight: '700',
-                      fontSize: '12.5px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    Forward Invoice to Cash Counter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingModalAppt(null)}
+                    style={{
+                      padding: '10px 14px',
+                      background: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      fontSize: '13px',
                       cursor: 'pointer'
                     }}
                   >
-                    💳 Send to Cash Counter
+                    Cancel
                   </button>
                 </div>
               </div>
