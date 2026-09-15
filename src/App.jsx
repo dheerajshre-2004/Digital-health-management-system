@@ -28,12 +28,25 @@ function App() {
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   );
 
+  // Load initial tab session if present (per-tab isolation)
+  const getInitialTabSession = () => {
+    try {
+      const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+      if (tabSessionStr) {
+        return JSON.parse(tabSessionStr);
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  const initialSession = getInitialTabSession();
+
   const [activeTab, setActiveTab] = useState('signin');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(isPatientPortal ? 'patient' : 'doctor');
-  const [loggedInDoctor, setLoggedInDoctor] = useState(null);
-  const [loggedInStaff, setLoggedInStaff] = useState(null);
-  const [loggedInPatient, setLoggedInPatient] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!initialSession?.role);
+  const [userRole, setUserRole] = useState(() => initialSession?.role || (isPatientPortal ? 'patient' : (roleParam || 'doctor')));
+  const [loggedInDoctor, setLoggedInDoctor] = useState(() => initialSession?.role === 'doctor' ? initialSession.user : null);
+  const [loggedInStaff, setLoggedInStaff] = useState(() => (initialSession && initialSession.role !== 'patient' && initialSession.role !== 'doctor') ? initialSession.user : null);
+  const [loggedInPatient, setLoggedInPatient] = useState(() => initialSession?.role === 'patient' ? initialSession.user : null);
   const [showPassword, setShowPassword] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState(null);
 
@@ -59,28 +72,23 @@ function App() {
   };
 
   const saveTabSession = (sessionData) => {
+    // Save strictly to tab-specific sessionStorage so each tab preserves its own module & user
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
     sessionStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
-    try {
-      localStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
-    } catch (e) {}
   };
 
   const clearTabSession = () => {
     sessionStorage.removeItem('dhms_tab_session');
     sessionStorage.removeItem('dhms_active_session');
-    try {
-      localStorage.removeItem('dhms_active_session');
-    } catch (e) {}
   };
 
   useEffect(() => {
-    // Check persistent session from localStorage first, then tab sessionStorage
-    const savedSession = localStorage.getItem('dhms_active_session') || sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+    // Prioritize tab-specific session to keep each tab strictly isolated
+    const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
     
-    if (savedSession) {
+    if (tabSessionStr) {
       try {
-        const session = JSON.parse(savedSession);
+        const session = JSON.parse(tabSessionStr);
         if (session.role) {
           setUserRole(session.role);
           if (session.role === 'patient') {
@@ -93,7 +101,7 @@ function App() {
           setIsAuthenticated(true);
         }
       } catch (err) {
-        console.error("Failed to restore session:", err);
+        console.error("Failed to restore tab session:", err);
       }
     } else if (roleParam || window.location.hash.replace('#', '')) {
       const targetRole = roleParam || window.location.hash.replace('#', '');
