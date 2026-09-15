@@ -13,14 +13,48 @@ import {
   openWhatsAppMessage 
 } from './whatsappService';
 
-const WARD_BED_MAP = {
-  'General Ward A': { price: '₹800/day', beds: ['Bed A-01', 'Bed A-02', 'Bed A-03', 'Bed A-04'] },
-  'General Ward B': { price: '₹800/day', beds: ['Bed B-01', 'Bed B-02', 'Bed B-03', 'Bed B-04'] },
-  'Semi-Private Ward C': { price: '₹1,800/day', beds: ['Semi-C01', 'Semi-C02', 'Semi-C03'] },
-  'Private Suite 101': { price: '₹3,000/day', beds: ['Suite-101', 'Suite-102', 'DLX-401'] },
-  'Pediatrics Ward': { price: '₹1,200/day', beds: ['Ped-01', 'Ped-02', 'MAT-302'] },
-  'ICU (Intensive Care)': { price: '₹3,500/day', beds: ['ICU-01', 'ICU-02', 'ICU-03', 'ICU-101', 'ICU-102'] }
-};
+export const WARD_TIERS = [
+  {
+    key: 'general',
+    name: 'General Medical Ward',
+    tariff: 800,
+    priceDisplay: '₹800/day',
+    desc: 'Shared standard ward bed with 24/7 nursing and vital signs care. Economical choice for routine medical stays.',
+    tag: 'Budget Standard'
+  },
+  {
+    key: 'maternity',
+    name: 'Maternity & Pediatric Ward',
+    tariff: 1200,
+    priceDisplay: '₹1,200/day',
+    desc: 'Specialized maternal and pediatric care unit with delivery, incubator, and pediatric beds.',
+    tag: 'Mid-Tier Care'
+  },
+  {
+    key: 'emergency',
+    name: 'Emergency & Trauma Ward',
+    tariff: 2500,
+    priceDisplay: '₹2,500/day',
+    desc: 'Acute observation & triage beds equipped with multi-parameter cardiac monitors and rapid O2 delivery.',
+    tag: 'Urgent Care'
+  },
+  {
+    key: 'deluxe',
+    name: 'Deluxe Private Suite',
+    tariff: 3000,
+    priceDisplay: '₹3,000/day',
+    desc: 'Spacious private executive suite with patient attendant sleeper couch, en-suite bathroom, and dedicated nurse.',
+    tag: 'Premium Luxury'
+  },
+  {
+    key: 'icu',
+    name: 'ICU & Critical Care',
+    tariff: 3500,
+    priceDisplay: '₹3,500/day',
+    desc: 'High-dependency intensive care with mechanical ventilator support, arterial lines, and 1:1 specialist care.',
+    tag: 'Critical Care'
+  }
+];
 
 export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('register_patient');
@@ -2030,15 +2064,24 @@ End of Generated Health Summary Report
                         {adm.status === 'Pending IPD Desk Admission' || adm.status === 'Pending Reception Admission' || adm.status === 'Advised' ? (
                           <button
                             onClick={() => {
-                              const targetWard = isEmergency 
-                                ? 'ICU (Intensive Care)' 
-                                : (adm.patientPreferredWard || (adm.ward && adm.ward.includes('Ward') ? adm.ward : 'General Ward A'));
-                              const availableBeds = WARD_BED_MAP[targetWard]?.beds || ['Bed A-01', 'Bed A-02'];
+                              const bedsInventory = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+                              let initialWardKey = isEmergency ? 'icu' : 'general';
+                              
+                              if (!isEmergency && adm.patientPreferredWard) {
+                                const foundTier = WARD_TIERS.find(t => t.name.toLowerCase().includes(adm.patientPreferredWard.toLowerCase()) || t.key.toLowerCase().includes(adm.patientPreferredWard.toLowerCase()));
+                                if (foundTier) initialWardKey = foundTier.key;
+                              }
+
+                              const currentTier = WARD_TIERS.find(t => t.key === initialWardKey) || WARD_TIERS[0];
+                              const wardVacantBeds = bedsInventory.filter(b => b.ward === initialWardKey && b.status === 'vacant');
+                              const initialBedNo = wardVacantBeds.length > 0 ? wardVacantBeds[0].id : '';
 
                               setSelectedAdmForProcessing(adm);
                               setIpdForm({
-                                ward: targetWard,
-                                bedNo: availableBeds[0] || 'Bed A-01',
+                                wardKey: currentTier.key,
+                                ward: currentTier.name,
+                                wardTariff: currentTier.tariff,
+                                bedNo: initialBedNo,
                                 attendantName: adm.attendant?.name || '',
                                 attendantRelation: adm.attendant?.relation || 'Family Member',
                                 attendantPhone: adm.attendant?.phone && adm.attendant?.phone !== 'N/A' ? adm.attendant.phone : '',
@@ -3265,52 +3308,132 @@ End of Generated Health Summary Report
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    Assign Ward / Unit <span style={{ color: 'red' }}>*</span>
-                  </label>
-                  <select 
-                    required 
-                    value={ipdForm.ward} 
-                    onChange={e => {
-                      const nextWard = e.target.value;
-                      const nextBeds = WARD_BED_MAP[nextWard]?.beds || ['Bed A-01'];
-                      setIpdForm({ ...ipdForm, ward: nextWard, bedNo: nextBeds[0] });
-                    }}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
-                  >
-                    <option value="General Ward A">General Ward A (₹800/day)</option>
-                    <option value="General Ward B">General Ward B (₹800/day)</option>
-                    <option value="Semi-Private Ward C">Semi-Private Ward C (₹1,800/day)</option>
-                    <option value="Private Suite 101">Private Suite 101 (₹3,000/day)</option>
-                    <option value="Pediatrics Ward">Pediatrics Ward (₹1,200/day)</option>
-                    <option value="ICU (Intensive Care)">ICU (Intensive Care) (₹3,500/day)</option>
-                  </select>
-                  <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'block' }}>
-                    Patient choice / Doctor indication
-                  </span>
-                </div>
+              {/* Ward Tier Financial Selection & Vacancy Check */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', display: 'block', marginBottom: '6px' }}>
+                  Select Ward Tier (Family / Budget Choice) <span style={{ color: 'red' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', marginBottom: '10px' }}>
+                  {(() => {
+                    const bedsInventory = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+                    return WARD_TIERS.map(tier => {
+                      const wardBeds = bedsInventory.filter(b => b.ward === tier.key);
+                      const vacantBeds = wardBeds.filter(b => b.status === 'vacant');
+                      const isSelected = ipdForm.wardKey === tier.key;
+                      const isFull = vacantBeds.length === 0;
 
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    Assign Bed Number <span style={{ color: 'red' }}>*</span>
-                  </label>
-                  <select 
-                    required 
-                    value={ipdForm.bedNo} 
-                    onChange={e => setIpdForm({ ...ipdForm, bedNo: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
-                  >
-                    {(WARD_BED_MAP[ipdForm.ward]?.beds || ['Bed A-01', 'Bed A-02']).map(bed => (
-                      <option key={bed} value={bed}>{bed} (Available)</option>
-                    ))}
-                  </select>
-                  <span style={{ fontSize: '11px', color: '#166534', marginTop: '2px', display: 'block' }}>
-                    Ward bed allocation ready
-                  </span>
+                      return (
+                        <div
+                          key={tier.key}
+                          onClick={() => {
+                            const firstVacantBed = vacantBeds[0]?.id || '';
+                            setIpdForm({
+                              ...ipdForm,
+                              wardKey: tier.key,
+                              ward: tier.name,
+                              wardTariff: tier.tariff,
+                              bedNo: firstVacantBed
+                            });
+                          }}
+                          style={{
+                            border: isSelected ? '2px solid #2563eb' : isFull ? '1px dashed #cbd5e1' : '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            padding: '10px 12px',
+                            background: isSelected ? '#eff6ff' : isFull ? '#f8fafc' : 'white',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            opacity: isFull ? 0.75 : 1
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
+                              <strong style={{ fontSize: '13px', color: isSelected ? '#1d4ed8' : '#1e293b' }}>{tier.name}</strong>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                {tier.priceDisplay}
+                              </span>
+                            </div>
+                            <p style={{ margin: '2px 0 6px 0', fontSize: '11px', color: '#64748b', lineHeight: 1.35 }}>
+                              {tier.desc}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+                            <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600' }}>{tier.tag}</span>
+                            {isFull ? (
+                              <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '700', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
+                                FULL (0 Free)
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '700', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                                {vacantBeds.length} Beds Free
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
+
+              {/* Bed Allotment & Full Ward Notice */}
+              {(() => {
+                const bedsInventory = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+                const selectedWardKey = ipdForm.wardKey || 'general';
+                const wardBeds = bedsInventory.filter(b => b.ward === selectedWardKey);
+                const vacantBeds = wardBeds.filter(b => b.status === 'vacant');
+                const isWardFull = vacantBeds.length === 0;
+
+                if (isWardFull) {
+                  return (
+                    <div style={{ background: '#fff1f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 14px', fontSize: '12.5px', color: '#991b1b' }}>
+                      <strong>Ward Full Notice:</strong> No vacant beds are currently free in <strong>{ipdForm.ward}</strong>. Please consult with the family/attendant to choose another ward tier matching their budget (e.g. General Medical Ward or Semi-Private).
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Selected Ward Tariff & Category
+                      </label>
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={`${ipdForm.ward} (₹${ipdForm.wardTariff || 800}/day)`} 
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc', color: '#1e293b', fontWeight: '600', boxSizing: 'border-box' }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#166534', marginTop: '2px', display: 'block' }}>
+                        {vacantBeds.length} vacant bed(s) available for allocation
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Allot Free Bed Number <span style={{ color: 'red' }}>*</span>
+                      </label>
+                      <select 
+                        required 
+                        value={ipdForm.bedNo} 
+                        onChange={e => setIpdForm({ ...ipdForm, bedNo: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white', fontWeight: '600' }}
+                      >
+                        {vacantBeds.map(bed => (
+                          <option key={bed.id} value={bed.id}>
+                            {bed.id} - Room {bed.room} ({bed.type})
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '11px', color: '#15803d', marginTop: '2px', display: 'block' }}>
+                        Live vacant bed ready for check-in
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                 <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#334155' }}>Attendant / Next of Kin Details</h4>
@@ -3389,8 +3512,21 @@ End of Generated Health Summary Report
                 <button type="button" onClick={() => setSelectedAdmForProcessing(null)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', color: '#64748b', cursor: 'pointer', fontWeight: '600' }}>
                   Cancel
                 </button>
-                <button type="submit" style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
-                  Confirm Admission & Issue Pass
+                <button 
+                  type="submit" 
+                  disabled={!ipdForm.bedNo}
+                  style={{ 
+                    padding: '8px 20px', 
+                    borderRadius: '6px', 
+                    border: 'none', 
+                    background: ipdForm.bedNo ? '#10b981' : '#94a3b8', 
+                    color: 'white', 
+                    cursor: ipdForm.bedNo ? 'pointer' : 'not-allowed', 
+                    fontWeight: '700', 
+                    fontSize: '13px' 
+                  }}
+                >
+                  {ipdForm.bedNo ? 'Confirm Admission & Issue Pass' : 'Select Ward With Free Bed'}
                 </button>
               </div>
             </form>
@@ -3403,7 +3539,7 @@ End of Generated Health Summary Report
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
           <div style={{ background: 'white', borderRadius: '12px', width: '580px', maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>🎫 Inpatient Admission Pass & Bed Slip</h3>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b', fontWeight: '700' }}>Inpatient Admission Pass & Bed Slip</h3>
               <button onClick={() => setPrintedAdmissionPass(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
             </div>
 
@@ -3464,7 +3600,7 @@ End of Generated Health Summary Report
               </table>
 
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '11px', color: '#475569' }}>
-                <strong>📌 Ward Entry Instructions:</strong>
+                <strong>Ward Entry Instructions:</strong>
                 <p style={{ margin: '4px 0 0 0' }}>1. Hand over this pass to the Nursing Station at {printedAdmissionPass.ward}.</p>
                 <p style={{ margin: '2px 0 0 0' }}>2. Only 1 attendant allowed per patient during non-visiting hours.</p>
                 <p style={{ margin: '2px 0 0 0' }}>3. Advance deposit will be adjusted against the final consolidated hospital invoice at discharge.</p>
@@ -3485,7 +3621,7 @@ End of Generated Health Summary Report
                 onClick={() => window.print()}
                 style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                🖨️ Print Admission Pass
+                Print Admission Pass
               </button>
             </div>
           </div>

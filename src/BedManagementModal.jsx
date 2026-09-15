@@ -453,10 +453,24 @@ export default function BedManagementModal({ onClose, inline = false }) {
           <div className="bed-form-group">
             <label>Attending Doctor</label>
             <select value={admitDoctor} onChange={(e) => setAdmitDoctor(e.target.value)}>
-              <option value="Dr. Sarah Connor">Dr. Sarah Connor (Cardiology & Critical Care)</option>
-              <option value="Dr. Gregory House">Dr. Gregory House (Diagnostic Medicine)</option>
-              <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery / Trauma)</option>
-              <option value="Dr. Hemavathi Rao">Dr. Hemavathi Rao (Internal Medicine)</option>
+              {(() => {
+                const docList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+                if (docList && docList.length > 0) {
+                  return docList.map(d => (
+                    <option key={d.id} value={d.name}>
+                      {d.name} ({d.department || d.specialty || 'General'})
+                    </option>
+                  ));
+                }
+                return (
+                  <>
+                    <option value="Dr. Sarah Connor">Dr. Sarah Connor (Cardiology & Critical Care)</option>
+                    <option value="Dr. Gregory House">Dr. Gregory House (Diagnostic Medicine)</option>
+                    <option value="Dr. Meredith Grey">Dr. Meredith Grey (General Surgery / Trauma)</option>
+                    <option value="Dr. Hemavathi Rao">Dr. Hemavathi Rao (Internal Medicine)</option>
+                  </>
+                );
+              })()}
             </select>
           </div>
 

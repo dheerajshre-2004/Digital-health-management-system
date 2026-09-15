@@ -671,7 +671,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setActiveCallAppt(appt);
     setIsVideoCallActive(true);
 
-    const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care' };
+    const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || doctorsRoster[0] || { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' };
 
     // Prompt user directly on button click so browser permission modal pops up immediately
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -705,7 +705,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     async function initDoctorMedia() {
       if (role === 'doctor' && isVideoCallActive) {
         if (!doctorMediaStream) {
-          const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || doctorsRoster[0] || { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care' };
+          const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || doctorsRoster[0] || { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' };
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
               acquiredStream = await navigator.mediaDevices.getUserMedia({
@@ -1394,7 +1394,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (!activeCallAppt) return;
     
     const todayStr = new Date().toISOString().split('T')[0];
-    const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+    const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
 
     // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
     let finalMeds = [...prescribedMeds];
@@ -1798,7 +1798,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
 
     try {
-      const currentDoc = DOCTORS.find(d => d.id === activeDoctorId) || DOCTORS[0];
+      const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
       const todayStr = new Date().toISOString().split('T')[0];
 
       // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
