@@ -324,6 +324,24 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
       setAppointments(updatedAppts);
     }
 
+    // If invoice is linked to an Inpatient Admission Advance Deposit, mark admission advanceDepositPaid as true
+    if (paymentModalData.admissionId || (paymentModalData.type && paymentModalData.type.includes('Inpatient Admission Advance Deposit'))) {
+      const allAdms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+      const updatedAdms = allAdms.map(adm => {
+        if (adm.id === paymentModalData.admissionId || adm.advanceInvoiceId === paymentModalData.id || (adm.patientId === paymentModalData.patientId && !adm.advanceDepositPaid)) {
+          return {
+            ...adm,
+            advanceDepositPaid: true,
+            advanceInvoiceStatus: 'Paid',
+            depositPaymentMode: paymentMethod
+          };
+        }
+        return adm;
+      });
+      localStorage.setItem('dhms_admissions', JSON.stringify(updatedAdms));
+      setAdmissions(updatedAdms);
+    }
+
     if (window.dispatchEvent) {
       window.dispatchEvent(new Event('storage'));
     }

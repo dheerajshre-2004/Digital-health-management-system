@@ -1819,7 +1819,8 @@ End of Generated Health Summary Report
         phone: ipdForm.attendantPhone || 'N/A'
       },
       advanceDeposit: advanceAmountNum,
-      advanceDepositPaid: advanceAmountNum > 0,
+      advanceDepositPaid: false,
+      advanceInvoiceStatus: advanceAmountNum > 0 ? 'Unpaid' : 'N/A',
       advanceInvoiceId: advanceAmountNum > 0 ? advanceInvoiceId : null,
       admissionDate: selectedAdmForProcessing.admissionDate || todayStr,
       processedBy: loggedInStaff?.name || 'Reception Staff'
@@ -1860,20 +1861,20 @@ End of Generated Health Summary Report
       }
     } catch(e) {}
 
-    // If advance deposit collected, create paid invoice in central billing
+    // If advance deposit is requested, forward an UNPAID invoice to Central Cash Counter
     if (advanceAmountNum > 0) {
       const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
       const advanceInvoice = {
         id: advanceInvoiceId,
+        admissionId: updatedAdmission.id,
         patientId: updatedAdmission.patientId,
         patientName: updatedAdmission.patientName,
         date: todayStr,
-        paymentDate: todayStr,
         amount: `₹${advanceAmountNum.toFixed(2)}`,
-        status: 'Paid',
+        status: 'Unpaid',
         type: `Inpatient Admission Advance Deposit (${ipdForm.ward} - ${ipdForm.bedNo})`,
-        paymentMethod: ipdForm.depositPaymentMode,
-        paymentRemarks: `Advance security deposit for Admission ${updatedAdmission.id}`
+        paymentMethod: 'Pay at Cash Counter',
+        paymentRemarks: `Advance security deposit for Admission ${updatedAdmission.id}. Routed to Central Cash Counter.`
       };
       const updatedBilling = [advanceInvoice, ...currentBilling];
       localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
@@ -1889,7 +1890,7 @@ End of Generated Health Summary Report
       ...updatedAdmission,
       admittedAtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       advanceDepositAmount: `₹${advanceAmountNum.toFixed(2)}`,
-      paymentMode: ipdForm.depositPaymentMode
+      paymentMode: 'Pending at Cash Counter'
     });
 
     setSelectedAdmForProcessing(null);
@@ -2068,7 +2069,20 @@ End of Generated Health Summary Report
                       </td>
                       <td>
                         {adm.advanceDeposit ? (
-                          <strong style={{ color: '#166534', fontSize: '13px' }}>₹{parseFloat(adm.advanceDeposit).toFixed(2)}</strong>
+                          <div>
+                            <strong style={{ color: '#0f172a', fontSize: '13px' }}>₹{parseFloat(adm.advanceDeposit).toFixed(2)}</strong>
+                            <div>
+                              {adm.advanceDepositPaid ? (
+                                <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                  Paid (Cash Counter)
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '10px', background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                  Pending at Cash Counter
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <span style={{ color: '#94a3b8', fontSize: '12px' }}>-</span>
                         )}
@@ -2136,7 +2150,7 @@ End of Generated Health Summary Report
                                 ...adm,
                                 admittedAtTime: adm.admittedAtTime || '09:30 AM',
                                 advanceDepositAmount: `₹${parseFloat(adm.advanceDeposit || 5000).toFixed(2)}`,
-                                paymentMode: 'Physical Cash / UPI'
+                                paymentMode: adm.advanceDepositPaid ? 'Settled at Cash Counter' : 'Pending at Central Cash Counter'
                               });
                             }}
                             style={{
@@ -3506,9 +3520,9 @@ End of Generated Health Summary Report
               <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Admission Advance / Security Deposit</span>
-                  <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>Adjusted at Final Discharge</span>
+                  <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>Payable at Central Cash Counter</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px', alignItems: 'center' }}>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Advance Amount (₹)</label>
                     <input 
@@ -3518,18 +3532,8 @@ End of Generated Health Summary Report
                       style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box', fontWeight: '700', color: '#0f172a' }}
                     />
                   </div>
-                  <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Deposit Payment Mode</label>
-                    <select 
-                      value={ipdForm.depositPaymentMode}
-                      onChange={e => setIpdForm({ ...ipdForm, depositPaymentMode: e.target.value })}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
-                    >
-                      <option value="Physical Cash Payment">Physical Cash Payment</option>
-                      <option value="UPI / QR Code Transfer">UPI / QR Code Transfer</option>
-                      <option value="Online Card Payment">Online Card Payment</option>
-                      <option value="Insurance Cover / Authorization">Insurance Cover / Authorization</option>
-                    </select>
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '8px 10px', fontSize: '11.5px', color: '#1e40af', lineHeight: '1.4' }}>
+                    <strong>Cash Counter Rule:</strong> An invoice will automatically be forwarded to the Central Cash Counter. Patient or attendant must complete payment at the Cash Counter.
                   </div>
                 </div>
               </div>
