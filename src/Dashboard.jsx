@@ -371,6 +371,112 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
   }, [slotManageDate, activeDoctorId, role]);
 
+  // Doctor Profile Management state
+  const [docProfileName, setDocProfileName] = useState('');
+  const [docProfileDept, setDocProfileDept] = useState('');
+  const [docProfileCustomDept, setDocProfileCustomDept] = useState('');
+  const [docProfileEmail, setDocProfileEmail] = useState('');
+  const [docProfilePhone, setDocProfilePhone] = useState('');
+  const [docProfileStatus, setDocProfileStatus] = useState('Available');
+  const [docProfileFee, setDocProfileFee] = useState('500');
+  const [docProfileBio, setDocProfileBio] = useState('');
+  const [docProfileRoom, setDocProfileRoom] = useState('Room 101');
+  const [docProfileShift, setDocProfileShift] = useState('09:00 AM - 05:00 PM');
+
+  useEffect(() => {
+    if (role === 'doctor' && activeDocObj) {
+      setDocProfileName(activeDocObj.name || '');
+      setDocProfileDept(activeDocObj.department || activeDocObj.specialty || 'Cardiology & Intensive Cardiac Care');
+      setDocProfileEmail(activeDocObj.email || '');
+      setDocProfilePhone(activeDocObj.phone || '');
+      setDocProfileStatus(activeDocObj.status || 'Available');
+      setDocProfileFee(activeDocObj.consultationFee !== undefined ? String(activeDocObj.consultationFee) : '500');
+      setDocProfileBio(activeDocObj.bio || '');
+      setDocProfileRoom(activeDocObj.room || 'Room 101');
+      setDocProfileShift(activeDocObj.shift || '09:00 AM - 05:00 PM');
+    }
+  }, [activeDoctorId, loggedInDoctor, role]);
+
+  const handleSaveDoctorProfile = (e) => {
+    e.preventDefault();
+    if (!activeDoctorId) return;
+
+    const finalDept = docProfileDept === '__custom__' 
+      ? (docProfileCustomDept.trim() || 'General Medicine') 
+      : docProfileDept;
+
+    const feeNum = parseFloat(docProfileFee) || 500;
+
+    const allDocs = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+    const currentDoc = allDocs.find(d => d.id === activeDoctorId) || activeDocObj;
+    const oldName = currentDoc.name;
+
+    const updatedDoc = {
+      ...currentDoc,
+      name: docProfileName.trim() || currentDoc.name,
+      department: finalDept,
+      specialty: finalDept,
+      email: docProfileEmail.trim() || currentDoc.email,
+      phone: docProfilePhone.trim(),
+      status: docProfileStatus,
+      consultationFee: feeNum,
+      bio: docProfileBio.trim(),
+      room: docProfileRoom.trim() || 'Room 101',
+      shift: docProfileShift.trim() || '09:00 AM - 05:00 PM'
+    };
+
+    const updatedDoctorsList = allDocs.map(d => d.id === activeDoctorId ? updatedDoc : d);
+    setDoctorsRoster(updatedDoctorsList);
+    localStorage.setItem('dhms_doctors', JSON.stringify(updatedDoctorsList));
+
+    // Also ensure this department exists in dhms_departments
+    const savedDepts = JSON.parse(localStorage.getItem('dhms_departments') || '[]');
+    let deptListModified = false;
+    let updatedDepts = savedDepts.map(dept => {
+      // If this department previously listed this doctor as head, update name if changed
+      if (dept.head === oldName || dept.name === finalDept) {
+        deptListModified = true;
+        return { ...dept, head: updatedDoc.name };
+      }
+      return dept;
+    });
+
+    if (!updatedDepts.some(d => d.name?.toLowerCase() === finalDept.toLowerCase())) {
+      const newDeptObj = {
+        id: updatedDepts.length + 1,
+        name: finalDept,
+        code: finalDept.substring(0, 4).toUpperCase(),
+        head: updatedDoc.name
+      };
+      updatedDepts.push(newDeptObj);
+      deptListModified = true;
+    }
+
+    if (deptListModified) {
+      setDepartmentsList(updatedDepts);
+      localStorage.setItem('dhms_departments', JSON.stringify(updatedDepts));
+    }
+
+    // Update active tab session
+    const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+    if (tabSessionStr) {
+      try {
+        const session = JSON.parse(tabSessionStr);
+        if (session.role === 'doctor') {
+          session.user = updatedDoc;
+          sessionStorage.setItem('dhms_tab_session', JSON.stringify(session));
+          sessionStorage.setItem('dhms_active_session', JSON.stringify(session));
+        }
+      } catch (err) {}
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    alert(`✓ Doctor Profile & Department updated to "${finalDept}" successfully!\nChanges have been synchronized across Patient, Reception, Admin and Clinical portals.`);
+  };
+
   const handleUpdateDoctorFee = (e) => {
     e.preventDefault();
     if (!activeDoctorId) return;
@@ -2494,6 +2600,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       case 'doctor':
         return [
           { id: 'overview', label: 'My Dashboard' },
+          { id: 'doctor_profile', label: '👨‍⚕️ My Doctor Profile' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Ward' },
@@ -2707,15 +2814,42 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
       return (
         <>
-          <p>Welcome {activeDoctor.name}. Manage your appointments and view patient records.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', padding: '20px 24px', borderRadius: '12px', color: 'white', boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.2)' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800' }}>Welcome, {activeDoctor.name}</h3>
+                <span style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '20px', fontSize: '12.5px', fontWeight: '700', border: '1px solid rgba(255,255,255,0.3)' }}>
+                  🏥 {activeDoctor.department || activeDoctor.specialty || 'General Medicine'}
+                </span>
+                <span style={{ background: activeDoctor.status === 'Available' ? '#10b981' : '#f59e0b', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: '800' }}>
+                  ● {activeDoctor.status || 'Available'}
+                </span>
+              </div>
+              <p style={{ margin: '8px 0 0 0', fontSize: '13.5px', opacity: 0.9 }}>
+                Manage your patient EHR records, appointments, consultations, and update your clinical department & profile.
+              </p>
+            </div>
+            <button 
+              onClick={() => setActiveView('doctor_profile')}
+              style={{ background: 'white', color: '#1e40af', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              👨‍⚕️ Edit My Profile & Department &rarr;
+            </button>
+          </div>
+
           <div className="stats-grid">
-            <div className="stat-card" onClick={() => setActiveView('patients')}>
+            <div className="stat-card" onClick={() => setActiveView('patients')} style={{ cursor: 'pointer' }}>
               <h3>Assigned Patients</h3>
               <div className="stat-value">{uniquePatientsCount}</div>
             </div>
-            <div className="stat-card" onClick={() => setActiveView('appointments')}>
+            <div className="stat-card" onClick={() => setActiveView('appointments')} style={{ cursor: 'pointer' }}>
               <h3>Active Appointments</h3>
               <div className="stat-value">{docAppts.filter(a => a.status !== 'Completed').length}</div>
+            </div>
+            <div className="stat-card" onClick={() => setActiveView('doctor_profile')} style={{ cursor: 'pointer', borderLeft: '4px solid #3b82f6' }}>
+              <h3>Department & Fee</h3>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', marginTop: '6px' }}>{activeDoctor.department || 'General Medicine'}</div>
+              <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '700', marginTop: '2px' }}>₹{parseFloat(activeDoctor.consultationFee || 500).toFixed(2)} / Consult</div>
             </div>
           </div>
         </>
@@ -4417,6 +4551,255 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             </div>
           );
         }
+
+      case 'doctor_profile': {
+        const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || activeDocObj;
+        const knownDepts = [
+          'Cardiology & Intensive Cardiac Care',
+          'Neurology & Neurosurgery',
+          'Orthopedics & Joint Care',
+          'General & Internal Medicine',
+          'Pediatrics & Neonatology',
+          'Oncology & Chemotherapy Wing',
+          'Emergency & Trauma Care (24x7)',
+          'Dermatology & Cosmetology',
+          'Gastroenterology & Hepatology',
+          'Nephrology & Urology',
+          'Pulmonology & Critical Care',
+          'Obstetrics & Gynecology',
+          'Ophthalmology & Eye Surgery',
+          'ENT & Head/Neck Surgery'
+        ];
+        
+        // Merge departmentsList names if any custom added
+        departmentsList.forEach(dept => {
+          if (dept.name && !knownDepts.includes(dept.name)) {
+            knownDepts.push(dept.name);
+          }
+        });
+
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2>👨‍⚕️ My Doctor Profile & Department Configuration</h2>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '14.5px' }}>
+                  Manage your clinical identity, assigned hospital department, consultation tariff, duty status, and OPD room details.
+                </p>
+              </div>
+              <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ fontSize: '13px', color: '#065f46', fontWeight: '700' }}>
+                  Synced with Patient, Reception & Admin Portals
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) 2fr', gap: '24px', alignItems: 'start' }}>
+              {/* Profile Card Preview */}
+              <div style={{ background: 'white', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                <div style={{ width: '84px', height: '84px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', fontWeight: 'bold', margin: '0 auto 16px auto', boxShadow: '0 10px 15px -3px rgba(37,99,235,0.3)' }}>
+                  {docProfileName ? (docProfileName.replace('Dr. ', '')[0] || 'D') : 'D'}
+                </div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '19px', color: '#0f172a' }}>{docProfileName || currentDoc.name}</h3>
+                <div style={{ display: 'inline-block', background: '#eff6ff', color: '#1e40af', padding: '4px 12px', borderRadius: '20px', fontSize: '12.5px', fontWeight: '700', marginTop: '6px', border: '1px solid #bfdbfe' }}>
+                  🏥 {docProfileDept === '__custom__' ? (docProfileCustomDept || 'Custom Department') : (docProfileDept || currentDoc.department)}
+                </div>
+
+                <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '10px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span style={{ color: '#64748b' }}>Doctor ID:</span>
+                    <strong style={{ color: '#0f172a' }}>{currentDoc.id}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span style={{ color: '#64748b' }}>Status:</span>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      background: docProfileStatus === 'Available' ? '#dcfce7' : docProfileStatus === 'On Leave' ? '#fee2e2' : '#fef3c7',
+                      color: docProfileStatus === 'Available' ? '#15803d' : docProfileStatus === 'On Leave' ? '#b91c1c' : '#b45309'
+                    }}>
+                      ● {docProfileStatus}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span style={{ color: '#64748b' }}>Consultation Fee:</span>
+                    <strong style={{ color: '#15803d', fontSize: '14px' }}>₹{parseFloat(docProfileFee || 500).toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                    <span style={{ color: '#64748b' }}>OPD Chamber:</span>
+                    <strong style={{ color: '#334155' }}>{docProfileRoom || 'Room 101'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Duty Hours:</span>
+                    <strong style={{ color: '#334155' }}>{docProfileShift || '09:00 AM - 05:00 PM'}</strong>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '16px', fontSize: '12px', color: '#64748b', textAlign: 'left', background: '#fefce8', border: '1px solid #fef08a', padding: '10px 12px', borderRadius: '8px' }}>
+                  💡 <strong>Real-Time Sync:</strong> Any updates made here instantly reflect in patient doctor booking, receptionist OPD desk, hospital department head rosters, and clinical prescriptions.
+                </div>
+              </div>
+
+              {/* Profile Edit Form */}
+              <div style={{ background: 'white', borderRadius: '14px', padding: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ margin: '0 0 18px 0', fontSize: '17px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                  ✏️ Edit Doctor Details & Department
+                </h3>
+
+                <form onSubmit={handleSaveDoctorProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Doctor Full Name <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={docProfileName} 
+                        onChange={(e) => setDocProfileName(e.target.value)} 
+                        placeholder="e.g. Dr. Sarah Connor"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Clinical Department / Specialty <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <select 
+                        required 
+                        value={docProfileDept} 
+                        onChange={(e) => setDocProfileDept(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', background: 'white', boxSizing: 'border-box' }}
+                      >
+                        {knownDepts.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                        <option value="__custom__">➕ Other / Enter Custom Department...</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {docProfileDept === '__custom__' && (
+                    <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                      <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#1e40af', display: 'block', marginBottom: '4px' }}>
+                        Enter Custom Department Name:
+                      </label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={docProfileCustomDept} 
+                        onChange={(e) => setDocProfileCustomDept(e.target.value)} 
+                        placeholder="e.g. Cardiothoracic Surgery & Interventions"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #93c5fd', fontSize: '13.5px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Official Email Address
+                      </label>
+                      <input 
+                        type="email" 
+                        value={docProfileEmail} 
+                        onChange={(e) => setDocProfileEmail(e.target.value)} 
+                        placeholder="sarah.connor@dhms.org"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Mobile Phone Number
+                      </label>
+                      <input 
+                        type="tel" 
+                        value={docProfilePhone} 
+                        onChange={(e) => setDocProfilePhone(e.target.value)} 
+                        placeholder="+91 98765 43210"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Active Duty Status
+                      </label>
+                      <select 
+                        value={docProfileStatus} 
+                        onChange={(e) => setDocProfileStatus(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', background: 'white', boxSizing: 'border-box' }}
+                      >
+                        <option value="Available">Available</option>
+                        <option value="On Leave">On Leave</option>
+                        <option value="In Surgery">In Surgery</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Consultation Fee (₹)
+                      </label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        step="50"
+                        required 
+                        value={docProfileFee} 
+                        onChange={(e) => setDocProfileFee(e.target.value)} 
+                        placeholder="500"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontWeight: '700', color: '#166534', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        OPD Chamber Room
+                      </label>
+                      <input 
+                        type="text" 
+                        value={docProfileRoom} 
+                        onChange={(e) => setDocProfileRoom(e.target.value)} 
+                        placeholder="Room 101"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Clinical Qualifications & Specialization Bio
+                    </label>
+                    <textarea 
+                      rows="3" 
+                      value={docProfileBio} 
+                      onChange={(e) => setDocProfileBio(e.target.value)} 
+                      placeholder="e.g. MD (Cardiology), DM (Interventional Cardiology), Fellow of the American College of Cardiology. Specializing in advanced coronary interventions and heart failure management."
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+                    <button 
+                      type="submit" 
+                      style={{ padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '14px', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      💾 Save Profile & Update Department
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       case 'slot_management': {
         const docId = activeDoctorId ? activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_') : '';

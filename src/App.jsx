@@ -97,6 +97,8 @@ function App() {
   const [regDob, setRegDob] = useState('');
   const [regGender, setRegGender] = useState('male');
   const [regBloodGroup, setRegBloodGroup] = useState('O+');
+  const [regDoctorDept, setRegDoctorDept] = useState('Cardiology & Intensive Cardiac Care');
+  const [regDoctorFee, setRegDoctorFee] = useState('500');
 
   const clearAuthFields = () => {
     setSignInIdentifier('');
@@ -479,21 +481,39 @@ function App() {
       const newDoc = {
         id: newId,
         name: `Dr. ${firstName} ${lastName}`,
-        department: 'Primary Care',
+        department: regDoctorDept || 'Cardiology & Intensive Cardiac Care',
+        specialty: regDoctorDept || 'Cardiology & Intensive Cardiac Care',
         status: 'Available',
         email: emailVal,
         password: passwordVal,
-        phone: ''
+        phone: regPhone || '+91 98765 43210',
+        consultationFee: parseFloat(regDoctorFee) || 500
       };
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+
+      // Also ensure this department exists in dhms_departments so admin/portals recognize it
+      const savedDepts = JSON.parse(localStorage.getItem('dhms_departments') || '[]');
+      if (regDoctorDept && !savedDepts.some(d => d.name?.toLowerCase() === regDoctorDept.toLowerCase())) {
+        const newDeptObj = {
+          id: savedDepts.length + 1,
+          name: regDoctorDept,
+          code: regDoctorDept.substring(0, 4).toUpperCase(),
+          head: newDoc.name
+        };
+        localStorage.setItem('dhms_departments', JSON.stringify([...savedDepts, newDeptObj]));
+      }
+
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
 
       await sendPatientWelcomeEmail({
         patientName: `Dr. ${firstName} ${lastName}`,
         email: emailVal,
         patientId: newId,
         password: passwordVal,
-        phone: ''
+        phone: regPhone || ''
       });
 
       setRegistrationSuccessData({
@@ -1085,6 +1105,62 @@ function App() {
                 </svg>
               </div>
             </div>
+
+            {userRole === 'doctor' && (
+              <>
+                <div className="form-group">
+                  <label>Medical Department / Specialty</label>
+                  <div className="select-wrapper">
+                    <select 
+                      required 
+                      value={regDoctorDept} 
+                      onChange={(e) => setRegDoctorDept(e.target.value)}
+                    >
+                      <option value="Cardiology & Intensive Cardiac Care">Cardiology & Intensive Cardiac Care</option>
+                      <option value="Neurology & Neurosurgery">Neurology & Neurosurgery</option>
+                      <option value="Orthopedics & Joint Care">Orthopedics & Joint Care</option>
+                      <option value="General & Internal Medicine">General & Internal Medicine</option>
+                      <option value="Pediatrics & Neonatology">Pediatrics & Neonatology</option>
+                      <option value="Oncology & Chemotherapy Wing">Oncology & Chemotherapy Wing</option>
+                      <option value="Emergency & Trauma Care (24x7)">Emergency & Trauma Care (24x7)</option>
+                      <option value="Dermatology & Cosmetology">Dermatology & Cosmetology</option>
+                      <option value="Gastroenterology & Hepatology">Gastroenterology & Hepatology</option>
+                      <option value="Nephrology & Urology">Nephrology & Urology</option>
+                      <option value="Pulmonology & Critical Care">Pulmonology & Critical Care</option>
+                      <option value="Obstetrics & Gynecology">Obstetrics & Gynecology</option>
+                      <option value="Ophthalmology & Eye Surgery">Ophthalmology & Eye Surgery</option>
+                      <option value="ENT & Head/Neck Surgery">ENT & Head/Neck Surgery</option>
+                    </select>
+                    <svg className="select-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Mobile Contact</label>
+                    <input 
+                      type="tel" 
+                      placeholder="+91 98765 43210" 
+                      value={regPhone} 
+                      onChange={(e) => setRegPhone(e.target.value)} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Consultation Fee (₹)</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      step="50"
+                      placeholder="500" 
+                      value={regDoctorFee} 
+                      onChange={(e) => setRegDoctorFee(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <button type="submit" className="btn-submit">
               Register Staff Account
