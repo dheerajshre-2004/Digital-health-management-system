@@ -354,18 +354,10 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       : { name: appointmentData.doctorId, dept: "General Clinic" };
 
     const docFee = getDoctorConsultationFee(appointmentData.doctorId || docInfo.name);
-    let feeAmount = docFee;
-    let feeTypeLabel = `Doctor Consultation Fee (${docInfo.name})`;
-    
-    if (bookingFeeType === 'Appointment Fee') {
-      feeAmount = 150.00;
-      feeTypeLabel = `Appointment Booking Fee (${docInfo.name})`;
-    } else if (bookingFeeType === 'Appointment + Consultation Fee') {
-      feeAmount = 150.00 + docFee;
-      feeTypeLabel = `Appointment & Consultation Fee (${docInfo.name})`;
-    }
-
-    const formattedFee = `₹${parseFloat(feeAmount).toFixed(2)}`;
+    const bookingFee = 150.00;
+    const combinedFeeAmount = docFee + bookingFee;
+    const feeTypeLabel = `Combined Fee (Consultation ₹${docFee.toFixed(2)} + Booking ₹${bookingFee.toFixed(2)}) - ${docInfo.name}`;
+    const formattedFee = `₹${combinedFeeAmount.toFixed(2)}`;
 
     const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
     const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -383,9 +375,10 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       status: "Upcoming",
       type: "Physical",
       source: "Walk-in",
-      feeType: bookingFeeType,
+      feeType: "Combined Fee",
       consultationFee: formattedFee,
       doctorConsultationRate: `₹${docFee.toFixed(2)}`,
+      bookingFeeRate: `₹${bookingFee.toFixed(2)}`,
       feeStatus: "Unpaid",
       paymentMethod: "Pay at Cash Counter",
       invoiceId: invoiceId
@@ -1133,17 +1126,18 @@ End of Generated Health Summary Report
               {(() => {
                 const selectedDoc = doctorsList.find(d => d.id === appointmentData.doctorId);
                 const docFee = selectedDoc ? getDoctorConsultationFee(selectedDoc.id) : 300.00;
-                const currentFee = docFee; // Combined booking + consultation fee
+                const bookingFee = 150.00;
+                const combinedTotal = docFee + bookingFee;
 
                 return (
                   <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <div>
                         <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>
-                          Total Upfront Charge (Consultation & Booking)
+                          Total Upfront Charge (Combined Fee)
                         </span>
-                        <div style={{ fontSize: '22px', fontWeight: '800', color: '#166534' }}>
-                          ₹{currentFee.toFixed(2)}
+                        <div style={{ fontSize: '24px', fontWeight: '800', color: '#4338ca' }}>
+                          ₹{combinedTotal.toFixed(2)}
                         </div>
                       </div>
                       <span style={{ fontSize: '11.5px', background: collectFeeNow ? '#dcfce7' : '#fee2e2', color: collectFeeNow ? '#15803d' : '#b91c1c', padding: '4px 10px', borderRadius: '6px', fontWeight: '700' }}>
@@ -1151,58 +1145,69 @@ End of Generated Health Summary Report
                       </span>
                     </div>
 
-                    {/* Fee Structure Summary & Inactive Reference */}
+                    {/* Fee Structure Summary with Normal Color Badges */}
                     <div style={{ marginBottom: '12px' }}>
                       <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
-                        Applicable Fee Structure
+                        Applicable Fee Breakdown (Auto-Calculated Combined Rate)
                       </label>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        {/* Active Combined Consultation Fee Card */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '8px' }}>
+                        {/* Doctor Consultation Fee Card */}
                         <div
                           style={{
-                            padding: '10px 12px',
-                            borderRadius: '6px',
-                            border: '2px solid #16a34a',
+                            padding: '10px 8px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #86efac',
                             background: '#f0fdf4',
                             color: '#166534',
-                            fontWeight: '700',
-                            fontSize: '11.5px',
                             textAlign: 'center'
                           }}
                         >
-                          <div>Consultation Fee (Active)</div>
+                          <div style={{ fontSize: '11px', fontWeight: '700' }}>Consultation Fee</div>
                           <div style={{ fontSize: '15px', marginTop: '2px', color: '#15803d', fontWeight: '800' }}>₹{docFee.toFixed(2)}</div>
-                          <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px' }}>Auto-set by Doctor / Dept</div>
+                          <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px' }}>Fixed by Doctor</div>
                         </div>
 
-                        {/* Inactive Reference Card for Booking Fee */}
+                        {/* Standard Booking Fee Card */}
                         <div
                           style={{
-                            padding: '10px 12px',
-                            borderRadius: '6px',
-                            border: '1px dashed #cbd5e1',
-                            background: '#f1f5f9',
-                            color: '#64748b',
-                            fontSize: '11.5px',
-                            textAlign: 'center',
-                            opacity: 0.75,
-                            cursor: 'not-allowed'
+                            padding: '10px 8px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #93c5fd',
+                            background: '#eff6ff',
+                            color: '#1e40af',
+                            textAlign: 'center'
                           }}
-                          title="Booking and consultation are combined in the consultation fee."
                         >
-                          <div style={{ fontWeight: '600' }}>Standard Booking Fee</div>
-                          <div style={{ fontSize: '14px', marginTop: '2px', color: '#475569', fontWeight: '700' }}>₹150.00</div>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Reference Only (Included)</div>
+                          <div style={{ fontSize: '11px', fontWeight: '700' }}>Booking Fee</div>
+                          <div style={{ fontSize: '15px', marginTop: '2px', color: '#2563eb', fontWeight: '800' }}>₹{bookingFee.toFixed(2)}</div>
+                          <div style={{ fontSize: '10px', color: '#1e40af', marginTop: '2px' }}>Hospital Standard</div>
+                        </div>
+
+                        {/* Combined Fee (Active Selected Fee) */}
+                        <div
+                          style={{
+                            padding: '10px 8px',
+                            borderRadius: '8px',
+                            border: '2px solid #7c3aed',
+                            background: '#f5f3ff',
+                            color: '#6d28d9',
+                            textAlign: 'center',
+                            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.1)'
+                          }}
+                        >
+                          <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.02em' }}>Combined Fee (Active)</div>
+                          <div style={{ fontSize: '16px', marginTop: '2px', color: '#4338ca', fontWeight: '900' }}>₹{combinedTotal.toFixed(2)}</div>
+                          <div style={{ fontSize: '10px', color: '#6d28d9', fontWeight: '700', marginTop: '2px' }}>Auto Calculated</div>
                         </div>
                       </div>
 
                       {selectedDoc ? (
                         <div style={{ fontSize: '11.5px', color: '#334155', marginTop: '8px', background: '#e0f2fe', padding: '6px 10px', borderRadius: '4px', border: '1px solid #bae6fd' }}>
-                          Selected Physician: <strong>{selectedDoc.name}</strong> ({selectedDoc.specialty || selectedDoc.department}) • Doctor Consultation Rate: <strong>₹{docFee.toFixed(2)}</strong>
+                          Selected Physician: <strong>{selectedDoc.name}</strong> ({selectedDoc.specialty || selectedDoc.department}) • Consultation Rate: <strong>₹{docFee.toFixed(2)}</strong> + Booking: <strong>₹{bookingFee.toFixed(2)}</strong> = Total: <strong>₹{combinedTotal.toFixed(2)}</strong>
                         </div>
                       ) : (
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
-                          Select any doctor above to automatically load their customized consultation fee.
+                          Select any doctor above to automatically calculate and apply their combined fee.
                         </div>
                       )}
                     </div>
