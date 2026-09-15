@@ -385,10 +385,11 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                           (!adminMode && inv.patientName.toLowerCase().includes(query)) ||
                           inv.type.toLowerCase().includes(query);
                           
+    const matchesStatus = adminMode ? inv.status === 'Paid' : (statusFilter === 'All' || inv.status === statusFilter);
     const matchesType = typeFilter === 'All' || 
                         inv.type === typeFilter || 
-                        (typeFilter === 'Inpatient Admission Advance Deposit' && inv.type.includes('Inpatient Admission Advance Deposit')) ||
-                        (typeFilter === 'IPD Final Discharge Bill & Clearance' && inv.type.includes('IPD Final Discharge Bill'));
+                        (typeFilter === 'Inpatient Admission Advance Deposit' && (inv.type || '').includes('Inpatient Admission Advance Deposit')) ||
+                        (typeFilter === 'IPD Final Discharge Bill & Clearance' && (inv.type || '').includes('IPD Final Discharge Bill'));
 
     return matchesSearch && matchesStatus && matchesType;
   });
