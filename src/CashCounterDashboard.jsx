@@ -1034,6 +1034,28 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     localStorage.setItem('dhms_admissions', JSON.stringify(updatedAdms));
     setAdmissions(updatedAdms);
 
+    // Free up Bed in dhms_beds_inventory
+    try {
+      const savedBeds = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+      const patientBedId = selectedAdmForSettlement.bedNo || selectedAdmForSettlement.bedId;
+      const updatedBeds = savedBeds.map(b => {
+        if ((patientBedId && b.id === patientBedId) || b.patientId === selectedAdmForSettlement.patientId) {
+          return {
+            ...b,
+            status: 'vacant',
+            patientName: '',
+            patientId: '',
+            doctor: '',
+            diagnosis: '',
+            admitDate: '',
+            vitals: ''
+          };
+        }
+        return b;
+      });
+      localStorage.setItem('dhms_beds_inventory', JSON.stringify(updatedBeds));
+    } catch(e) {}
+
     // Create Paid Invoice in dhms_billing
     const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
     const finalInvoice = {

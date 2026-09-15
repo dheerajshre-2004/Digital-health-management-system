@@ -141,6 +141,9 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
+  const [bedsInventory, setBedsInventory] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+  });
   const [selectedAdmForProcessing, setSelectedAdmForProcessing] = useState(null);
   const [ipdForm, setIpdForm] = useState({
     ward: 'General Ward A',
@@ -180,6 +183,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
       setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+      setBedsInventory(JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]'));
       setSentEmailsList(JSON.parse(localStorage.getItem('dhms_sent_emails') || '[]'));
       const savedDocs = localStorage.getItem('dhms_doctors');
       if (savedDocs) {
@@ -3355,9 +3359,9 @@ End of Generated Health Summary Report
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', marginBottom: '10px' }}>
                   {(() => {
-                    const bedsInventory = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+                    const currentBeds = bedsInventory.length > 0 ? bedsInventory : JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
                     return WARD_TIERS.map(tier => {
-                      const wardBeds = bedsInventory.filter(b => b.ward === tier.key);
+                      const wardBeds = currentBeds.filter(b => b.ward === tier.key);
                       const vacantBeds = wardBeds.filter(b => b.status === 'vacant');
                       const isSelected = ipdForm.wardKey === tier.key;
                       const isFull = vacantBeds.length === 0;
@@ -3420,9 +3424,9 @@ End of Generated Health Summary Report
 
               {/* Bed Allotment & Full Ward Notice */}
               {(() => {
-                const bedsInventory = JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
+                const currentBeds = bedsInventory.length > 0 ? bedsInventory : JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]');
                 const selectedWardKey = ipdForm.wardKey || 'general';
-                const wardBeds = bedsInventory.filter(b => b.ward === selectedWardKey);
+                const wardBeds = currentBeds.filter(b => b.ward === selectedWardKey);
                 const vacantBeds = wardBeds.filter(b => b.status === 'vacant');
                 const isWardFull = vacantBeds.length === 0;
 

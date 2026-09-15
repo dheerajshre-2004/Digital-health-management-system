@@ -170,11 +170,11 @@ export default function BedManagementModal({ onClose, inline = false }) {
   };
 
   const handleDischarge = (bedId) => {
-    setBeds(prev => prev.map(b => {
+    const updated = beds.map(b => {
       if (b.id === bedId) {
         return {
           ...b,
-          status: 'cleaning',
+          status: 'vacant',
           patientName: '',
           patientId: '',
           doctor: '',
@@ -184,20 +184,40 @@ export default function BedManagementModal({ onClose, inline = false }) {
         };
       }
       return b;
-    }));
+    });
+    setBeds(updated);
+    try {
+      localStorage.setItem('dhms_beds_inventory', JSON.stringify(updated));
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (e) {}
     setSelectedBed(null);
   };
 
   const handleCompleteSanitize = (bedId) => {
-    setBeds(prev => prev.map(b => {
+    const updated = beds.map(b => {
       if (b.id === bedId) {
         return {
           ...b,
-          status: 'vacant'
+          status: 'vacant',
+          patientName: '',
+          patientId: '',
+          doctor: '',
+          diagnosis: '',
+          admitDate: '',
+          vitals: ''
         };
       }
       return b;
-    }));
+    });
+    setBeds(updated);
+    try {
+      localStorage.setItem('dhms_beds_inventory', JSON.stringify(updated));
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (e) {}
     setSelectedBed(null);
   };
 
