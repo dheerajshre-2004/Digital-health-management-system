@@ -813,8 +813,32 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
+  const [patientSelectedWardChoice, setPatientSelectedWardChoice] = useState('');
   const [printedPatientReleaseCert, setPrintedPatientReleaseCert] = useState(null);
   const [printedPatientAdmissionPass, setPrintedPatientAdmissionPass] = useState(null);
+
+  const handleSaveWardPreference = (admissionId, preferredWard) => {
+    if (!preferredWard) {
+      alert("Please select a ward option before submitting.");
+      return;
+    }
+    const allAdms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+    const updated = allAdms.map(a => {
+      if (a.id === admissionId) {
+        return {
+          ...a,
+          patientPreferredWard: preferredWard
+        };
+      }
+      return a;
+    });
+    localStorage.setItem('dhms_admissions', JSON.stringify(updated));
+    setAdmissions(updated);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert(`✓ Ward Preference Saved!\n\nYou have selected "${preferredWard}". The Reception Admission Desk has been notified of your preference.`);
+  };
 
   // Notifications and Inbox States
   const [notifications, setNotifications] = useState(() => {
@@ -1257,16 +1281,148 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         </button>
       </div>
 
-      {/* Active Inpatient Hospital Stay Banner */}
+      {/* Inpatient Hospital Stay & Pending Admission Choice Banner */}
       {(() => {
         const activeStay = admissions.find(a => 
           a.patientId === (currentPatient?.id || "PT-80234") && 
-          (a.status === 'Admitted' || a.status === 'Fit for Discharge / Settle Billing' || a.status?.includes('Pending'))
+          (a.status === 'Admitted' || a.status === 'Fit for Discharge / Settle Billing' || a.status?.includes('Pending') || a.status === 'Advised')
         );
 
         if (!activeStay) return null;
 
+        const isPending = activeStay.status?.includes('Pending') || activeStay.status === 'Advised';
+        const isEmergency = activeStay.isEmergencyICU || activeStay.admissionType === 'Emergency ICU';
         const isFitForDischarge = activeStay.status === 'Fit for Discharge / Settle Billing';
+
+        if (isPending) {
+          return (
+            <div style={{
+              background: isEmergency ? 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+              border: isEmergency ? '2px solid #ef4444' : '2px solid #3b82f6',
+              borderRadius: '12px',
+              padding: '20px 24px',
+              marginBottom: '24px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '10px',
+                    background: isEmergency ? '#dc2626' : '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: '800'
+                  }}>
+                    {isEmergency ? 'ICU' : 'IPD'}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '17px', color: isEmergency ? '#991b1b' : '#1e3a8a', fontWeight: '800' }}>
+                      {isEmergency ? 'Emergency ICU Inpatient Admission Ordered' : 'Hospital Inpatient Admission Recommended'}
+                    </h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#475569' }}>
+                      Advised by <strong>{activeStay.doctorName}</strong> • {activeStay.admissionDate || 'Today'}
+                    </p>
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontWeight: '800',
+                  background: isEmergency ? '#dc2626' : '#2563eb',
+                  color: 'white'
+                }}>
+                  {isEmergency ? 'CRITICAL CARE ICU' : 'ADMISSION PENDING'}
+                </span>
+              </div>
+
+              {activeStay.notes && (
+                <div style={{ background: 'white', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '12.5px', color: '#334155' }}>
+                  <strong>Doctor Indication Notes:</strong> "{activeStay.notes}"
+                </div>
+              )}
+
+              {isEmergency ? (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#991b1b', lineHeight: '1.5' }}>
+                  <strong>Immediate Emergency Action Required:</strong>
+                  <div>The physician has ordered admission to the <strong>Intensive Care Unit (ICU)</strong>. Please present this patient file directly at the Reception / Emergency Desk for immediate ICU bed assignment.</div>
+                </div>
+              ) : (
+                <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '14px', color: '#1e293b', fontWeight: '700' }}>
+                        Choose Your Preferred Ward / Room Type (Patient Choice)
+                      </h4>
+                      <span style={{ fontSize: '11.5px', color: '#64748b' }}>Select your room preference. The reception desk will allocate an available bed in your chosen ward.</span>
+                    </div>
+                    {activeStay.patientPreferredWard && (
+                      <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '700' }}>
+                        Selected: {activeStay.patientPreferredWard}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                    {[
+                      { name: 'General Ward A', rate: '₹800/day', desc: 'Standard Ward, 24/7 Nursing' },
+                      { name: 'Semi-Private Ward C', rate: '₹1,800/day', desc: '2-Bed Sharing, Air Conditioned' },
+                      { name: 'Private Suite 101', rate: '₹3,000/day', desc: 'Luxury Executive Suite, TV, Couch' },
+                      { name: 'Pediatrics Ward', rate: '₹1,200/day', desc: 'Child-friendly Inpatient Care' }
+                    ].map(w => {
+                      const isSelected = (patientSelectedWardChoice || activeStay.patientPreferredWard) === w.name;
+                      return (
+                        <div
+                          key={w.name}
+                          onClick={() => setPatientSelectedWardChoice(w.name)}
+                          style={{
+                            border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                            background: isSelected ? '#eff6ff' : '#f8fafc',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <strong style={{ fontSize: '13px', color: isSelected ? '#1d4ed8' : '#1e293b' }}>{w.name}</strong>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#166534' }}>{w.rate}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{w.desc}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveWardPreference(activeStay.id, patientSelectedWardChoice || activeStay.patientPreferredWard || 'General Ward A')}
+                      style={{
+                        padding: '8px 18px',
+                        background: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        fontSize: '12.5px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+                      }}
+                    >
+                      Save Ward Preference for Reception
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
 
         return (
           <div style={{

@@ -1239,26 +1239,99 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <label htmlFor="admit-patient-chk" style={{ fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Recommend Hospital Admission</label>
             </div>
             {isAdmitted && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeIn 0.2s' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', animation: 'fadeIn 0.2s' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#475569' }}>Select Ward / Unit</label>
-                  <select className="clinical-select" value={admissionWard} onChange={(e) => setAdmissionWard(e.target.value)}>
-                    <option value="General Ward A">General Ward A</option>
-                    <option value="General Ward B">General Ward B</option>
-                    <option value="ICU (Intensive Care)">ICU (Intensive Care)</option>
-                    <option value="Pediatrics Ward">Pediatrics Ward</option>
-                    <option value="Semi-Private Ward C">Semi-Private Ward C</option>
-                    <option value="Private Suite 101">Private Suite 101</option>
-                  </select>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>Admission Category / Care Level</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdmissionType('standard');
+                        setAdmissionWard('General / Patient Choice');
+                      }}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        border: admissionType === 'standard' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                        background: admissionType === 'standard' ? '#eff6ff' : '#f8fafc',
+                        color: admissionType === 'standard' ? '#1d4ed8' : '#475569',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      Routine Inpatient Stay
+                      <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#64748b', marginTop: '2px' }}>
+                        Patient will choose ward (General / Semi-Private / Deluxe) at Reception
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdmissionType('icu');
+                        setAdmissionWard('ICU (Intensive Care)');
+                      }}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        border: admissionType === 'icu' ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                        background: admissionType === 'icu' ? '#fef2f2' : '#f8fafc',
+                        color: admissionType === 'icu' ? '#b91c1c' : '#475569',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      Emergency / Critical ICU
+                      <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#991b1b', marginTop: '2px' }}>
+                        Doctor orders Intensive Care / Critical Monitoring
+                      </div>
+                    </button>
+                  </div>
                 </div>
+
+                {admissionType === 'icu' && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 12px', fontSize: '11.5px', color: '#991b1b' }}>
+                    <div style={{ fontWeight: '700', marginBottom: '4px' }}>Critical Care Protocol:</div>
+                    Doctor order flags high-priority ICU admission. Reception desk and doctor can both directly admit to ICU Bed.
+                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="direct-icu-admit-chk" 
+                        checked={directICUAdmit} 
+                        onChange={(e) => setDirectICUAdmit(e.target.checked)} 
+                      />
+                      <label htmlFor="direct-icu-admit-chk" style={{ fontWeight: '700', color: '#7f1d1d', cursor: 'pointer' }}>
+                        Immediate Direct Doctor Admit to ICU (Fast-Track)
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {admissionType === 'standard' && (
+                  <div style={{ background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '6px', padding: '6px 10px', fontSize: '11px', color: '#1e40af' }}>
+                    <strong>Patient Choice Flow:</strong> Admission request will be sent to the Reception IPD desk. Patient/Family can pick their preferred ward option (General Ward, Semi-Private, Deluxe Private Suite) upon arrival.
+                  </div>
+                )}
+
                 <div>
                   <label style={{ fontSize: '11px', color: '#475569' }}>Admission Clinical Indication Notes</label>
-                  <textarea value={admissionNotes} onChange={(e) => setAdmissionNotes(e.target.value)} placeholder="E.g., Severe respiratory distress requiring oxygen therapy..." className="clinical-textarea" style={{ minHeight: '60px' }} />
+                  <textarea 
+                    value={admissionNotes} 
+                    onChange={(e) => setAdmissionNotes(e.target.value)} 
+                    placeholder="E.g., Severe respiratory distress, post-op observation, cardiac monitoring required..." 
+                    className="clinical-textarea" 
+                    style={{ minHeight: '55px' }} 
+                  />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', background: '#f0fdf4', padding: '8px 12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0fdf4', padding: '8px 12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
                   <input type="checkbox" id="send-pharmacy-inpatient" checked={sendInpatientRxToPharmacy} onChange={(e) => setSendInpatientRxToPharmacy(e.target.checked)} />
                   <label htmlFor="send-pharmacy-inpatient" style={{ fontWeight: '600', fontSize: '12px', color: '#166534', cursor: 'pointer' }}>
-                    🚀 Send Inpatient Rx Order to Hospital Pharmacy (Ward Delivery)
+                    Send Inpatient Rx Order to Hospital Pharmacy (Ward Delivery)
                   </label>
                 </div>
               </div>
@@ -1431,6 +1504,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     // Save Admission details if admitted
     if (isAdmitted) {
       const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+      const isICU = admissionType === 'icu';
+      const isDirectAdmit = isICU && directICUAdmit;
+      const assignedWard = isICU ? 'ICU (Intensive Care)' : 'Patient Choice (Pending)';
+
       const newAdm = {
         id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
         patientId: activeCallAppt.patientId,
@@ -1438,9 +1515,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         doctorName: currentDoc.name,
         admissionDate: todayStr,
         dischargeDate: null,
-        ward: admissionWard,
-        notes: admissionNotes || 'Admitted from consultation.',
-        status: 'Admitted',
+        admissionType: isICU ? 'Emergency ICU' : 'Standard Inpatient',
+        isEmergencyICU: isICU,
+        ward: assignedWard,
+        bedNo: isDirectAdmit ? 'ICU-01' : null,
+        notes: admissionNotes || (isICU ? 'Emergency ICU Admission ordered by Doctor.' : 'Hospital admission recommended by Doctor.'),
+        status: isDirectAdmit ? 'Admitted' : 'Pending Reception Admission',
+        patientPreferredWard: null,
         medications: finalMeds.map(med => ({
           name: `${med.name} ${med.dose}`,
           instructions: med.instructions,
@@ -1452,6 +1533,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       };
       const finalAdms = [newAdm, ...adms];
       localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
+      setAdmissions(finalAdms);
     }
 
     // 5. Create billing invoice
@@ -1567,6 +1649,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   // Admission States
   const [isAdmitted, setIsAdmitted] = useState(false);
+  const [admissionType, setAdmissionType] = useState('standard'); // 'standard' | 'icu'
+  const [directICUAdmit, setDirectICUAdmit] = useState(false);
   const [admissionNotes, setAdmissionNotes] = useState('');
   const [admissionWard, setAdmissionWard] = useState('General Ward A');
 
@@ -1673,8 +1757,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setLabPriority('Routine');
     setLabCost('85.00');
     setIsAdmitted(false);
+    setAdmissionType('standard');
+    setDirectICUAdmit(false);
     setAdmissionNotes('');
-    setAdmissionWard('General Ward A');
+    setAdmissionWard('General / Patient Choice');
     setSymptomsNote('');
     setExamNote('');
     setPlanNote('');
@@ -1766,7 +1852,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             prescriptions: finalMeds.map(m => `${m.name} ${m.dose || ''} - ${m.frequency || ''} (${m.duration || ''})`),
             labs: finalLabs.map(l => `${l.testName} [${l.priority || 'Routine'}]`),
             isAdmitted: !!isAdmitted,
-            admissionWard: isAdmitted ? admissionWard : null,
+            admissionType: isAdmitted ? (admissionType === 'icu' ? 'Emergency ICU' : 'Standard Inpatient') : null,
+            admissionWard: isAdmitted ? (admissionType === 'icu' ? 'ICU (Intensive Care)' : 'Patient Choice at Reception') : null,
             isReferred: !!isReferred,
             referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
           };
@@ -1795,7 +1882,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           status: isAdmittedPatient ? (sendInpatientRxToPharmacy ? 'Pending Ward Delivery' : 'Advised') : 'Given to Patient (OPD)',
           instructions: med.instructions || 'Take as advised',
           type: isAdmittedPatient ? 'Inpatient' : 'Outpatient',
-          ward: isAdmittedPatient ? (admissionWard || 'General Ward A') : null,
+          ward: isAdmittedPatient ? (admissionType === 'icu' ? 'ICU (Intensive Care)' : 'Patient Choice at Reception') : null,
           directPharmacyDispatch: isAdmittedPatient && sendInpatientRxToPharmacy
         }));
         const finalRx = [...newRxs, ...rxList];
@@ -1806,6 +1893,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       // Save Admission details if admitted
       if (isAdmitted) {
         const adms = JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
+        const isICU = admissionType === 'icu';
+        const isDirectAdmit = isICU && directICUAdmit;
+        const assignedWard = isICU ? 'ICU (Intensive Care)' : 'Patient Choice (Pending)';
+
         const newAdm = {
           id: `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
           patientId: apptToComplete.patientId || 'PT-GEN',
@@ -1813,9 +1904,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           doctorName: currentDoc.name,
           admissionDate: todayStr,
           dischargeDate: null,
-          ward: admissionWard || 'General Ward A',
-          notes: admissionNotes || 'Admitted from consultation.',
-          status: 'Pending IPD Desk Admission',
+          admissionType: isICU ? 'Emergency ICU' : 'Standard Inpatient',
+          isEmergencyICU: isICU,
+          ward: assignedWard,
+          bedNo: isDirectAdmit ? 'ICU-01' : null,
+          notes: admissionNotes || (isICU ? 'Emergency ICU Admission ordered by Doctor.' : 'Hospital admission recommended by Doctor.'),
+          status: isDirectAdmit ? 'Admitted' : 'Pending Reception Admission',
+          patientPreferredWard: null,
           medications: finalMeds.map(med => ({
             name: `${med.name} ${med.dose || ''}`,
             instructions: med.instructions || '',
