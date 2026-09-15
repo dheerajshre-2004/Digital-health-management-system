@@ -1561,6 +1561,26 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       const finalAdms = [newAdm, ...adms];
       localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
       setAdmissions(finalAdms);
+
+      // If doctor directly admits emergency ICU, forward ICU Advance Deposit to Cash Counter
+      if (isDirectAdmit) {
+        const billingCurrent = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+        const icuAdvanceInvoice = {
+          id: `INV-ADV-${Math.floor(1000 + Math.random() * 9000)}`,
+          admissionId: newAdm.id,
+          patientId: newAdm.patientId,
+          patientName: newAdm.patientName,
+          date: todayStr,
+          amount: '₹10000.00',
+          status: 'Unpaid',
+          type: 'Inpatient Admission Advance Deposit (ICU - ICU-01)',
+          paymentMethod: 'Pay at Cash Counter',
+          paymentRemarks: `Emergency ICU Direct Admission Advance deposit for Admission ${newAdm.id}. Routed to Central Cash Counter.`
+        };
+        const updatedBillingListWithAdv = [icuAdvanceInvoice, ...billingCurrent];
+        localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingListWithAdv));
+        setBillingList(updatedBillingListWithAdv);
+      }
     }
 
     // 5. Create billing invoice
@@ -1950,6 +1970,26 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         const finalAdms = [newAdm, ...adms];
         localStorage.setItem('dhms_admissions', JSON.stringify(finalAdms));
         setAdmissions(finalAdms);
+
+        // If doctor directly admits emergency ICU, forward ICU Advance Deposit to Cash Counter
+        if (isDirectAdmit) {
+          const billingCurrent = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+          const icuAdvanceInvoice = {
+            id: `INV-ADV-${Math.floor(1000 + Math.random() * 9000)}`,
+            admissionId: newAdm.id,
+            patientId: newAdm.patientId,
+            patientName: newAdm.patientName,
+            date: todayStr,
+            amount: '₹10000.00',
+            status: 'Unpaid',
+            type: 'Inpatient Admission Advance Deposit (ICU - ICU-01)',
+            paymentMethod: 'Pay at Cash Counter',
+            paymentRemarks: `Emergency ICU Direct Admission Advance deposit for Admission ${newAdm.id}. Routed to Central Cash Counter.`
+          };
+          const updatedBillingListWithAdv = [icuAdvanceInvoice, ...billingCurrent];
+          localStorage.setItem('dhms_billing', JSON.stringify(updatedBillingListWithAdv));
+          setBillingList(updatedBillingListWithAdv);
+        }
       }
 
       // Save laboratory requests

@@ -385,8 +385,10 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                           (!adminMode && inv.patientName.toLowerCase().includes(query)) ||
                           inv.type.toLowerCase().includes(query);
                           
-    const matchesStatus = adminMode ? inv.status === 'Paid' : (statusFilter === 'All' || inv.status === statusFilter);
-    const matchesType = typeFilter === 'All' || inv.type === typeFilter;
+    const matchesType = typeFilter === 'All' || 
+                        inv.type === typeFilter || 
+                        (typeFilter === 'Inpatient Admission Advance Deposit' && inv.type.includes('Inpatient Admission Advance Deposit')) ||
+                        (typeFilter === 'IPD Final Discharge Bill & Clearance' && inv.type.includes('IPD Final Discharge Bill'));
 
     return matchesSearch && matchesStatus && matchesType;
   });
@@ -691,9 +693,11 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
 
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }} className="cc-filter-select">
                 <option value="All">All Types</option>
+                <option value="Inpatient Admission Advance Deposit">Admission Advance Deposit</option>
                 <option value="Consultation Fee">Consultation Fee</option>
                 <option value="Diagnostic Lab Report">Diagnostic Lab Report</option>
                 <option value="Pharmacy Medicines Dispensed">Pharmacy Medicines Dispensed</option>
+                <option value="IPD Final Discharge Bill & Clearance">IPD Final Discharge Bill</option>
               </select>
             </div>
           </div>
@@ -1454,6 +1458,11 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
               <li className={activeTab === 'unpaid' ? 'active' : ''} onClick={() => { setActiveTab('unpaid'); setUnpaidCurrentPage(1); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 Collect Payments
+                {billingList.filter(b => b.status === 'Unpaid').length > 0 && (
+                  <span style={{ marginLeft: 'auto', background: '#dc2626', color: 'white', padding: '1px 7px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                    {billingList.filter(b => b.status === 'Unpaid').length}
+                  </span>
+                )}
               </li>
             )}
             <li className={activeTab === 'ipd_settlement' ? 'active' : ''} onClick={() => setActiveTab('ipd_settlement')}>
