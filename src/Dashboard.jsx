@@ -2480,6 +2480,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'laboratory_staff', label: 'Laboratory Staff' },
           { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
+          { id: 'cashcounter', label: 'Cash Counter & Central Billing' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Beds & Wards' },
           { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
@@ -5059,6 +5060,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 Execute Handover & Log Out
               </button>
             </form>
+          </div>
+        );
+
+      case 'cashcounter':
+        return (
+          <div className="module-content" style={{ padding: 0 }}>
+            <CashCounterDashboard embedMode={true} adminMode={true} onLogout={onLogout} loggedInStaff={{ name: 'Hospital Administrator', role: 'System Admin' }} />
           </div>
         );
 

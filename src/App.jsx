@@ -620,8 +620,8 @@ function App() {
   };
 
   if (isAuthenticated) {
-    if (userRole === 'patient' || isPatientPortal) {
-      return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
+    if (userRole === 'cash_counter') {
+      return <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
     if (userRole === 'receptionist') {
       return <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
@@ -632,11 +632,11 @@ function App() {
     if (userRole === 'pharmacist') {
       return <PharmacistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
     }
-    if (userRole === 'cash_counter') {
-      return <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
-    }
     if (userRole === 'insurance_agent') {
       return <InsuranceDashboard onLogout={handleLogout} />;
+    }
+    if (userRole === 'patient' || (isPatientPortal && userRole !== 'doctor' && userRole !== 'admin')) {
+      return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
     }
     return <Dashboard onLogout={handleLogout} role={userRole} loggedInDoctor={loggedInDoctor} />;
   }
