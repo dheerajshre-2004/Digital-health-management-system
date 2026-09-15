@@ -243,16 +243,27 @@ function App() {
       localStorage.setItem('dhms_insurance_claims', JSON.stringify([]));
     }
 
-    if (!localStorage.getItem('dhms_lab_facilities')) {
-      const defaultFacilities = [
-        { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
-        { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
-        { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
-        { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
-        { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
-        { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    if (!localStorage.getItem('dhms_doctors')) {
+      const defaultDoctors = [
+        { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care', status: 'Available', email: 'sarah.connor@dhms.org', phone: '+91 98765 43211', consultationFee: 500, password: 'password123' },
+        { id: 'dr_gregory_house', name: 'Dr. Gregory House', department: 'Neurology & Neurosurgery', status: 'Available', email: 'gregory.house@dhms.org', phone: '+91 98765 43212', consultationFee: 500, password: 'password123' },
+        { id: 'dr_meredith_grey', name: 'Dr. Meredith Grey', department: 'General & Internal Medicine', status: 'Available', email: 'meredith.grey@dhms.org', phone: '+91 98765 43213', consultationFee: 300, password: 'password123' },
+        { id: 'dr_john_watson', name: 'Dr. John Watson', department: 'Orthopedics & Joint Care', status: 'Available', email: 'john.watson@dhms.org', phone: '+91 98765 43214', consultationFee: 400, password: 'password123' }
       ];
-      localStorage.setItem('dhms_lab_facilities', JSON.stringify(defaultFacilities));
+      localStorage.setItem('dhms_doctors', JSON.stringify(defaultDoctors));
+    }
+
+    if (!localStorage.getItem('dhms_departments')) {
+      const defaultDepartments = [
+        { id: 1, name: 'Cardiology & Intensive Cardiac Care', code: 'CARD', head: 'Dr. Sarah Connor' },
+        { id: 2, name: 'Neurology & Neurosurgery', code: 'NEUR', head: 'Dr. Gregory House' },
+        { id: 3, name: 'Orthopedics & Joint Care', code: 'ORTH', head: 'Dr. John Watson' },
+        { id: 4, name: 'General & Internal Medicine', code: 'GENM', head: 'Dr. Meredith Grey' },
+        { id: 5, name: 'Pediatrics & Neonatology', code: 'PEDI', head: 'Dr. Leonard McCoy' },
+        { id: 6, name: 'Oncology & Chemotherapy Wing', code: 'ONCO', head: 'Dr. Beverly Crusher' },
+        { id: 7, name: 'Emergency & Trauma Care (24x7)', code: 'EMER', head: 'Dr. Michaela Quinn' }
+      ];
+      localStorage.setItem('dhms_departments', JSON.stringify(defaultDepartments));
     }
   }, []);
 

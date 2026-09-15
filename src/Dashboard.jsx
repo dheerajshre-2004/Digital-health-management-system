@@ -2601,6 +2601,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         return [
           { id: 'overview', label: 'My Dashboard' },
           { id: 'doctor_profile', label: '👨‍⚕️ My Doctor Profile' },
+          { id: 'departments', label: '🏥 Hospital Departments' },
+          { id: 'doctors', label: '👨‍⚕️ Doctors & Medical Roster' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Ward' },
