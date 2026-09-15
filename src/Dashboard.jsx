@@ -4639,10 +4639,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     <strong style={{ color: '#334155' }}>{docProfileShift || '09:00 AM - 05:00 PM'}</strong>
                   </div>
                 </div>
-
-                <div style={{ marginTop: '16px', fontSize: '12px', color: '#64748b', textAlign: 'left', background: '#fefce8', border: '1px solid #fef08a', padding: '10px 12px', borderRadius: '8px' }}>
-                  💡 <strong>Real-Time Sync:</strong> Any updates made here instantly reflect in patient doctor booking, receptionist OPD desk, hospital department head rosters, and clinical prescriptions.
-                </div>
               </div>
 
               {/* Profile Edit Form */}
