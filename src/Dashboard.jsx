@@ -26,10 +26,10 @@ const DUMMY_DEPARTMENTS = [
 ];
 
 const DOCTORS = [
-  { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care', status: 'Available', email: 'sarah.connor@dhms.org', phone: '+91 98765 43211' },
-  { id: 'dr_gregory_house', name: 'Dr. Gregory House', department: 'Neurology & Neurosurgery', status: 'Available', email: 'gregory.house@dhms.org', phone: '+91 98765 43212' },
-  { id: 'dr_meredith_grey', name: 'Dr. Meredith Grey', department: 'General & Internal Medicine', status: 'Available', email: 'meredith.grey@dhms.org', phone: '+91 98765 43213' },
-  { id: 'dr_john_watson', name: 'Dr. John Watson', department: 'Orthopedics & Joint Care', status: 'Available', email: 'john.watson@dhms.org', phone: '+91 98765 43214' }
+  { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care', status: 'Available', email: 'sarah.connor@dhms.org', phone: '+91 98765 43211', consultationFee: 500 },
+  { id: 'dr_gregory_house', name: 'Dr. Gregory House', department: 'Neurology & Neurosurgery', status: 'Available', email: 'gregory.house@dhms.org', phone: '+91 98765 43212', consultationFee: 500 },
+  { id: 'dr_meredith_grey', name: 'Dr. Meredith Grey', department: 'General & Internal Medicine', status: 'Available', email: 'meredith.grey@dhms.org', phone: '+91 98765 43213', consultationFee: 300 },
+  { id: 'dr_john_watson', name: 'Dr. John Watson', department: 'Orthopedics & Joint Care', status: 'Available', email: 'john.watson@dhms.org', phone: '+91 98765 43214', consultationFee: 400 }
 ];
 
 export default function Dashboard({ onLogout, role, loggedInDoctor }) {
@@ -283,6 +283,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [newDocName, setNewDocName] = useState('');
   const [newDocDept, setNewDocDept] = useState('Cardiology & Intensive Cardiac Care');
   const [newDocStatus, setNewDocStatus] = useState('Available');
+  const [newDocFee, setNewDocFee] = useState('300.00');
   const [newDocEmail, setNewDocEmail] = useState('');
   const [newDocPassword, setNewDocPassword] = useState('');
   const [newDocPhone, setNewDocPhone] = useState('');
@@ -336,10 +337,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return saved.length > 0 ? saved[0].id : '';
   });
 
-  // Doctor Slot Management state
+  // Doctor Slot & Fee Management state
   const [slotManageDate, setSlotManageDate] = useState(new Date().toISOString().split('T')[0]);
   const [slot1CapacityInput, setSlot1CapacityInput] = useState(5);
   const [slot2CapacityInput, setSlot2CapacityInput] = useState(5);
+  const [docFeeSetting, setDocFeeSetting] = useState('300.00');
 
   useEffect(() => {
     if (role === 'doctor' && loggedInDoctor) {
@@ -359,8 +361,33 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         setSlot1CapacityInput(5); // default
         setSlot2CapacityInput(5); // default
       }
+
+      // Sync active doctor's current consultation fee
+      const allDocs = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+      const currentDoc = allDocs.find(d => d.id === activeDoctorId);
+      if (currentDoc && currentDoc.consultationFee) {
+        setDocFeeSetting(String(currentDoc.consultationFee));
+      }
     }
   }, [slotManageDate, activeDoctorId, role]);
+
+  const handleUpdateDoctorFee = (e) => {
+    e.preventDefault();
+    if (!activeDoctorId) return;
+    const feeNum = parseFloat(docFeeSetting);
+    if (isNaN(feeNum) || feeNum < 0) {
+      alert("Please enter a valid consultation fee amount (₹).");
+      return;
+    }
+    const allDocs = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+    const updated = allDocs.map(d => d.id === activeDoctorId ? { ...d, consultationFee: feeNum } : d);
+    setDoctorsRoster(updated);
+    localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert(`Consultation fee updated to ₹${feeNum.toFixed(2)} successfully.`);
+  };
 
   const handleSaveSlotCapacities = (e) => {
     e.preventDefault();
@@ -2147,6 +2174,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       name: newDocName.startsWith('Dr.') ? newDocName : `Dr. ${newDocName}`,
       department: newDocDept,
       status: newDocStatus,
+      consultationFee: parseFloat(newDocFee) || 300.00,
       email: emailTarget,
       password: newDocPassword,
       phone: newDocPhone || '+91 98765 43210'
@@ -2171,6 +2199,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setNewDocEmail('');
     setNewDocPhone('');
     setNewDocPassword('');
+    setNewDocFee('300.00');
     setShowAddDoctorModal(false);
     alert(`✓ ${newDoc.name} added to hospital doctors roster. Login credentials dispatched to ${emailTarget}.`);
   };
@@ -2727,44 +2756,73 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   <th>Doctor ID</th>
                   <th>Doctor Name</th>
                   <th>Department</th>
+                  <th>Consultation Fee (₹)</th>
                   <th>Contact Email</th>
                   <th>Active Duty Status</th>
                   {role === 'admin' && <th>Quick Action</th>}
                 </tr>
               </thead>
               <tbody>
-                {doctorsRoster.map(d => (
-                  <tr key={d.id}>
-                    <td><strong>{d.id}</strong></td>
-                    <td><strong>{d.name}</strong></td>
-                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{d.department}</span></td>
-                    <td>{d.email}</td>
-                    <td>
-                      <span className={`status-badge ${d.status === 'Available' ? 'available' : d.status === 'On Leave' ? 'leave' : 'surgery'}`}>
-                        {d.status}
-                      </span>
-                    </td>
-                    {role === 'admin' && (
-                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <select 
-                          value={d.status} 
-                          onChange={(e) => handleToggleDoctorStatus(d.id, e.target.value)}
-                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                        >
-                          <option value="Available">Available</option>
-                          <option value="On Leave">On Leave</option>
-                          <option value="In Surgery">In Surgery</option>
-                        </select>
-                        <button 
-                          onClick={() => handleDeleteDoctor(d.id)}
-                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
-                        >
-                          Delete
-                        </button>
+                {doctorsRoster.map(d => {
+                  const fee = d.consultationFee !== undefined ? parseFloat(d.consultationFee) : 300.00;
+                  return (
+                    <tr key={d.id}>
+                      <td><strong>{d.id}</strong></td>
+                      <td><strong>{d.name}</strong></td>
+                      <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{d.department}</span></td>
+                      <td>
+                        {role === 'admin' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontWeight: '700', color: '#166534' }}>₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="50"
+                              defaultValue={fee}
+                              onBlur={(e) => {
+                                const newFee = parseFloat(e.target.value);
+                                if (!isNaN(newFee) && newFee >= 0) {
+                                  const updated = doctorsRoster.map(item => item.id === d.id ? { ...item, consultationFee: newFee } : item);
+                                  setDoctorsRoster(updated);
+                                  localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+                                  if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+                                }
+                              }}
+                              style={{ width: '80px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#166534', fontSize: '13px' }}
+                            />
+                          </div>
+                        ) : (
+                          <strong style={{ color: '#166534' }}>₹{fee.toFixed(2)}</strong>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>{d.email}</td>
+                      <td>
+                        <span className={`status-badge ${d.status === 'Available' ? 'available' : d.status === 'On Leave' ? 'leave' : 'surgery'}`}>
+                          {d.status}
+                        </span>
+                      </td>
+                      {role === 'admin' && (
+                        <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <select 
+                            value={d.status} 
+                            onChange={(e) => handleToggleDoctorStatus(d.id, e.target.value)}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                          >
+                            <option value="Available">Available</option>
+                            <option value="On Leave">On Leave</option>
+                            <option value="In Surgery">In Surgery</option>
+                          </select>
+                          <button 
+                            onClick={() => handleDeleteDoctor(d.id)}
+                            style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -4390,6 +4448,34 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   </button>
                 </form>
 
+                {/* Doctor's Consultation Fee Management */}
+                <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <h4 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '14px', fontWeight: 'bold' }}>Consultation Fee Settings</h4>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b' }}>
+                    Set your custom consultation rate (₹). This fee automatically applies during patient appointments and front-desk booking.
+                  </p>
+                  <form onSubmit={handleUpdateDoctorFee} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: '#64748b' }}>₹</span>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        step="50" 
+                        required 
+                        value={docFeeSetting} 
+                        onChange={(e) => setDocFeeSetting(e.target.value)} 
+                        style={{ width: '100%', padding: '9px 10px 9px 26px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#166534', fontSize: '14px', boxSizing: 'border-box' }} 
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      style={{ padding: '9px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
+                    >
+                      Update Fee
+                    </button>
+                  </form>
+                </div>
+
                 <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                   <h4 style={{ margin: '0 0 12px 0', color: '#475569', fontSize: '13px', fontWeight: 'bold' }}>Upcoming Days Quick View</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5966,13 +6052,28 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   ))}
                 </select>
               </div>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
-                <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
-                  <option value="Available">Available</option>
-                  <option value="On Leave">On Leave</option>
-                  <option value="In Surgery">In Surgery</option>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
+                  <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
+                    <option value="Available">Available</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="In Surgery">In Surgery</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Consultation Fee (₹)</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="50" 
+                    required 
+                    value={newDocFee} 
+                    onChange={(e) => setNewDocFee(e.target.value)} 
+                    placeholder="300.00" 
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box', fontWeight: '700', color: '#166534' }} 
+                  />
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>

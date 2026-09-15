@@ -5613,7 +5613,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <form onSubmit={handleRequestApptSubmit}>
               <div className="pd-modal-header">
-                <h2>📅 Request Clinic Appointment</h2>
+                <h2>Request Clinic Appointment</h2>
                 <button className="pd-modal-close" type="button" onClick={() => setShowRequestApptModal(false)}>&times;</button>
               </div>
               <div className="pd-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
@@ -5634,8 +5634,9 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       <option value="" disabled hidden>Select Doctor</option>
                       {doctorsList.map(doc => {
                         const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                        const fee = doc.consultationFee ? parseFloat(doc.consultationFee) : (doc.specialty === 'Cardiology' || doc.specialty === 'Neurology' ? 500 : 300);
                         return (
-                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department})</option>
+                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department}) - ₹{fee.toFixed(2)}</option>
                         );
                       })}
                     </select>
@@ -5650,6 +5651,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     />
                   </div>
                 </div>
+
+                {/* Dynamic Doctor Consultation Rate Notice */}
+                {(() => {
+                  const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
+                  const selFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (selDoc?.specialty === 'Cardiology' || selDoc?.specialty === 'Neurology' ? 500 : 300);
+                  if (!selDoc) return null;
+                  return (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12.5px', color: '#166534', fontWeight: '600' }}>
+                        Doctor Consultation Fee (Inclusive of Booking):
+                      </span>
+                      <strong style={{ fontSize: '15px', color: '#15803d', fontWeight: '800' }}>
+                        ₹{selFee.toFixed(2)}
+                      </strong>
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
