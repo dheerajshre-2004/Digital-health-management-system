@@ -305,6 +305,28 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
 
     localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
     setBillingList(updatedBilling);
+
+    // If invoice is linked to an appointment, mark appointment fee as Paid
+    if (paymentModalData.appointmentId || paymentModalData.id) {
+      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const updatedAppts = allAppts.map(a => {
+        if (a.id === paymentModalData.appointmentId || a.invoiceId === paymentModalData.id) {
+          return {
+            ...a,
+            paymentStatus: 'Paid',
+            feeStatus: 'Paid',
+            paymentMethod: paymentMethod
+          };
+        }
+        return a;
+      });
+      localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+      setAppointments(updatedAppts);
+    }
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
     
     // Save details to trigger printable receipt modal
     setPrintedInvoiceData(finalPaidInvoice);

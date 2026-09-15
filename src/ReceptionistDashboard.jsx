@@ -1265,39 +1265,43 @@ End of Generated Health Summary Report
               {paginatedAppts.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 0' }}>No {apptSubTab === 'online' ? 'online' : 'on-place'} appointments scheduled</div>
               ) : (
-                paginatedAppts.map((appt) => (
-                  <div key={appt.id} className="rd-appt-item" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div className="rd-appt-details">
-                        <strong>{appt.patientName} ({appt.patientId})</strong>
-                        <span style={{ fontSize: '13px', color: '#64748b' }}>with {appt.doctorName} ({appt.department})</span>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                          <span className={`rd-badge-source ${appt.source.toLowerCase()}`}>{appt.source}</span>
-                          <span className={`rd-badge-type ${appt.type.toLowerCase()}`}>{appt.type}</span>
+                paginatedAppts.map((appt) => {
+                  const linkedInvoice = billingList.find(b => b.appointmentId === appt.id || (appt.invoiceId && b.id === appt.invoiceId));
+                  const isPaid = appt.paymentStatus === 'Paid' || appt.feeStatus === 'Paid' || linkedInvoice?.status === 'Paid';
+
+                  return (
+                    <div key={appt.id} className="rd-appt-item" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div className="rd-appt-details">
+                          <strong>{appt.patientName} ({appt.patientId})</strong>
+                          <span style={{ fontSize: '13px', color: '#64748b' }}>with {appt.doctorName} ({appt.department})</span>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                            <span className={`rd-badge-source ${appt.source.toLowerCase()}`}>{appt.source}</span>
+                            <span className={`rd-badge-type ${appt.type.toLowerCase()}`}>{appt.type}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                          <span className={`rd-status-badge ${appt.status.toLowerCase().replace(' ', '-')}`}>
+                            {appt.status}
+                          </span>
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#3b82f6' }}>{appt.time}</div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.date}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                        <span className={`rd-status-badge ${appt.status.toLowerCase().replace(' ', '-')}`}>
-                          {appt.status}
-                        </span>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#3b82f6' }}>{appt.time}</div>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.date}</div>
-                      </div>
-                    </div>
-                    {appt.reason && (
-                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569', background: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
-                        <strong>Reason:</strong> {appt.reason}
-                      </p>
-                    )}
+                      {appt.reason && (
+                        <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569', background: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
+                          <strong>Reason:</strong> {appt.reason}
+                        </p>
+                      )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {appt.paymentStatus === 'Paid' ? (
-                          <span style={{ fontSize: '11.5px', color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: '6px', fontWeight: '700', border: '1px solid #bbf7d0' }}>
-                            ✓ Fee Cleared Online ({appt.consultationFee || '₹500.00'})
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {appt.paymentStatus === 'Paid' || appt.feeStatus === 'Paid' || linkedInvoice?.status === 'Paid' ? (
+                          <span style={{ fontSize: '11.5px', color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: '6px', fontWeight: '700', border: '1px solid #bbf7d0' }}>
+                            Fee Paid at Cash Counter ({appt.consultationFee || '₹450.00'})
                           </span>
-                        ) : billingList.some(b => b.appointmentId === appt.id) ? (
-                          <span style={{ fontSize: '11.5px', color: '#16a34a', background: '#dcfce7', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>
-                            Sent to Counter
+                        ) : billingList.some(b => b.appointmentId === appt.id || b.id === appt.invoiceId) ? (
+                          <span style={{ fontSize: '11.5px', color: '#b45309', background: '#fef3c7', padding: '4px 10px', borderRadius: '6px', fontWeight: '700', border: '1px solid #fde68a' }}>
+                            Payment Pending at Cash Counter
                           </span>
                         ) : (
                           <button 
@@ -1305,8 +1309,8 @@ End of Generated Health Summary Report
                             onClick={() => {
                               const docFee = getDoctorConsultationFee(appt.doctorId || appt.doctorName);
                               setBillingModalAppt(appt);
-                              setBillingModalFee(docFee.toFixed(2));
-                              setBillingModalType('Consultation Fee');
+                              setBillingModalFee((docFee + 150.00).toFixed(2));
+                              setBillingModalType('Combined Fee');
                             }}
                             style={{
                               padding: '4px 10px',
@@ -1327,29 +1331,66 @@ End of Generated Health Summary Report
                         )}
                       </div>
                       
-                      {(appt.status === 'Pending Confirmation' || appt.status === 'Confirmed' || appt.status === 'Upcoming') && (
-                        <button 
-                          className="rd-btn-small" 
-                          onClick={() => handleConfirmAppointment(appt.id)}
-                          style={{
-                            padding: '4px 10px',
-                            background: appt.status === 'Pending Confirmation' ? '#10b981' : '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {appt.status === 'Pending Confirmation' ? 'Confirm Request' : 'Check In'}
-                        </button>
-                      )}
+                      {/* Flow to Doctor after payment or check-in */}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {appt.status === 'Checked In' || appt.status === 'Sent to Doctor' ? (
+                          <span style={{ fontSize: '12px', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '5px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                            Sent to Doctor (In Waiting Queue)
+                          </span>
+                        ) : appt.status === 'In Progress' ? (
+                          <span style={{ fontSize: '12px', color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', padding: '5px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                            With Doctor (Consulting)
+                          </span>
+                        ) : appt.status === 'Completed' ? (
+                          <span style={{ fontSize: '12px', color: '#15803d', background: '#dcfce7', border: '1px solid #bbf7d0', padding: '5px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                            Consultation Completed
+                          </span>
+                        ) : (isPaid) ? (
+                          <button 
+                            className="rd-btn-small" 
+                            onClick={() => {
+                              handleConfirmAppointment(appt.id);
+                              alert(`Patient ${appt.patientName} has been routed to ${appt.doctorName}'s consultation room.`);
+                            }}
+                            style={{
+                              padding: '6px 14px',
+                              background: '#16a34a',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                            }}
+                          >
+                            Send Patient to Doctor
+                          </button>
+                        ) : (
+                          <button 
+                            className="rd-btn-small" 
+                            onClick={() => handleConfirmAppointment(appt.id)}
+                            style={{
+                              padding: '5px 12px',
+                              background: appt.status === 'Pending Confirmation' ? '#10b981' : '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {appt.status === 'Pending Confirmation' ? 'Confirm Request' : 'Check In'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                );
+              })
+            )}
+          </div>
 
             {totalPages > 1 && (
               <div className="rd-pagination" style={{ marginTop: '20px' }}>
