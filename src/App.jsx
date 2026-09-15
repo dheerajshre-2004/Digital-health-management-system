@@ -11,6 +11,43 @@ import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 import LanguageSelector from './LanguageSelector';
 import { t } from './i18nService';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+          <h2 style={{ color: '#b91c1c' }}>Something went wrong loading this portal module.</h2>
+          <pre style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', textAlign: 'left', maxWidth: '800px', overflowX: 'auto' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <div style={{ marginTop: '20px' }}>
+            <button 
+              onClick={() => {
+                sessionStorage.clear();
+                window.location.reload();
+              }}
+              style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Reset Session & Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   // Detection for Patient Portal vs Staff Portal
   const urlParams = new URLSearchParams(window.location.search);
@@ -620,25 +657,31 @@ function App() {
   };
 
   if (isAuthenticated) {
-    if (userRole === 'cash_counter') {
-      return <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
-    }
-    if (userRole === 'receptionist') {
-      return <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
-    }
-    if (userRole === 'laboratory') {
-      return <LaboratoryDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
-    }
-    if (userRole === 'pharmacist') {
-      return <PharmacistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />;
-    }
-    if (userRole === 'insurance_agent') {
-      return <InsuranceDashboard onLogout={handleLogout} />;
-    }
-    if (userRole === 'patient' || (isPatientPortal && userRole !== 'doctor' && userRole !== 'admin')) {
-      return <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />;
-    }
-    return <Dashboard onLogout={handleLogout} role={userRole} loggedInDoctor={loggedInDoctor} />;
+    return (
+      <ErrorBoundary>
+        {userRole === 'cash_counter' && (
+          <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
+        )}
+        {userRole === 'receptionist' && (
+          <ReceptionistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
+        )}
+        {userRole === 'laboratory' && (
+          <LaboratoryDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
+        )}
+        {userRole === 'pharmacist' && (
+          <PharmacistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
+        )}
+        {userRole === 'insurance_agent' && (
+          <InsuranceDashboard onLogout={handleLogout} />
+        )}
+        {(userRole === 'patient' || (isPatientPortal && userRole !== 'doctor' && userRole !== 'admin' && userRole !== 'cash_counter' && userRole !== 'receptionist' && userRole !== 'laboratory' && userRole !== 'pharmacist' && userRole !== 'insurance_agent')) && (
+          <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />
+        )}
+        {(userRole === 'doctor' || userRole === 'admin') && (
+          <Dashboard onLogout={handleLogout} role={userRole} loggedInDoctor={loggedInDoctor} />
+        )}
+      </ErrorBoundary>
+    );
   }
 
   return (
