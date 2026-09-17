@@ -299,21 +299,72 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       });
       saveAdmissions(updatedAdmissions);
     } else {
-      // Outpatient: Add directly to Receptionist's central billing list
+      // Outpatient: Check for Patient Insurance Coverage
+      const policies = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+      const patientPolicy = policies.find(p => p.patientId === rx.patientId && p.status === 'Active');
       const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-      const newInvoice = {
-        id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientId: rx.patientId,
-        patientName: rx.patientName,
-        date: new Date().toISOString().split('T')[0],
-        amount: `₹${parseFloat(rx.cost).toFixed(2)}`,
-        status: 'Unpaid',
-        type: 'Pharmacy Prescription'
-      };
-      localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
+      const totalMedCost = parseFloat(rx.cost) || 0.00;
+      const newInvoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      if (patientPolicy) {
+        // Calculate Co-Pay and TPA Claim portion
+        const coPayPercent = patientPolicy.coPay || 0;
+        const coPayAmount = (totalMedCost * (coPayPercent / 100));
+        const claimedAmount = totalMedCost - coPayAmount;
+
+        // 1. Submit Claim to TPA Inbox
+        const claims = JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
+        const newClaim = {
+          id: `CLM-${Math.floor(1000 + Math.random() * 9000)}`,
+          patientId: rx.patientId,
+          patientName: rx.patientName,
+          invoiceId: newInvoiceId,
+          provider: patientPolicy.provider,
+          policyNo: patientPolicy.policyNo,
+          amount: `₹${totalMedCost.toFixed(2)}`,
+          coPayAmount: `₹${coPayAmount.toFixed(2)}`,
+          claimedAmount: `₹${claimedAmount.toFixed(2)}`,
+          diagnosis: `Outpatient Pharmacy: ${rx.medication}`,
+          date: new Date().toISOString().split('T')[0],
+          status: 'Pending',
+          remarks: `Prescription dispensed by Pharmacy. Co-pay ${coPayPercent}% (₹${coPayAmount.toFixed(2)}) routed to Cash Counter.`
+        };
+        localStorage.setItem('dhms_insurance_claims', JSON.stringify([newClaim, ...claims]));
+
+        // 2. Add Invoice to Central Billing for Co-Pay collection
+        const newInvoice = {
+          id: newInvoiceId,
+          patientId: rx.patientId,
+          patientName: rx.patientName,
+          date: new Date().toISOString().split('T')[0],
+          amount: `₹${totalMedCost.toFixed(2)}`,
+          coPayAmount: `₹${coPayAmount.toFixed(2)}`,
+          claimedAmount: `₹${claimedAmount.toFixed(2)}`,
+          status: coPayAmount > 0 ? 'Unpaid' : 'Covered by Insurance',
+          paymentMethod: 'Insurance / TPA Claim',
+          type: `Pharmacy Prescription (Insured: ${patientPolicy.provider} - CoPay ${coPayPercent}%)`
+        };
+        localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
+      } else {
+        // Standard uninsured patient bill
+        const newInvoice = {
+          id: newInvoiceId,
+          patientId: rx.patientId,
+          patientName: rx.patientName,
+          date: new Date().toISOString().split('T')[0],
+          amount: `₹${totalMedCost.toFixed(2)}`,
+          status: 'Unpaid',
+          type: 'Pharmacy Prescription'
+        };
+        localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
+      }
+
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
     }
 
-    alert(`Successfully dispensed ${rx.medication} for ${rx.patientName}!`);
+    alert(`Successfully dispensed ${rx.medication} for ${rx.patientName}! Billing and claim details synchronized.`);
   };
 
   // 4. Inpatient Billing / Discharge
@@ -952,6 +1003,18 @@ Thank you for using DHMS Hospital.
                           <td>
                             <strong>{rx.patientName}</strong>
                             <div className="subtitle">ID: {rx.patientId}</div>
+                            {(() => {
+                              const policies = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+                              const patPol = policies.find(p => p.patientId === rx.patientId && p.status === 'Active');
+                              if (patPol) {
+                                return (
+                                  <span style={{ display: 'inline-block', marginTop: '3px', background: '#dbeafe', color: '#1e40af', fontSize: '10.5px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px' }}>
+                                    🛡️ {patPol.provider} (CoPay: {patPol.coPay}%)
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </td>
                           <td>
                             <strong>{rx.medication}</strong>

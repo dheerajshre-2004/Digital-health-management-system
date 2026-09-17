@@ -91,6 +91,30 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     return [];
   });
 
+  // Insurance & TPA Desk States
+  const [insurancePolicies, setInsurancePolicies] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+  });
+  const [insuranceClaims, setInsuranceClaims] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
+  });
+  const [insurancePreAuths, setInsurancePreAuths] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_insurance_pre_auths') || '[]');
+  });
+  const [insDeskSubTab, setInsDeskSubTab] = useState('preauth'); // 'preauth' | 'policies' | 'new_preauth'
+  const [insSearch, setInsSearch] = useState('');
+  const [preAuthForm, setPreAuthForm] = useState({
+    patientId: '',
+    patientName: '',
+    policyNo: '',
+    provider: 'Max Life Insurance',
+    procedureName: '',
+    estimatedAmount: '',
+    urgency: 'Normal',
+    doctorName: 'Dr. Sarah Jenkins (Senior Consultant)',
+    clinicalNotes: ''
+  });
+
   // State for Patient Registration
   const [patientData, setPatientData] = useState({
     firstName: '',
@@ -99,6 +123,11 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     gender: '',
     phone: '',
     email: '',
+    hasInsurance: false,
+    insuranceProvider: 'Max Life Insurance',
+    policyNo: '',
+    coPay: '10',
+    maxCoverage: '500000'
   });
   const [generatedId, setGeneratedId] = useState(null);
   const [generatedPassword, setGeneratedPassword] = useState(null);
@@ -201,6 +230,9 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setBedsInventory(JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]'));
       setSentEmailsList(JSON.parse(localStorage.getItem('dhms_sent_emails') || '[]'));
+      setInsurancePolicies(JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]'));
+      setInsuranceClaims(JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]'));
+      setInsurancePreAuths(JSON.parse(localStorage.getItem('dhms_insurance_pre_auths') || '[]'));
       const savedDocs = localStorage.getItem('dhms_doctors');
       if (savedDocs) {
         setDoctorsList(JSON.parse(savedDocs).map(d => ({
@@ -285,7 +317,8 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       gender: patientData.gender,
       phone: patientData.phone.trim(),
       email: patientData.email ? patientData.email.trim() : 'N/A',
-      password: randomPassword
+      password: randomPassword,
+      hasInsurance: !!patientData.hasInsurance
     };
 
     const updatedPatients = [newPatient, ...patients];
@@ -293,6 +326,28 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
     setGeneratedId(newId);
     setGeneratedPassword(randomPassword);
+
+    // If insurance coverage was provided during registration, automatically register policy
+    if (patientData.hasInsurance && (patientData.policyNo || patientData.insuranceProvider)) {
+      const pols = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+      const newPolicy = {
+        patientId: newId,
+        patientName: `${newPatient.firstName} ${newPatient.lastName}`.trim(),
+        provider: patientData.insuranceProvider || 'Max Life Insurance',
+        policyNo: patientData.policyNo ? patientData.policyNo.trim() : `POL-${Math.floor(100000 + Math.random() * 900000)}`,
+        coPay: parseInt(patientData.coPay) || 10,
+        maxCoverage: parseFloat(patientData.maxCoverage) || 500000,
+        utilized: 0,
+        status: 'Active',
+        registeredDate: new Date().toISOString().split('T')[0]
+      };
+      const updatedPolicies = [newPolicy, ...pols];
+      localStorage.setItem('dhms_insurance_policies', JSON.stringify(updatedPolicies));
+      setInsurancePolicies(updatedPolicies);
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new Event('storage'));
+      }
+    }
 
     // Automatically dispatch welcome email with ID, password, and heartfelt care message
     if (newPatient.email && newPatient.email !== 'N/A' && newPatient.email.includes('@')) {
@@ -726,6 +781,86 @@ End of Generated Health Summary Report
                 <label>Email Address <span style={{ color: 'red' }}>*</span></label>
                 <input type="email" required value={patientData.email} onChange={e => setPatientData({...patientData, email: e.target.value})} placeholder="jane.smith@example.com" />
               </div>
+            </div>
+
+            {/* Insurance Policy Registration Section */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', margin: '12px 0 20px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: patientData.hasInsurance ? '14px' : '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="hasInsuranceCheckbox"
+                    checked={patientData.hasInsurance} 
+                    onChange={e => setPatientData({ ...patientData, hasInsurance: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="hasInsuranceCheckbox" style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: '#1e293b', cursor: 'pointer' }}>
+                    🛡️ Link Health Insurance Policy / TPA Coverage
+                  </label>
+                </div>
+                {patientData.hasInsurance && (
+                  <span style={{ background: '#dbeafe', color: '#1e40af', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px' }}>
+                    TPA Sync Active
+                  </span>
+                )}
+              </div>
+
+              {patientData.hasInsurance && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px' }}>
+                  <div className="rd-form-row">
+                    <div className="rd-form-group">
+                      <label>Insurance Provider <span style={{ color: 'red' }}>*</span></label>
+                      <select 
+                        value={patientData.insuranceProvider} 
+                        onChange={e => setPatientData({ ...patientData, insuranceProvider: e.target.value })}
+                        required={patientData.hasInsurance}
+                      >
+                        <option value="Max Life Insurance">Max Life Insurance</option>
+                        <option value="Star Health Insurance">Star Health Insurance</option>
+                        <option value="Care Health Insurance">Care Health Insurance</option>
+                        <option value="HDFC Ergo">HDFC Ergo</option>
+                        <option value="ICICI Lombard">ICICI Lombard</option>
+                        <option value="Bajaj Allianz">Bajaj Allianz</option>
+                      </select>
+                    </div>
+                    <div className="rd-form-group">
+                      <label>Policy Number / Card No <span style={{ color: 'red' }}>*</span></label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. POL-89234 or TPA-1094" 
+                        value={patientData.policyNo} 
+                        onChange={e => setPatientData({ ...patientData, policyNo: e.target.value })}
+                        required={patientData.hasInsurance}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rd-form-row">
+                    <div className="rd-form-group">
+                      <label>Patient Co-Pay (%)</label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        placeholder="10" 
+                        value={patientData.coPay} 
+                        onChange={e => setPatientData({ ...patientData, coPay: e.target.value })}
+                      />
+                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Patient pays this % at Cash Counter; remaining is claimed via TPA.</span>
+                    </div>
+                    <div className="rd-form-group">
+                      <label>Total Coverage Limit (₹)</label>
+                      <input 
+                        type="number" 
+                        placeholder="500000" 
+                        value={patientData.maxCoverage} 
+                        onChange={e => setPatientData({ ...patientData, maxCoverage: e.target.value })}
+                      />
+                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Maximum cashless authorization cap.</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="rd-form-actions">
@@ -2930,6 +3065,438 @@ End of Generated Health Summary Report
     );
   };
 
+  const handlePreAuthSubmit = (e) => {
+    e.preventDefault();
+    if (!preAuthForm.patientId || !preAuthForm.procedureName || !preAuthForm.estimatedAmount) {
+      alert("Please fill in patient, procedure and estimated amount fields.");
+      return;
+    }
+
+    const currentPreAuths = JSON.parse(localStorage.getItem('dhms_insurance_pre_auths') || '[]');
+    const newPreAuth = {
+      id: `AUTH-${Math.floor(1000 + Math.random() * 9000)}`,
+      patientId: preAuthForm.patientId,
+      patientName: preAuthForm.patientName || 'Patient',
+      policyNo: preAuthForm.policyNo || 'POL-DEFAULT',
+      provider: preAuthForm.provider,
+      procedure: preAuthForm.procedureName,
+      amount: `₹${parseFloat(preAuthForm.estimatedAmount).toFixed(2)}`,
+      urgency: preAuthForm.urgency,
+      doctor: preAuthForm.doctorName,
+      notes: preAuthForm.clinicalNotes,
+      status: 'Pending',
+      requestedDate: new Date().toISOString().split('T')[0]
+    };
+
+    const updated = [newPreAuth, ...currentPreAuths];
+    localStorage.setItem('dhms_insurance_pre_auths', JSON.stringify(updated));
+    setInsurancePreAuths(updated);
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    alert(`Pre-authorization request for ${preAuthForm.procedureName} submitted to TPA / Insurance desk for approval.`);
+    setPreAuthForm({
+      patientId: '',
+      patientName: '',
+      policyNo: '',
+      provider: 'Max Life Insurance',
+      procedureName: '',
+      estimatedAmount: '',
+      urgency: 'Normal',
+      doctorName: 'Dr. Sarah Jenkins (Senior Consultant)',
+      clinicalNotes: ''
+    });
+    setInsDeskSubTab('preauth');
+  };
+
+  const renderInsuranceDesk = () => {
+    const totalClaimsVal = insuranceClaims.reduce((sum, c) => {
+      const val = parseFloat((c.amount || '').replace(/[^0-9.]/g, '')) || 0;
+      return sum + val;
+    }, 0);
+
+    const approvedClaims = insuranceClaims.filter(c => c.status === 'Approved');
+    const pendingClaims = insuranceClaims.filter(c => c.status === 'Pending' || c.status === 'Submitted');
+
+    const filteredPolicies = insurancePolicies.filter(p => {
+      const q = insSearch.toLowerCase();
+      return (p.patientName || '').toLowerCase().includes(q) ||
+             (p.patientId || '').toLowerCase().includes(q) ||
+             (p.policyNo || '').toLowerCase().includes(q) ||
+             (p.provider || '').toLowerCase().includes(q);
+    });
+
+    const filteredPreAuths = insurancePreAuths.filter(pa => {
+      const q = insSearch.toLowerCase();
+      return (pa.patientName || '').toLowerCase().includes(q) ||
+             (pa.patientId || '').toLowerCase().includes(q) ||
+             (pa.procedure || '').toLowerCase().includes(q) ||
+             (pa.provider || '').toLowerCase().includes(q);
+    });
+
+    return (
+      <div className="rd-view-container">
+        <div className="rd-header-banner">
+          <div>
+            <h2>🛡️ Insurance & TPA Pre-Authorization Desk</h2>
+            <p>Verify cashless policies, submit surgery/admission pre-authorizations, and monitor claim cash flows.</p>
+          </div>
+          <button 
+            type="button" 
+            className="rd-btn-primary"
+            onClick={() => setInsDeskSubTab('new_preauth')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            ➕ Raise Pre-Authorization Request
+          </button>
+        </div>
+
+        {/* Quick KPI stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ background: 'white', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Active Policies Registered</span>
+            <strong style={{ fontSize: '22px', color: '#0369a1' }}>{insurancePolicies.length}</strong>
+            <span style={{ fontSize: '11px', color: '#10b981' }}>✓ Linked to Patient Health IDs</span>
+          </div>
+
+          <div style={{ background: 'white', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Pre-Authorizations Pending</span>
+            <strong style={{ fontSize: '22px', color: '#f59e0b' }}>
+              {insurancePreAuths.filter(pa => pa.status === 'Pending').length}
+            </strong>
+            <span style={{ fontSize: '11px', color: '#b45309' }}>Awaiting TPA Agent Clearance</span>
+          </div>
+
+          <div style={{ background: 'white', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Total TPA Claims Flow</span>
+            <strong style={{ fontSize: '22px', color: '#166534' }}>
+              ₹{totalClaimsVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </strong>
+            <span style={{ fontSize: '11px', color: '#16a34a' }}>
+              {approvedClaims.length} Settled • {pendingClaims.length} In Review
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation Sub-Tabs */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #cbd5e1', paddingBottom: '10px', marginBottom: '16px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              type="button" 
+              onClick={() => setInsDeskSubTab('preauth')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: insDeskSubTab === 'preauth' ? '#0284c7' : '#f1f5f9',
+                color: insDeskSubTab === 'preauth' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              📑 Pre-Authorization Queue ({insurancePreAuths.length})
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setInsDeskSubTab('policies')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: insDeskSubTab === 'policies' ? '#0284c7' : '#f1f5f9',
+                color: insDeskSubTab === 'policies' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              🛡️ Patient Policies Registry ({insurancePolicies.length})
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setInsDeskSubTab('new_preauth')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: insDeskSubTab === 'new_preauth' ? '#0284c7' : '#f1f5f9',
+                color: insDeskSubTab === 'new_preauth' ? 'white' : '#475569',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              ➕ Raise New Pre-Auth
+            </button>
+          </div>
+
+          {insDeskSubTab !== 'new_preauth' && (
+            <input 
+              type="text" 
+              placeholder="Search by Patient, Policy, Provider..."
+              value={insSearch}
+              onChange={e => setInsSearch(e.target.value)}
+              style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '280px' }}
+            />
+          )}
+        </div>
+
+        {/* View 1: Pre-Authorization Queue */}
+        {insDeskSubTab === 'preauth' && (
+          <div className="rd-card">
+            <div className="table-responsive">
+              <table className="rd-table">
+                <thead>
+                  <tr>
+                    <th>Pre-Auth ID</th>
+                    <th>Patient Name & ID</th>
+                    <th>Insurance Provider & Policy</th>
+                    <th>Procedure / Reason</th>
+                    <th>Estimated Amount</th>
+                    <th>Urgency</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPreAuths.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                        No pre-authorization requests found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPreAuths.map(pa => (
+                      <tr key={pa.id}>
+                        <td><strong>{pa.id}</strong></td>
+                        <td>
+                          <strong>{pa.patientName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{pa.patientId}</div>
+                        </td>
+                        <td>
+                          <strong>{pa.provider}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{pa.policyNo}</div>
+                        </td>
+                        <td>
+                          <strong>{pa.procedure}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>Doc: {pa.doctor}</div>
+                        </td>
+                        <td><strong style={{ color: '#166534' }}>{pa.amount}</strong></td>
+                        <td>
+                          <span style={{ 
+                            background: pa.urgency === 'Emergency' ? '#fee2e2' : '#f1f5f9', 
+                            color: pa.urgency === 'Emergency' ? '#dc2626' : '#475569',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700'
+                          }}>
+                            {pa.urgency}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`rd-status-badge ${pa.status.toLowerCase()}`}>
+                            {pa.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* View 2: Policy Database */}
+        {insDeskSubTab === 'policies' && (
+          <div className="rd-card">
+            <div className="table-responsive">
+              <table className="rd-table">
+                <thead>
+                  <tr>
+                    <th>Patient Name & ID</th>
+                    <th>Insurance Provider</th>
+                    <th>Policy Number</th>
+                    <th>Co-Pay (%)</th>
+                    <th>Coverage Limit</th>
+                    <th>Utilized</th>
+                    <th>Policy Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPolicies.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                        No insurance policies found. Register patient policies during patient onboarding.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPolicies.map((pol, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong>{pol.patientName}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{pol.patientId}</div>
+                        </td>
+                        <td><strong>{pol.provider}</strong></td>
+                        <td><code>{pol.policyNo}</code></td>
+                        <td><span style={{ fontWeight: '700', color: '#f59e0b' }}>{pol.coPay}%</span></td>
+                        <td><strong>₹{parseFloat(pol.maxCoverage || 0).toLocaleString('en-IN')}</strong></td>
+                        <td><span style={{ color: '#dc2626', fontWeight: '600' }}>₹{parseFloat(pol.utilized || 0).toLocaleString('en-IN')}</span></td>
+                        <td>
+                          <span className="rd-status-badge completed" style={{ background: '#dcfce7', color: '#166534' }}>
+                            {pol.status || 'Active'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* View 3: New Pre-Authorization Form */}
+        {insDeskSubTab === 'new_preauth' && (
+          <div className="rd-card" style={{ maxWidth: '750px', margin: '0 auto' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#1e293b' }}>
+              📝 Submit Pre-Authorization Request to TPA Desk
+            </h3>
+
+            <form onSubmit={handlePreAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="rd-form-row">
+                <div className="rd-form-group">
+                  <label>Select Insured Patient <span style={{ color: 'red' }}>*</span></label>
+                  <select 
+                    value={preAuthForm.patientId}
+                    onChange={e => {
+                      const pId = e.target.value;
+                      const matchedPat = patients.find(p => p.id === pId);
+                      const matchedPol = insurancePolicies.find(p => p.patientId === pId);
+                      setPreAuthForm({
+                        ...preAuthForm,
+                        patientId: pId,
+                        patientName: matchedPat ? `${matchedPat.firstName} ${matchedPat.lastName}`.trim() : '',
+                        policyNo: matchedPol ? matchedPol.policyNo : '',
+                        provider: matchedPol ? matchedPol.provider : preAuthForm.provider
+                      });
+                    }}
+                    required
+                  >
+                    <option value="">-- Choose Patient --</option>
+                    {patients.map(p => {
+                      const pol = insurancePolicies.find(pol => pol.patientId === p.id);
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.id} - {p.firstName} {p.lastName} {pol ? `(${pol.provider} - ${pol.policyNo})` : '(No Registered Policy)'}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="rd-form-group">
+                  <label>Insurance Provider</label>
+                  <input 
+                    type="text" 
+                    value={preAuthForm.provider} 
+                    onChange={e => setPreAuthForm({ ...preAuthForm, provider: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group">
+                  <label>Policy Number</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. POL-10943"
+                    value={preAuthForm.policyNo} 
+                    onChange={e => setPreAuthForm({ ...preAuthForm, policyNo: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="rd-form-group">
+                  <label>Estimated Amount (₹) <span style={{ color: 'red' }}>*</span></label>
+                  <input 
+                    type="number" 
+                    placeholder="e.g. 45000"
+                    value={preAuthForm.estimatedAmount} 
+                    onChange={e => setPreAuthForm({ ...preAuthForm, estimatedAmount: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="rd-form-row">
+                <div className="rd-form-group">
+                  <label>Procedure / Treatment / Admission Plan <span style={{ color: 'red' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Emergency Appendectomy / ICU Observation"
+                    value={preAuthForm.procedureName} 
+                    onChange={e => setPreAuthForm({ ...preAuthForm, procedureName: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="rd-form-group">
+                  <label>Urgency Level</label>
+                  <select 
+                    value={preAuthForm.urgency}
+                    onChange={e => setPreAuthForm({ ...preAuthForm, urgency: e.target.value })}
+                  >
+                    <option value="Normal">Normal (Routine OPD / Elective)</option>
+                    <option value="Priority">Priority (Within 24 Hours)</option>
+                    <option value="Emergency">Emergency (Immediate Cashless Clearance)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rd-form-group">
+                <label>Admitting / Attending Physician</label>
+                <input 
+                  type="text" 
+                  value={preAuthForm.doctorName}
+                  onChange={e => setPreAuthForm({ ...preAuthForm, doctorName: e.target.value })}
+                />
+              </div>
+
+              <div className="rd-form-group">
+                <label>Clinical Notes & Diagnosis Rationale</label>
+                <textarea 
+                  rows="3" 
+                  placeholder="Enter medical justification and diagnosis details for TPA insurance approval..."
+                  value={preAuthForm.clinicalNotes}
+                  onChange={e => setPreAuthForm({ ...preAuthForm, clinicalNotes: e.target.value })}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  className="rd-btn-secondary"
+                  onClick={() => setInsDeskSubTab('preauth')}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="rd-btn-primary"
+                >
+                  🚀 Dispatch Pre-Auth to TPA Portal
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="rd-container">
       {/* Topbar */}
@@ -3016,6 +3583,15 @@ End of Generated Health Summary Report
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
               Check-In Queue
             </li>
+            <li className={activeTab === 'insurance_desk' ? 'active' : ''} onClick={() => setActiveTab('insurance_desk')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              Insurance & TPA Desk
+              {insurancePreAuths.filter(pa => pa.status === 'Pending').length > 0 && (
+                <span style={{ marginLeft: 'auto', background: '#f59e0b', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                  {insurancePreAuths.filter(pa => pa.status === 'Pending').length}
+                </span>
+              )}
+            </li>
             <li className={activeTab === 'billing' ? 'active' : ''} onClick={() => { 
               setActiveTab('billing'); 
               setBillingPage(1); 
@@ -3054,6 +3630,7 @@ End of Generated Health Summary Report
           {activeTab === 'lab_desk' && renderLabDesk()}
           {activeTab === 'inpatient_admissions' && renderInpatientAdmissions()}
           {activeTab === 'checkin_queue' && renderCheckInQueue()}
+          {activeTab === 'insurance_desk' && renderInsuranceDesk()}
           {activeTab === 'billing' && renderBilling()}
           {activeTab === 'doctors' && renderDoctors()}
           {activeTab === 'blood_bank' && (
@@ -3185,9 +3762,74 @@ End of Generated Health Summary Report
                   >
                     Invoices & Billing ({billingList.filter(b => b.patientId === selectedPatientFile.id).length})
                   </button>
+                  <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'insurance' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('insurance')}
+                  >
+                    Insurance & Claims ({insuranceClaims.filter(c => c.patientId === selectedPatientFile.id).length})
+                  </button>
                 </div>
 
                 <div className="rd-modal-tab-panel mt-4" style={{ marginTop: '16px' }}>
+                  {activeModalTab === 'insurance' && (() => {
+                    const patPol = insurancePolicies.find(p => p.patientId === selectedPatientFile.id);
+                    const patClaims = insuranceClaims.filter(c => c.patientId === selectedPatientFile.id);
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {patPol ? (
+                          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                              <span style={{ fontSize: '11px', color: '#1e40af', fontWeight: '700', textTransform: 'uppercase' }}>Active Coverage</span>
+                              <h4 style={{ margin: '2px 0 0 0', color: '#1e3a8a', fontSize: '15px' }}>{patPol.provider}</h4>
+                              <span style={{ fontSize: '12.5px', color: '#475569' }}>Policy No: <strong>{patPol.policyNo}</strong> • Co-Pay: <strong>{patPol.coPay}%</strong></span>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>Coverage Limit / Utilized</span>
+                              <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>
+                                ₹{parseFloat(patPol.maxCoverage || 0).toLocaleString('en-IN')} <span style={{ color: '#dc2626', fontSize: '12px' }}>(₹{parseFloat(patPol.utilized || 0).toLocaleString('en-IN')} utilized)</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '12.5px', color: '#64748b' }}>
+                            No active insurance policy registered for this patient. Register a policy via the Insurance Desk or at registration.
+                          </div>
+                        )}
+
+                        <h4 style={{ margin: '6px 0 2px 0', fontSize: '13px', fontWeight: '700', color: '#334155' }}>Claims History ({patClaims.length})</h4>
+                        <table className="rd-mini-table">
+                          <thead>
+                            <tr>
+                              <th>Claim ID</th>
+                              <th>Diagnosis / Charge</th>
+                              <th>Claimed Amount</th>
+                              <th>Patient Co-Pay</th>
+                              <th>Date</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {patClaims.length === 0 ? (
+                              <tr><td colSpan="6" className="empty-row">No insurance claims filed for this patient</td></tr>
+                            ) : (
+                              patClaims.map(c => (
+                                <tr key={c.id}>
+                                  <td><strong>{c.id}</strong></td>
+                                  <td>{c.diagnosis}</td>
+                                  <td><strong style={{ color: '#166534' }}>{c.claimedAmount || c.amount}</strong></td>
+                                  <td><span style={{ color: '#f59e0b', fontWeight: '600' }}>{c.coPayAmount || '₹0.00'}</span></td>
+                                  <td>{c.date}</td>
+                                  <td>
+                                    <span className={`rd-status-badge ${c.status.toLowerCase()}`}>{c.status}</span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                   {activeModalTab === 'appointments' && (
                     <table className="rd-mini-table">
                       <thead>

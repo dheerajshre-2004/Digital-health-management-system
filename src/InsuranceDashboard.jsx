@@ -52,11 +52,17 @@ function InsuranceDashboard({ onLogout }) {
   const saveClaimsToStorage = (updatedClaims) => {
     localStorage.setItem('dhms_insurance_claims', JSON.stringify(updatedClaims));
     setClaims(updatedClaims);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const savePoliciesToStorage = (updatedPolicies) => {
     localStorage.setItem('dhms_insurance_policies', JSON.stringify(updatedPolicies));
     setPolicies(updatedPolicies);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   // Helper to clean/convert currency strings to numbers
@@ -152,6 +158,9 @@ function InsuranceDashboard({ onLogout }) {
   const savePreAuthsToStorage = (updated) => {
     localStorage.setItem('dhms_insurance_pre_auths', JSON.stringify(updated));
     setPreAuths(updated);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const handleApprovePreAuth = (id) => {
