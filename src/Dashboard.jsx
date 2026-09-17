@@ -6459,28 +6459,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   ))}
                 </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
-                  <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
-                    <option value="Available">Available</option>
-                    <option value="On Leave">On Leave</option>
-                    <option value="In Surgery">In Surgery</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Consultation Fee (₹)</label>
-                  <input 
-                    type="number" 
-                    min="0" 
-                    step="50" 
-                    required 
-                    value={newDocFee} 
-                    onChange={(e) => setNewDocFee(e.target.value)} 
-                    placeholder="300.00" 
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box', fontWeight: '700', color: '#166534' }} 
-                  />
-                </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Initial Status</label>
+                <select value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}>
+                  <option value="Available">Available</option>
+                  <option value="On Leave">On Leave</option>
+                  <option value="In Surgery">In Surgery</option>
+                </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
