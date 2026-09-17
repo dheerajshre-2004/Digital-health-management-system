@@ -122,6 +122,22 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [labRequests, setLabRequests] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
   });
+  const [labFacilities, setLabFacilities] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+  });
+  const [recLabSearch, setRecLabSearch] = useState('');
+  const [recLabPatientType, setRecLabPatientType] = useState('walkin'); // 'walkin' | 'registered'
+  const [recLabSelectedPatient, setRecLabSelectedPatient] = useState(null);
+  const [recLabWalkinForm, setRecLabWalkinForm] = useState({
+    name: '',
+    phone: '',
+    gender: 'Male',
+    age: '',
+    referringDoctor: 'Self / Direct OPD'
+  });
+  const [recLabSelectedTests, setRecLabSelectedTests] = useState([]);
+  const [recLabPaymentMode, setRecLabPaymentMode] = useState('Physical Cash Payment');
+  const [recLabCollectNow, setRecLabCollectNow] = useState(true);
 
   // Pagination States for Appointments
   const [apptPage, setApptPage] = useState(1);
@@ -198,6 +214,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       setBillingList(JSON.parse(localStorage.getItem('dhms_billing') || '[]'));
       setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
       setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+      setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
       setMasterAttendance(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'));
     };
     window.addEventListener('storage', handleStorageChange);
@@ -2532,6 +2549,387 @@ End of Generated Health Summary Report
     </div>
   );
 
+  const handleToggleLabTestSelect = (fac) => {
+    if (recLabSelectedTests.some(t => t.code === fac.code)) {
+      setRecLabSelectedTests(recLabSelectedTests.filter(t => t.code !== fac.code));
+    } else {
+      setRecLabSelectedTests([...recLabSelectedTests, fac]);
+    }
+  };
+
+  const handleRegisterLabWalkinSubmit = (e) => {
+    e.preventDefault();
+    if (recLabSelectedTests.length === 0) {
+      alert("Please select at least one laboratory diagnostic test.");
+      return;
+    }
+
+    let patId = '';
+    let patName = '';
+    let patPhone = '';
+
+    if (recLabPatientType === 'registered') {
+      if (!recLabSelectedPatient) {
+        alert("Please search and select a registered patient profile.");
+        return;
+      }
+      patId = recLabSelectedPatient.id;
+      patName = `${recLabSelectedPatient.firstName} ${recLabSelectedPatient.lastName}`.trim();
+      patPhone = recLabSelectedPatient.phone || '';
+    } else {
+      if (!recLabWalkinForm.name.trim()) {
+        alert("Please enter the patient's name.");
+        return;
+      }
+      patId = `WALK-LAB-${Math.floor(1000 + Math.random() * 9000)}`;
+      patName = recLabWalkinForm.name.trim();
+      patPhone = recLabWalkinForm.phone.trim();
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const totalCostNum = recLabSelectedTests.reduce((sum, t) => {
+      const clean = parseFloat((t.cost || '0').replace(/[^0-9.]/g, '')) || 0;
+      return sum + clean;
+    }, 0);
+    const formattedTotalCost = `₹${totalCostNum.toFixed(2)}`;
+
+    // 1. Create separate lab request items or consolidated panel in dhms_lab_requests
+    const newLabOrders = recLabSelectedTests.map((test, idx) => ({
+      id: `LAB-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`,
+      patientId: patId,
+      patientName: patName,
+      patientPhone: patPhone,
+      testName: test.name,
+      department: test.dept || 'Clinical Diagnostics',
+      doctorName: recLabWalkinForm.referringDoctor || 'Outsider / Walk-In',
+      date: todayStr,
+      cost: test.cost.startsWith('₹') ? test.cost : `₹${test.cost}`,
+      status: 'Pending',
+      paymentStatus: recLabCollectNow ? 'Paid' : 'Unpaid',
+      paymentMethod: recLabCollectNow ? recLabPaymentMode : 'Pending Cash Counter',
+      source: 'Reception Walk-In Lab Booking',
+      timeline: [
+        { title: "Lab Order Placed at Reception", date: todayStr, done: true },
+        { title: "Sample Collection at Lab", date: "Visit Lab Station", done: false },
+        { title: "Pathology Analysis", date: "Pending", done: false },
+        { title: "Results Published", date: "Pending", done: false }
+      ],
+      results: []
+    }));
+
+    const currentLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+    const updatedLabs = [...newLabOrders, ...currentLabs];
+    localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLabs));
+    setLabRequests(updatedLabs);
+
+    // 2. Dispatch billing invoice
+    const newInvoice = {
+      id: `INV-LAB-${Math.floor(10000 + Math.random() * 90000)}`,
+      patientId: patId,
+      patientName: patName,
+      date: todayStr,
+      paymentDate: recLabCollectNow ? todayStr : null,
+      amount: formattedTotalCost,
+      status: recLabCollectNow ? 'Paid' : 'Unpaid',
+      type: `Lab Diagnostics (${recLabSelectedTests.map(t => t.name).join(', ')})`,
+      paymentMethod: recLabCollectNow ? recLabPaymentMode : 'Pending at Cash Counter',
+      paymentRemarks: recLabCollectNow 
+        ? `Collected at Reception Desk via ${recLabPaymentMode}` 
+        : 'Outsider Lab order forwarded to Cash Counter for payment collection',
+      labOrderCount: recLabSelectedTests.length
+    };
+
+    const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const updatedBilling = [newInvoice, ...currentBilling];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    // 3. Trigger realtime storage sync
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Reset Form
+    setRecLabSelectedTests([]);
+    setRecLabWalkinForm({ name: '', phone: '', gender: 'Male', age: '', referringDoctor: 'Self / Direct OPD' });
+    setRecLabSelectedPatient(null);
+
+    alert(`Laboratory Order for ${patName} (${formattedTotalCost}) placed successfully! It is now active in the Laboratory Module.`);
+  };
+
+  const renderLabDesk = () => {
+    const facilitiesList = labFacilities.length > 0 ? labFacilities : [
+      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    ];
+
+    const filteredFacilities = facilitiesList.filter(f => 
+      f.name.toLowerCase().includes(recLabSearch.toLowerCase()) || 
+      f.code.toLowerCase().includes(recLabSearch.toLowerCase()) ||
+      (f.dept && f.dept.toLowerCase().includes(recLabSearch.toLowerCase()))
+    );
+
+    const totalSelectedAmount = recLabSelectedTests.reduce((sum, t) => {
+      const clean = parseFloat((t.cost || '0').replace(/[^0-9.]/g, '')) || 0;
+      return sum + clean;
+    }, 0);
+
+    return (
+      <div className="rd-view-container animate-fade-in">
+        <div className="rd-header-banner">
+          <div>
+            <h2>🧪 Laboratory Walk-In & Outsider Test Booking</h2>
+            <p>Book separate outpatient lab tests for walk-in visitors or registered patients with instant billing and live synchronization with Central Diagnostic Laboratory.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginTop: '20px' }}>
+          {/* Left Column: Test Catalog Selection */}
+          <div className="rd-card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>1. Select Diagnostic Tests & Panels</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Click tests to add them to the patient's lab order</span>
+              </div>
+              <span style={{ background: '#e0f2fe', color: '#0369a1', fontWeight: 'bold', fontSize: '12px', padding: '4px 10px', borderRadius: '12px' }}>
+                {recLabSelectedTests.length} Selected
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <input 
+                type="text" 
+                placeholder="Search diagnostic catalog by test name, code, or section..."
+                value={recLabSearch}
+                onChange={e => setRecLabSearch(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+              {filteredFacilities.map(fac => {
+                const isSelected = recLabSelectedTests.some(t => t.code === fac.code);
+                return (
+                  <div 
+                    key={fac.code}
+                    onClick={() => handleToggleLabTestSelect(fac)}
+                    style={{
+                      border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                      background: isSelected ? '#f0f9ff' : 'white',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: '4px' }}>{fac.code}</span>
+                        <strong style={{ fontSize: '13.5px', color: '#1e293b' }}>{fac.name}</strong>
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                        {fac.dept} • Turnaround: {fac.time} • <em>{fac.fast}</em>
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <strong style={{ color: '#0369a1', fontSize: '15px' }}>{fac.cost.startsWith('₹') ? fac.cost : `₹${fac.cost}`}</strong>
+                      <div style={{ fontSize: '11px', color: isSelected ? '#0284c7' : '#94a3b8', fontWeight: 'bold', marginTop: '2px' }}>
+                        {isSelected ? '✓ Selected' : '+ Add Test'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Patient Details & Payment */}
+          <div className="rd-card" style={{ padding: '20px' }}>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#1e293b' }}>2. Patient & Billing Information</h3>
+            
+            <form onSubmit={handleRegisterLabWalkinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Patient Type Switcher */}
+              <div style={{ display: 'flex', gap: '8px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  onClick={() => setRecLabPatientType('walkin')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: recLabPatientType === 'walkin' ? '#0284c7' : 'transparent',
+                    color: recLabPatientType === 'walkin' ? 'white' : '#64748b',
+                    fontWeight: '700',
+                    fontSize: '12.5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🚶 Direct Walk-In Visitor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRecLabPatientType('registered')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: recLabPatientType === 'registered' ? '#0284c7' : 'transparent',
+                    color: recLabPatientType === 'registered' ? 'white' : '#64748b',
+                    fontWeight: '700',
+                    fontSize: '12.5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🏥 Registered Hospital Patient
+                </button>
+              </div>
+
+              {recLabPatientType === 'registered' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Search Patient Profile</label>
+                  <select 
+                    style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                    value={recLabSelectedPatient ? recLabSelectedPatient.id : ''}
+                    onChange={e => {
+                      const p = patients.find(pat => pat.id === e.target.value);
+                      setRecLabSelectedPatient(p || null);
+                    }}
+                  >
+                    <option value="">-- Choose Registered Patient --</option>
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.firstName} {p.lastName} (ID: {p.id}) - {p.phone || 'No Phone'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  <div className="rd-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="rd-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient Full Name *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="e.g. Robert Brown"
+                        value={recLabWalkinForm.name}
+                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, name: e.target.value })}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div className="rd-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Phone Number</label>
+                      <input 
+                        type="tel" 
+                        placeholder="e.g. 9876543210"
+                        value={recLabWalkinForm.phone}
+                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, phone: e.target.value })}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rd-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="rd-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Gender</label>
+                      <select 
+                        value={recLabWalkinForm.gender} 
+                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, gender: e.target.value })}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', background: 'white' }}
+                      >
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                    <div className="rd-form-group">
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Referring Physician</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Dr. Walker / Self"
+                        value={recLabWalkinForm.referringDoctor}
+                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, referringDoctor: e.target.value })}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Order Summary & Payment Method */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>Selected Tests ({recLabSelectedTests.length}):</span>
+                  <strong style={{ fontSize: '16px', color: '#0369a1' }}>₹{totalSelectedAmount.toFixed(2)}</strong>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="collectLabFeeNow"
+                    checked={recLabCollectNow}
+                    onChange={e => setRecLabCollectNow(e.target.checked)}
+                  />
+                  <label htmlFor="collectLabFeeNow" style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }}>
+                    Collect Payment Now at Reception Desk
+                  </label>
+                </div>
+
+                {recLabCollectNow ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Payment Mode</label>
+                    <select 
+                      value={recLabPaymentMode} 
+                      onChange={e => setRecLabPaymentMode(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
+                    >
+                      <option value="Physical Cash Payment">💵 Physical Cash</option>
+                      <option value="Online Gateway (UPI)">📱 UPI / QR Code</option>
+                      <option value="POS Card Swipe">💳 Credit / Debit Card (POS)</option>
+                      <option value="NetBanking">🏦 NetBanking Direct</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '11.5px', color: '#b45309', background: '#fef3c7', padding: '6px 10px', borderRadius: '6px' }}>
+                    ⚠️ Invoice will be forwarded to <strong>Central Cash Counter</strong> as Unpaid.
+                  </div>
+                )}
+              </div>
+
+              <button 
+                type="submit"
+                className="rd-btn-primary"
+                disabled={recLabSelectedTests.length === 0}
+                style={{
+                  background: recLabSelectedTests.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontWeight: '700',
+                  fontSize: '13.5px',
+                  border: 'none',
+                  cursor: recLabSelectedTests.length === 0 ? 'not-allowed' : 'pointer',
+                  marginTop: '4px'
+                }}
+              >
+                ✓ Book Lab Order & Forward to Diagnostic Lab
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="rd-container">
       {/* Topbar */}
@@ -2601,6 +2999,10 @@ End of Generated Health Summary Report
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               Appointments
             </li>
+            <li className={activeTab === 'lab_desk' ? 'active' : ''} onClick={() => setActiveTab('lab_desk')}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.31"></path><path d="M14 9.3V1.99"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.52 16h12.96"></path></svg>
+              Lab Walk-In Desk
+            </li>
             <li className={activeTab === 'inpatient_admissions' ? 'active' : ''} onClick={() => setActiveTab('inpatient_admissions')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
               Inpatient & Bed Desk
@@ -2649,6 +3051,7 @@ End of Generated Health Summary Report
           {activeTab === 'register_patient' && renderRegisterPatient()}
           {activeTab === 'patient_records' && renderPatientRecords()}
           {activeTab === 'appointments' && renderAppointments()}
+          {activeTab === 'lab_desk' && renderLabDesk()}
           {activeTab === 'inpatient_admissions' && renderInpatientAdmissions()}
           {activeTab === 'checkin_queue' && renderCheckInQueue()}
           {activeTab === 'billing' && renderBilling()}

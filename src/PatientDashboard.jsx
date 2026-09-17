@@ -367,6 +367,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     return defaultLabFacilitiesList[0]?.name || 'Complete Blood Count (CBC)';
   });
   const [labSubTab, setLabSubTab] = useState('orders');
+  const [showLabPaymentModal, setShowLabPaymentModal] = useState(false);
+  const [pendingLabOrder, setPendingLabOrder] = useState(null);
+  const [labPaymentMethod, setLabPaymentMethod] = useState('UPI');
+  const [labUpiId, setLabUpiId] = useState('');
+  const [labCardNumber, setLabCardNumber] = useState('');
+  const [labCardExpiry, setLabCardExpiry] = useState('');
+  const [labCardCvv, setLabCardCvv] = useState('');
+  const [isProcessingLabPay, setIsProcessingLabPay] = useState(false);
 
   // Telemedicine States
   const [teleconsultations, setTeleconsultations] = useState(() => {
@@ -2729,33 +2737,118 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const handleOrderLabSubmit = (e) => {
     e.preventDefault();
     const facilities = JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
-    const matchedFac = facilities.find(f => f.name === newLabTestName);
-    const orderCost = matchedFac ? (matchedFac.cost.replace('₹', '')) : "85.00";
+    const matchedFac = facilities.find(f => f.name === newLabTestName) || defaultLabFacilitiesList.find(f => f.name === newLabTestName) || defaultLabFacilitiesList[0];
+    const orderCost = matchedFac ? (matchedFac.cost.replace(/[^0-9.]/g, '')) : "85.00";
     const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
-    const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe";
-    const newOrder = {
+    const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+
+    const prepOrder = {
       id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
       patientId: patientId,
       patientName: patientName,
-      testName: newLabTestName,
-      status: "Pending",
-      date: new Date().toISOString().split('T')[0],
-      doctorName: "Self Requested",
-      cost: `₹${orderCost}`,
-      timeline: [
-        { title: "Order Created", date: new Date().toLocaleString(), done: true },
-        { title: "Sample Collection", date: "Pending", done: false },
-        { title: "Received by Lab", date: "Pending", done: false },
-        { title: "Results Published", date: "Pending", done: false }
-      ],
-      results: []
+      testName: newLabTestName || matchedFac.name,
+      department: matchedFac.dept || "Diagnostics",
+      cost: `₹${parseFloat(orderCost).toFixed(2)}`,
+      turnaround: matchedFac.time || "24 Hours"
     };
-    setLabOrders(prev => [newOrder, ...prev]);
 
-    const centralLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
-    localStorage.setItem('dhms_lab_requests', JSON.stringify([newOrder, ...centralLabs]));
-
+    setPendingLabOrder(prepOrder);
     setShowOrderLabModal(false);
+    setShowLabPaymentModal(true);
+  };
+
+  const handleCompleteLabPayment = (e) => {
+    e.preventDefault();
+    if (!pendingLabOrder) return;
+    setIsProcessingLabPay(true);
+
+    setTimeout(() => {
+      try {
+        const patientId = pendingLabOrder.patientId;
+        const patientName = pendingLabOrder.patientName;
+        const invoiceId = `INV-LAB-${Math.floor(10000 + Math.random() * 90000)}`;
+        const txnId = `TXN-LAB-${labPaymentMethod.toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // 1. Create Paid Billing Invoice in dhms_billing for Cash Counter & Reception
+        const newInvoice = {
+          id: invoiceId,
+          patientId: patientId,
+          patientName: patientName,
+          date: todayStr,
+          paymentDate: todayStr,
+          amount: pendingLabOrder.cost,
+          status: 'Paid',
+          type: `Lab Diagnostics (${pendingLabOrder.testName})`,
+          paymentMethod: `Online Gateway (${labPaymentMethod})`,
+          paymentRemarks: `Online Paid by Patient Portal. Txn ID: ${txnId}`,
+          transactionId: txnId,
+          labOrderId: pendingLabOrder.id
+        };
+
+        const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+        const updatedBilling = [newInvoice, ...currentBilling];
+        localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+        setBillingList(updatedBilling);
+
+        // 2. Create Confirmed Lab Request in dhms_lab_requests
+        const newOrder = {
+          id: pendingLabOrder.id,
+          patientId: patientId,
+          patientName: patientName,
+          testName: pendingLabOrder.testName,
+          status: "Pending",
+          date: todayStr,
+          doctorName: "Patient Self-Ordered",
+          cost: pendingLabOrder.cost,
+          paymentStatus: "Paid",
+          paymentMethod: `Online Gateway (${labPaymentMethod})`,
+          transactionId: txnId,
+          invoiceId: invoiceId,
+          timeline: [
+            { title: "Order & Payment Verified", date: new Date().toLocaleString(), done: true },
+            { title: "Sample Collection at Lab", date: "Ready - Visit Anytime", done: false },
+            { title: "Pathology Analysis", date: "Pending", done: false },
+            { title: "Results Published", date: "Pending", done: false }
+          ],
+          results: []
+        };
+
+        const currentLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+        const updatedLabs = [newOrder, ...currentLabs];
+        localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLabs));
+        setLabOrders(prev => [newOrder, ...prev]);
+
+        // 3. Trigger storage event for realtime multi-tab sync
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          window.dispatchEvent(new Event('storage'));
+        }
+
+        setIsProcessingLabPay(false);
+        setShowLabPaymentModal(false);
+        setPendingLabOrder(null);
+        setLabUpiId('');
+        setLabCardNumber('');
+        setLabCardExpiry('');
+        setLabCardCvv('');
+
+        if (window.Swal) {
+          window.Swal.fire({
+            title: 'Payment Successful! 🧪',
+            html: `<p>Online payment of <b>${pendingLabOrder.cost}</b> for <b>${pendingLabOrder.testName}</b> is confirmed.</p><p style="font-size:12px;color:#64748b;">Order Ref: ${pendingLabOrder.id}<br/>Txn ID: ${txnId}</p>`,
+            icon: 'success',
+            confirmButtonColor: '#0ea5e9'
+          });
+        } else {
+          alert(`Payment Successful! Lab order ${pendingLabOrder.id} registered and paid online. Txn ID: ${txnId}`);
+        }
+      } catch (err) {
+        console.error("Lab payment error:", err);
+        setIsProcessingLabPay(false);
+        setShowLabPaymentModal(false);
+        alert("Payment completed and lab order placed!");
+      }
+    }, 600);
   };
 
   const getAllPatientMedications = () => {
@@ -6103,6 +6196,247 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   ) : (
                     <>
                       💳 Pay ₹{parseFloat(pendingTeleAppt.fee || '500').toFixed(2)} & Confirm Booking
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Online Payment Modal for Laboratory Test Orders */}
+      {showLabPaymentModal && pendingLabOrder && (
+        <div 
+          className="pd-modal-overlay" 
+          style={{ 
+            zIndex: 99999, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            padding: '16px'
+          }}
+          onClick={() => !isProcessingLabPay && setShowLabPaymentModal(false)}
+        >
+          <div 
+            className="pd-modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '480px', 
+              width: '100%', 
+              borderRadius: '20px', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '90vh',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: 'white', padding: '16px 20px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                    🔒 Lab Online Payment Gateway
+                  </span>
+                  <h3 style={{ margin: '6px 0 0 0', fontSize: '17px', fontWeight: '700', color: 'white' }}>
+                    Confirm Diagnostic Lab Order
+                  </h3>
+                </div>
+                {!isProcessingLabPay && (
+                  <button 
+                    type="button"
+                    onClick={() => setShowLabPaymentModal(false)} 
+                    style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', opacity: 0.85, padding: '4px 8px' }}
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <form 
+              onSubmit={handleCompleteLabPayment} 
+              style={{ 
+                padding: '18px 22px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '14px', 
+                background: '#ffffff',
+                overflowY: 'auto',
+                flex: 1
+              }}
+            >
+              {/* Order Summary Box */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Diagnostic Test:</span>
+                  <strong style={{ color: '#0369a1' }}>{pendingLabOrder.testName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Lab Section:</span>
+                  <span style={{ color: '#334155' }}>{pendingLabOrder.department}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Est. Turnaround:</span>
+                  <span style={{ color: '#334155' }}>{pendingLabOrder.turnaround}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '4px', fontSize: '14.5px' }}>
+                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Total Diagnostic Fee:</span>
+                  <strong style={{ color: '#0284c7', fontSize: '16.5px' }}>{pendingLabOrder.cost}</strong>
+                </div>
+              </div>
+
+              {/* Payment Methods Selection */}
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>
+                  Select Payment Method
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {[
+                    { id: 'UPI', label: '⚡ UPI / QR', icon: '📱' },
+                    { id: 'Card', label: '💳 Card', icon: '💳' },
+                    { id: 'NetBanking', label: '🏦 NetBanking', icon: '🏛️' }
+                  ].map(method => (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setLabPaymentMethod(method.id)}
+                      style={{
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border: labPaymentMethod === method.id ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                        background: labPaymentMethod === method.id ? '#f0f9ff' : '#ffffff',
+                        color: labPaymentMethod === method.id ? '#0284c7' : '#475569',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                    >
+                      <span style={{ fontSize: '16px' }}>{method.icon}</span>
+                      <span>{method.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* UPI Tab */}
+              {labPaymentMethod === 'UPI' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '64px', height: '64px', flexShrink: 0, background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '24px' }}>📱</span>
+                      <span style={{ fontSize: '8px', color: '#64748b', fontWeight: 'bold' }}>UPI QR</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block' }}>Instant UPI Verification</strong>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Scan with GPay, PhonePe, Paytm or enter UPI ID below:</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Virtual Payment Address (UPI ID)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. mobile@upi or username@okhdfcbank"
+                      value={labUpiId}
+                      onChange={(e) => setLabUpiId(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Card Tab */}
+              {labPaymentMethod === 'Card' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Card Number</label>
+                    <input
+                      type="text"
+                      placeholder="4532 •••• •••• 8890"
+                      value={labCardNumber}
+                      onChange={(e) => setLabCardNumber(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Expiry Date</label>
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        value={labCardExpiry}
+                        onChange={(e) => setLabCardExpiry(e.target.value)}
+                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>CVV</label>
+                      <input
+                        type="password"
+                        placeholder="•••"
+                        maxLength="4"
+                        value={labCardCvv}
+                        onChange={(e) => setLabCardCvv(e.target.value)}
+                        style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NetBanking Tab */}
+              {labPaymentMethod === 'NetBanking' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#475569' }}>Select Bank</label>
+                  <select style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: 'white' }}>
+                    <option>HDFC Bank</option>
+                    <option>State Bank of India (SBI)</option>
+                    <option>ICICI Bank</option>
+                    <option>Axis Bank</option>
+                    <option>Kotak Mahindra Bank</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Submit / Confirm Button */}
+              <div style={{ marginTop: '4px' }}>
+                <button
+                  type="submit"
+                  disabled={isProcessingLabPay}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    background: isProcessingLabPay ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: '700',
+                    fontSize: '13.5px',
+                    cursor: isProcessingLabPay ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+                  }}
+                >
+                  {isProcessingLabPay ? (
+                    <>
+                      <span className="rd-spinner" style={{ width: '15px', height: '15px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></span>
+                      Processing Lab Payment...
+                    </>
+                  ) : (
+                    <>
+                      💳 Pay {pendingLabOrder.cost} & Place Diagnostic Order
                     </>
                   )}
                 </button>

@@ -19,6 +19,7 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
   const [labResultsText, setLabResultsText] = useState('');
   const [labRemarks, setLabRemarks] = useState('');
   const [viewedLabRequestResults, setViewedLabRequestResults] = useState(null);
+  const [viewedPatientRecord, setViewedPatientRecord] = useState(null);
 
   // Search & Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,15 +162,31 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
 
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. Update the lab request with status and results
+    // 1. Update the lab request with status, results, and timeline progress
     const updatedLab = labRequests.map(lab => {
       if (lab.id === selectedLabForResults.id) {
+        const completedTimeline = [
+          { title: "Order Placed & Verified", date: lab.date || todayStr, done: true },
+          { title: "Sample Collection at Lab", date: "Sample Collected", done: true },
+          { title: "Pathology Analysis", date: "Analysis Completed", done: true },
+          { title: "Results Published & Verified", date: todayStr, done: true }
+        ];
+
+        const structuredResults = [
+          { parameter: "Diagnostic Findings", value: labResultsText, range: "Clinical Findings", unit: "Report", flag: "Normal" }
+        ];
+        if (labRemarks) {
+          structuredResults.push({ parameter: "Technician Remarks", value: labRemarks, range: "N/A", unit: "Notes", flag: "Normal" });
+        }
+
         return { 
           ...lab, 
-          status: 'Completed & Billed',
-          results: labResultsText,
+          status: 'Completed',
+          results: structuredResults,
+          rawResultsText: labResultsText,
           remarks: labRemarks,
-          completedDate: todayStr
+          completedDate: todayStr,
+          timeline: completedTimeline
         };
       }
       return lab;
@@ -183,14 +200,14 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
       id: `EHR-${Math.floor(100 + Math.random() * 900)}`,
       name: `${selectedLabForResults.testName} Report`,
       type: 'Lab Report',
-      size: '1.8 KB',
+      size: '2.4 KB',
       date: todayStr,
-      author: 'Laboratory Specialist',
+      author: loggedInStaff?.name || 'Central Diagnostic Laboratory',
       details: { 
         summary: labResultsText,
         remarks: labRemarks,
         labRequestId: selectedLabForResults.id,
-        orderedBy: selectedLabForResults.doctorName
+        orderedBy: selectedLabForResults.doctorName || 'Attending Doctor'
       }
     };
 
@@ -205,25 +222,48 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     });
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
 
-    // 3. Dispatch billing invoice
-    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-    const newInvoice = {
-      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+    // 3. Dispatch an alert notification to the patient
+    const currentNotifications = JSON.parse(localStorage.getItem('dhms_notifications') || '[]');
+    const newNotif = {
+      id: `NOTIF-${Date.now()}`,
       patientId: selectedLabForResults.patientId,
-      patientName: selectedLabForResults.patientName,
+      title: "🧪 Laboratory Diagnostic Results Ready",
+      message: `Your test results for ${selectedLabForResults.testName} (Ref: ${selectedLabForResults.id}) have been completed and published to your Patient Portal.`,
       date: todayStr,
-      amount: selectedLabForResults.cost,
-      status: "Unpaid",
-      type: "Lab Diagnostics"
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      type: "lab_results"
     };
-    const updatedBilling = [newInvoice, ...billing];
-    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    localStorage.setItem('dhms_notifications', JSON.stringify([newNotif, ...currentNotifications]));
+
+    // 4. If test wasn't already paid online upfront, create an Unpaid Invoice for Cash Counter
+    if (selectedLabForResults.paymentStatus !== 'Paid') {
+      const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+      const newInvoice = {
+        id: `INV-LAB-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: selectedLabForResults.patientId,
+        patientName: selectedLabForResults.patientName,
+        date: todayStr,
+        amount: selectedLabForResults.cost.startsWith('₹') ? selectedLabForResults.cost : `₹${selectedLabForResults.cost}`,
+        status: "Unpaid",
+        type: `Lab Diagnostics (${selectedLabForResults.testName})`,
+        paymentMethod: "Pending at Cash Counter",
+        paymentRemarks: `Generated on report completion for Lab ${selectedLabForResults.id}`
+      };
+      const updatedBilling = [newInvoice, ...billing];
+      localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    }
+
+    // Trigger realtime storage event
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
 
     // Clean up
     setSelectedLabForResults(null);
     setLabResultsText('');
     setLabRemarks('');
-    alert(`Lab diagnostic report completed and submitted to recommended physician (${selectedLabForResults.doctorName}). Invoice created successfully.`);
+    alert(`Lab diagnostic report completed and published. Live notification dispatched to patient (${selectedLabForResults.patientName}).`);
   };
 
   // Calculations for financial stats
@@ -459,43 +499,74 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                         <tr key={req.id}>
                           <td><strong>{req.id}</strong></td>
                           <td>
-                            <div className="patient-cell">
-                              <strong>{req.patientName}</strong>
-                              <span>ID: {req.patientId}</span>
+                            <div 
+                              className="patient-cell" 
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => {
+                                const patList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+                                const pat = patList.find(p => p.id === req.patientId) || {
+                                  id: req.patientId,
+                                  firstName: req.patientName,
+                                  lastName: '',
+                                  gender: 'N/A',
+                                  dob: 'N/A',
+                                  bloodType: 'N/A',
+                                  phone: 'N/A'
+                                };
+                                setViewedPatientRecord(pat);
+                              }}
+                              title="Click to view full patient clinical file"
+                            >
+                              <strong style={{ color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                {req.patientName} 🔍
+                              </strong>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>ID: {req.patientId}</span>
                             </div>
                           </td>
-                          <td><strong>{req.testName}</strong></td>
-                          <td>{req.doctorName}</td>
+                          <td>
+                            <strong>{req.testName}</strong>
+                            {req.paymentStatus === 'Paid' && (
+                              <div style={{ fontSize: '10px', color: '#15803d', fontWeight: 'bold' }}>✓ Online Paid</div>
+                            )}
+                          </td>
+                          <td>
+                            <span style={{ color: '#475569', fontWeight: '600' }}>
+                              {req.doctorName || 'Self Requested'}
+                            </span>
+                            {req.doctorName && req.doctorName !== 'Patient Self-Ordered' && (
+                              <div style={{ fontSize: '10px', color: '#6366f1' }}>Doctor Referral</div>
+                            )}
+                          </td>
                           <td>{req.date}</td>
-                          <td><span className="price-tag">{req.cost}</span></td>
+                          <td><span className="price-tag">{req.cost.startsWith('₹') ? req.cost : `₹${req.cost}`}</span></td>
                           <td>
                             <span className={`status-pill ${req.status === 'Pending' ? 'pending' : 'completed'}`}>
-                              {req.status === 'Pending' ? 'Pending' : 'Completed'}
+                              {req.status === 'Pending' ? 'Pending Analysis' : 'Completed'}
                             </span>
                           </td>
                           <td>
                             {req.status === 'Pending' ? (
-                              <button 
-                                onClick={() => {
-                                  setSelectedLabForResults(req);
-                                  setLabResultsText('');
-                                  setLabRemarks('');
-                                }}
-                                className="lab-btn-action"
-                              >
-                                Enter Results
-                              </button>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedLabForResults(req);
+                                    setLabResultsText(req.rawResultsText || '');
+                                    setLabRemarks(req.remarks || '');
+                                  }}
+                                  className="lab-btn-action"
+                                >
+                                  Enter Results
+                                </button>
+                              </div>
                             ) : (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span className="billed-indicator">Billed & Sent</span>
-                                {req.results && (
-                                  <button
-                                    onClick={() => setViewedLabRequestResults(req)}
-                                    className="lab-btn-secondary"
-                                  >
-                                    View Report
-                                  </button>
-                                )}
+                                <span className="billed-indicator">Report Dispatched</span>
+                                <button
+                                  onClick={() => setViewedLabRequestResults(req)}
+                                  className="lab-btn-secondary"
+                                >
+                                  View Report
+                                </button>
                               </div>
                             )}
                           </td>
@@ -1004,6 +1075,53 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                 <button type="submit" className="lab-btn-submit bg-purple">{editingFacility ? 'Update Service' : 'Add Service'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Clinical File View Modal */}
+      {viewedPatientRecord && (
+        <div className="lab-modal-overlay" onClick={() => setViewedPatientRecord(null)}>
+          <div className="lab-modal" style={{ maxWidth: '650px' }} onClick={e => e.stopPropagation()}>
+            <div className="lab-modal-header bg-dark">
+              <h3>Patient Clinical File: {viewedPatientRecord.firstName} {viewedPatientRecord.lastName}</h3>
+              <button onClick={() => setViewedPatientRecord(null)} className="lab-modal-close">&times;</button>
+            </div>
+            
+            <div className="lab-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', background: '#f8fafc', padding: '14px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div><strong>Patient UHID:</strong> <p style={{ margin: 0, color: '#0369a1', fontWeight: 'bold' }}>{viewedPatientRecord.id}</p></div>
+                <div><strong>Gender / DOB:</strong> <p style={{ margin: 0 }}>{viewedPatientRecord.gender || 'N/A'} • {viewedPatientRecord.dob || 'N/A'}</p></div>
+                <div><strong>Blood Group:</strong> <p style={{ margin: 0, color: '#dc2626', fontWeight: 'bold' }}>{viewedPatientRecord.bloodType || 'N/A'}</p></div>
+                <div><strong>Contact Phone:</strong> <p style={{ margin: 0 }}>{viewedPatientRecord.phone || 'N/A'}</p></div>
+                <div><strong>Known Allergies:</strong> <p style={{ margin: 0, color: '#b45309' }}>{viewedPatientRecord.allergies || 'None Recorded'}</p></div>
+                <div><strong>Chronic History:</strong> <p style={{ margin: 0 }}>{viewedPatientRecord.chronicConditions || 'None'}</p></div>
+              </div>
+
+              <h4 style={{ margin: '12px 0 8px 0', fontSize: '14px', color: '#1e293b' }}>Diagnostic History & Past Laboratory Reports:</h4>
+              {(!viewedPatientRecord.reports || viewedPatientRecord.reports.length === 0) ? (
+                <p style={{ fontSize: '12.5px', color: '#94a3b8', fontStyle: 'italic' }}>No past diagnostic reports on record for this patient profile.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {viewedPatientRecord.reports.map((rep, rIdx) => (
+                    <div key={rIdx} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <strong style={{ fontSize: '13px', color: '#334155' }}>{rep.name}</strong>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>{rep.date}</span>
+                      </div>
+                      <p style={{ margin: '2px 0', fontSize: '12px', color: '#475569' }}>{rep.details?.summary || rep.type}</p>
+                      {rep.details?.remarks && (
+                        <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>Remarks: {rep.details.remarks}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="lab-modal-footer">
+              <button onClick={() => setViewedPatientRecord(null)} className="lab-btn-submit bg-dark">Close File</button>
+            </div>
           </div>
         </div>
       )}
