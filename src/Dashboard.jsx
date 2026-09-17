@@ -2604,7 +2604,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
           { id: 'cashcounter', label: 'Cash Flow, Billing & Tally Accounting' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
-          { id: 'inpatient_ward', label: 'Inpatient (IPD) Beds & Wards' },
           { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
           { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'pharmacy', label: 'Pharmacy Stock & Meds' },
@@ -2721,10 +2720,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Physicians on Active Duty</div>
             </div>
 
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }} onClick={() => setActiveView('inpatient_ward')}>
-              <h3>Inpatient (IPD) Admissions</h3>
+            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+              <h3>Inpatient (IPD) Occupancy</h3>
               <div className="stat-value">{activeAdmissionsCount} Beds</div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Currently Hospitalized</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Managed by Doctor & Clinical Wards</div>
             </div>
 
             <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => setActiveView('appointments')}>
