@@ -21,11 +21,6 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
   const [viewedLabRequestResults, setViewedLabRequestResults] = useState(null);
   const [viewedPatientRecord, setViewedPatientRecord] = useState(null);
 
-  // Search & Filter & Pagination States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
   const [labFacilities, setLabFacilities] = useState(() => {
     const saved = localStorage.getItem('dhms_lab_facilities');
     if (saved) return JSON.parse(saved);
@@ -266,26 +261,51 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     alert(`Lab diagnostic report completed and published. Live notification dispatched to patient (${selectedLabForResults.patientName}).`);
   };
 
-  // Calculations for financial stats
+  // Search & Filter & Pagination States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sourceFilter, setSourceFilter] = useState('All'); // 'All' | 'Patient' | 'Doctor' | 'Reception'
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
+  // Calculations for financial and origin stats
   const cleanCost = (c) => parseFloat((c || '').replace(/[^0-9.]/g, '').trim()) || 0;
-  const completedCount = labRequests.filter(l => l.status === 'Completed & Billed').length;
+  const completedCount = labRequests.filter(l => l.status === 'Completed' || l.status === 'Completed & Billed').length;
   const pendingCount = labRequests.filter(l => l.status === 'Pending').length;
+  
+  // Categorize orders by origin:
+  const isPatientOrder = (l) => l.doctorName === 'Patient Self-Ordered' || l.paymentMethod?.includes('Online Gateway') || (l.id && l.id.startsWith('LAB-') && !l.doctorName?.includes('Dr.'));
+  const isDoctorReferral = (l) => l.doctorName && l.doctorName.toLowerCase().includes('dr.') && l.doctorName !== 'Patient Self-Ordered';
+  const isReceptionOrder = (l) => !isDoctorReferral(l) && !isPatientOrder(l);
+
+  const patientOrdersCount = labRequests.filter(isPatientOrder).length;
+  const patientOrdersPending = labRequests.filter(l => isPatientOrder(l) && l.status === 'Pending').length;
+  const doctorReferralsPending = labRequests.filter(l => isDoctorReferral(l) && l.status === 'Pending').length;
+
   const labRevenue = labRequests
-    .filter(l => l.status === 'Completed & Billed')
+    .filter(l => l.status === 'Completed' || l.status === 'Completed & Billed' || l.paymentStatus === 'Paid')
     .reduce((sum, l) => sum + cleanCost(l.cost), 0);
   const outstandingRevenue = labRequests
-    .filter(l => l.status === 'Pending')
+    .filter(l => l.status === 'Pending' && l.paymentStatus !== 'Paid')
     .reduce((sum, l) => sum + cleanCost(l.cost), 0);
 
   // Filter requests
   const filteredRequests = labRequests.filter(req => {
-    const matchesSearch = req.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          req.testName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          req.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (req.patientName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (req.testName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (req.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (req.doctorName || '').toLowerCase().includes(searchQuery.toLowerCase());
+                          
     const matchesStatus = statusFilter === 'All' || 
                           (statusFilter === 'Pending' && req.status === 'Pending') ||
-                          (statusFilter === 'Completed' && req.status === 'Completed & Billed');
-    return matchesSearch && matchesStatus;
+                          (statusFilter === 'Completed' && (req.status === 'Completed' || req.status === 'Completed & Billed'));
+
+    let matchesSource = true;
+    if (sourceFilter === 'Patient') matchesSource = isPatientOrder(req);
+    else if (sourceFilter === 'Doctor') matchesSource = isDoctorReferral(req);
+    else if (sourceFilter === 'Reception') matchesSource = isReceptionOrder(req);
+
+    return matchesSearch && matchesStatus && matchesSource;
   });
 
   // Pagination
@@ -370,16 +390,27 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                 <p>Track pending requests, enter diagnostic findings, and publish cryptographically integrated EHR reports instantly back to recommending physicians.</p>
               </div>
 
-              {/* Stats Grid */}
-              <div className="lab-stats-grid">
-                <div className="lab-stat-card border-purple" onClick={() => setActiveTab('requests')}>
+              {/* Stats Grid - 4 Columns with Patient-Oriented Orders */}
+              <div className="lab-stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                <div className="lab-stat-card border-purple" onClick={() => { setActiveTab('requests'); setSourceFilter('Doctor'); }}>
                   <div className="lab-stat-icon-wrapper purple">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                   </div>
                   <div className="lab-stat-details">
                     <h3>Doctor Referrals Pending</h3>
-                    <div className="lab-stat-value">{pendingCount}</div>
+                    <div className="lab-stat-value">{doctorReferralsPending}</div>
                     <span>Communicated from clinics</span>
+                  </div>
+                </div>
+
+                <div className="lab-stat-card border-blue" style={{ borderLeft: '4px solid #0284c7', cursor: 'pointer' }} onClick={() => { setActiveTab('requests'); setSourceFilter('Patient'); }}>
+                  <div className="lab-stat-icon-wrapper" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  </div>
+                  <div className="lab-stat-details">
+                    <h3>Patient Portal Orders</h3>
+                    <div className="lab-stat-value" style={{ color: '#0284c7' }}>{patientOrdersPending}</div>
+                    <span>{patientOrdersCount} Total Online Bookings</span>
                   </div>
                 </div>
 
@@ -390,7 +421,7 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                   <div className="lab-stat-details">
                     <h3>Direct Lab Appointments</h3>
                     <div className="lab-stat-value">{labAppointments.length}</div>
-                    <span>Patient bookings</span>
+                    <span>Sample collections</span>
                   </div>
                 </div>
 
@@ -399,7 +430,7 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                   </div>
                   <div className="lab-stat-details">
-                    <h3>Total Billings Generated</h3>
+                    <h3>Total Billings Realized</h3>
                     <div className="lab-stat-value">₹{labRevenue.toFixed(2)}</div>
                     <span>Outstanding: ₹{outstandingRevenue.toFixed(2)}</span>
                   </div>
@@ -408,9 +439,9 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
 
               {/* Recent Pending Table Summary */}
               <div className="lab-card" style={{ marginTop: '24px' }}>
-                <div className="lab-card-header">
-                  <h2>Recent Doctor Referrals & Suggestions</h2>
-                  <button onClick={() => setActiveTab('requests')} className="lab-btn-link">View All &rarr;</button>
+                <div className="lab-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2>Recent Laboratory Test Requests (All Sources)</h2>
+                  <button onClick={() => setActiveTab('requests')} className="lab-btn-link">View All Lab Queue &rarr;</button>
                 </div>
                 <div className="table-responsive">
                   <table className="lab-data-table">
@@ -418,29 +449,51 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                       <tr>
                         <th>Request ID</th>
                         <th>Patient Name</th>
-                        <th>Recommended Test</th>
-                        <th>Ordering Physician</th>
-                        <th>Date Suggested</th>
+                        <th>Test Details</th>
+                        <th>Order Origin / Doctor</th>
+                        <th>Date Ordered</th>
                         <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {labRequests.slice(0, 4).map(req => (
-                        <tr key={req.id}>
-                          <td><strong>{req.id}</strong></td>
-                          <td>{req.patientName}</td>
-                          <td>{req.testName}</td>
-                          <td>{req.doctorName}</td>
-                          <td>{req.date}</td>
-                          <td>
-                            <span className={`status-pill ${req.status === 'Pending' ? 'pending' : 'completed'}`}>
-                              {req.status === 'Pending' ? 'Pending Analysis' : 'Report Sent'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {labRequests.slice(0, 5).map(req => {
+                        const isPatient = isPatientOrder(req);
+                        return (
+                          <tr key={req.id}>
+                            <td><strong>{req.id}</strong></td>
+                            <td>
+                              <strong>{req.patientName}</strong>
+                              <div style={{ fontSize: '10.5px', color: '#64748b' }}>ID: {req.patientId}</div>
+                            </td>
+                            <td>
+                              <strong>{req.testName}</strong>
+                              {req.paymentStatus === 'Paid' && (
+                                <div style={{ fontSize: '10px', color: '#15803d', fontWeight: 'bold' }}>✓ Paid Online</div>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: '700', 
+                                padding: '2px 8px', 
+                                borderRadius: '4px',
+                                background: isPatient ? '#e0f2fe' : req.doctorName?.includes('Dr.') ? '#ede9fe' : '#f1f5f9',
+                                color: isPatient ? '#0369a1' : req.doctorName?.includes('Dr.') ? '#6d28d9' : '#475569'
+                              }}>
+                                {isPatient ? '📱 Patient Self-Order' : (req.doctorName || 'Doctor Referral')}
+                              </span>
+                            </td>
+                            <td>{req.date}</td>
+                            <td>
+                              <span className={`status-pill ${req.status === 'Pending' ? 'pending' : 'completed'}`}>
+                                {req.status === 'Pending' ? 'Pending Analysis' : 'Report Published'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {labRequests.length === 0 && (
-                        <tr><td colSpan="6" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>No laboratory requests communicated from clinics.</td></tr>
+                        <tr><td colSpan="6" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>No laboratory requests communicated or ordered yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -453,15 +506,15 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
             <div className="lab-view-container animate-fade-in">
               <div className="lab-view-header">
                 <div>
-                  <h1>Doctor Referrals & Diagnostic Orders</h1>
-                  <p>Process pending physician diagnostic orders, enter structured reports, and push direct payment claims to the desk.</p>
+                  <h1>Patient Test Orders & Doctor Referrals</h1>
+                  <p>Process pending patient self-orders and physician diagnostic requests, enter findings, and publish EHR reports.</p>
                 </div>
               </div>
 
               <div className="lab-card">
-                {/* Filters / Search Bar */}
-                <div className="lab-filters-row">
-                  <div className="search-box">
+                {/* Filters / Search Bar & Origin Selector */}
+                <div className="lab-filters-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
+                  <div className="search-box" style={{ flex: '1 1 220px' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <input 
                       type="text" 
@@ -471,8 +524,18 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                     />
                   </div>
 
+                  {/* Origin / Source Selector */}
+                  <div className="status-selector" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', color: '#475569', fontSize: '12px' }}>Order Source:</span>
+                    <button className={sourceFilter === 'All' ? 'active' : ''} onClick={() => { setSourceFilter('All'); setCurrentPage(1); }}>All</button>
+                    <button className={sourceFilter === 'Patient' ? 'active' : ''} onClick={() => { setSourceFilter('Patient'); setCurrentPage(1); }} style={{ color: sourceFilter === 'Patient' ? 'white' : '#0369a1' }}>📱 Patient Orders ({patientOrdersCount})</button>
+                    <button className={sourceFilter === 'Doctor' ? 'active' : ''} onClick={() => { setSourceFilter('Doctor'); setCurrentPage(1); }}>👨‍⚕️ Doctor Referrals</button>
+                    <button className={sourceFilter === 'Reception' ? 'active' : ''} onClick={() => { setSourceFilter('Reception'); setCurrentPage(1); }}>🏥 Reception Walk-In</button>
+                  </div>
+
+                  {/* Status Selector */}
                   <div className="status-selector">
-                    <span>Filter:</span>
+                    <span>Status:</span>
                     <button className={statusFilter === 'All' ? 'active' : ''} onClick={() => { setStatusFilter('All'); setCurrentPage(1); }}>All</button>
                     <button className={statusFilter === 'Pending' ? 'active' : ''} onClick={() => { setStatusFilter('Pending'); setCurrentPage(1); }}>Pending</button>
                     <button className={statusFilter === 'Completed' ? 'active' : ''} onClick={() => { setStatusFilter('Completed'); setCurrentPage(1); }}>Completed</button>
@@ -530,11 +593,25 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                             )}
                           </td>
                           <td>
-                            <span style={{ color: '#475569', fontWeight: '600' }}>
-                              {req.doctorName || 'Self Requested'}
-                            </span>
-                            {req.doctorName && req.doctorName !== 'Patient Self-Ordered' && (
-                              <div style={{ fontSize: '10px', color: '#6366f1' }}>Doctor Referral</div>
+                            {isPatientOrder(req) ? (
+                              <div>
+                                <span style={{ fontSize: '11px', fontWeight: '700', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px' }}>
+                                  📱 Patient Portal Order
+                                </span>
+                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Self-Requested</div>
+                              </div>
+                            ) : req.doctorName && req.doctorName.includes('Dr.') ? (
+                              <div>
+                                <strong style={{ color: '#1e293b', fontSize: '12.5px' }}>{req.doctorName}</strong>
+                                <div style={{ fontSize: '10.5px', color: '#6366f1', fontWeight: '600' }}>👨‍⚕️ Doctor Referral</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                  🏥 Reception Walk-In
+                                </span>
+                                <div style={{ fontSize: '10px', color: '#64748b' }}>{req.doctorName || 'Walk-In'}</div>
+                              </div>
                             )}
                           </td>
                           <td>{req.date}</td>
