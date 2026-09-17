@@ -1527,7 +1527,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (!activeCallAppt) return;
     
     const todayStr = new Date().toISOString().split('T')[0];
-    const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
+    const currentDoc = (activeCallAppt.doctorId && doctorsRoster.find(d => d.id === activeCallAppt.doctorId)) ||
+      (activeCallAppt.doctorName && doctorsRoster.find(d => d.name?.toLowerCase() === activeCallAppt.doctorName?.toLowerCase())) ||
+      (activeCallAppt.doctorName ? { name: activeCallAppt.doctorName, department: activeCallAppt.department || 'General Medicine' } : null) ||
+      doctorsRoster.find(d => d.id === activeDoctorId) ||
+      loggedInDoctor ||
+      (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
 
     // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
     let finalMeds = [...prescribedMeds];
@@ -1572,7 +1577,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       if (p.id === activeCallAppt.patientId) {
         const historyEntry = {
           date: todayStr,
+          time: activeCallAppt.time || '11:00 AM',
           doctor: currentDoc.name,
+          department: currentDoc.department || currentDoc.specialty || activeCallAppt.department || 'General Medicine',
+          consultationFee: activeCallAppt.consultationFee || `₹${parseFloat(currentDoc.consultationFee || 500).toFixed(2)}`,
           diagnosis: diagnosisNote || 'Telemedicine consultation completed.',
           reason: activeCallAppt.reason,
           vitals: { bp: vitalBP, hr: vitalHR, temp: vitalTemp, spo2: vitalSpO2 },
@@ -1951,7 +1959,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
 
     try {
-      const currentDoc = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
+      const currentDoc = (apptToComplete.doctorId && doctorsRoster.find(d => d.id === apptToComplete.doctorId)) ||
+        (apptToComplete.doctorName && doctorsRoster.find(d => d.name?.toLowerCase() === apptToComplete.doctorName?.toLowerCase())) ||
+        (apptToComplete.doctorName ? { name: apptToComplete.doctorName, department: apptToComplete.department || 'General Medicine' } : null) ||
+        doctorsRoster.find(d => d.id === activeDoctorId) ||
+        loggedInDoctor ||
+        (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' });
       const todayStr = new Date().toISOString().split('T')[0];
 
       // If doctor typed a drug/test details but forgot to hit "Add", auto-append it
@@ -1995,7 +2008,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         if (p.id === apptToComplete.patientId || p.name === apptToComplete.patientName) {
           const historyEntry = {
             date: todayStr,
+            time: apptToComplete.time || '10:00 AM',
             doctor: currentDoc.name,
+            department: currentDoc.department || currentDoc.specialty || apptToComplete.department || 'General Medicine',
+            consultationFee: apptToComplete.consultationFee || `₹${parseFloat(currentDoc.consultationFee || 300).toFixed(2)}`,
             diagnosis: diagnosisNote || 'Routine checkup completed.',
             reason: apptToComplete.reason || 'Checkup',
             vitals: { bp: vitalBP || '120/80', hr: vitalHR || '72', temp: vitalTemp || '98.6', spo2: vitalSpO2 || '98' },
