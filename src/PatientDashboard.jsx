@@ -356,6 +356,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     localStorage.setItem('dhms_lab_facilities', JSON.stringify(defaultLabFacilitiesList));
     return defaultLabFacilitiesList;
   });
+  const [selectedLabTests, setSelectedLabTests] = useState([]);
+  const [labModalSearch, setLabModalSearch] = useState('');
   const [newLabTestName, setNewLabTestName] = useState(() => {
     const saved = localStorage.getItem('dhms_lab_facilities');
     if (saved) {
@@ -2734,11 +2736,32 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       }
     }, 600);
   };
+  const handleTogglePatientLabTest = (fac) => {
+    if (selectedLabTests.some(t => (t.code && t.code === fac.code) || t.name === fac.name)) {
+      setSelectedLabTests(selectedLabTests.filter(t => !((t.code && t.code === fac.code) || t.name === fac.name)));
+    } else {
+      setSelectedLabTests([...selectedLabTests, fac]);
+    }
+  };
+
   const handleOrderLabSubmit = (e) => {
     e.preventDefault();
     const facilities = JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
-    const matchedFac = facilities.find(f => f.name === newLabTestName) || defaultLabFacilitiesList.find(f => f.name === newLabTestName) || defaultLabFacilitiesList[0];
-    const orderCost = matchedFac ? (matchedFac.cost.replace(/[^0-9.]/g, '')) : "85.00";
+    const allFacs = (facilities && facilities.length > 0) ? facilities : defaultLabFacilitiesList;
+
+    let testsToOrder = [];
+    if (selectedLabTests.length > 0) {
+      testsToOrder = [...selectedLabTests];
+    } else {
+      const matched = allFacs.find(f => f.name === newLabTestName) || allFacs[0];
+      testsToOrder = [matched];
+    }
+
+    const cleanVal = (val) => parseFloat((val || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+    const totalCost = testsToOrder.reduce((sum, t) => sum + cleanVal(t.cost), 0);
+    const combinedTestNames = testsToOrder.map(t => t.name).join(', ');
+    const combinedDept = testsToOrder.map(t => t.dept || 'Diagnostics').filter((v, i, a) => a.indexOf(v) === i).join(', ');
+
     const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
     const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
 
@@ -2746,10 +2769,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       id: `LAB-${Math.floor(1000 + Math.random() * 9000)}`,
       patientId: patientId,
       patientName: patientName,
-      testName: newLabTestName || matchedFac.name,
-      department: matchedFac.dept || "Diagnostics",
-      cost: `₹${parseFloat(orderCost).toFixed(2)}`,
-      turnaround: matchedFac.time || "24 Hours"
+      testName: combinedTestNames,
+      department: combinedDept || "Diagnostics",
+      cost: `₹${totalCost.toFixed(2)}`,
+      turnaround: testsToOrder.length === 1 ? (testsToOrder[0].time || "24 Hours") : "24-48 Hours",
+      testsList: testsToOrder
     };
 
     setPendingLabOrder(prepOrder);
@@ -2827,6 +2851,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         setIsProcessingLabPay(false);
         setShowLabPaymentModal(false);
         setPendingLabOrder(null);
+        setSelectedLabTests([]);
         setLabUpiId('');
         setLabCardNumber('');
         setLabCardExpiry('');
@@ -3816,35 +3841,157 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </div>
         )}
 
-        {/* Order Lab Modal */}
+        {/* Order Lab Modal - Multi-Test Selection */}
         {showOrderLabModal && (
           <div className="pd-modal-overlay" onClick={() => setShowOrderLabModal(false)}>
-            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="pd-modal-content" style={{ maxWidth: '620px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
               <form onSubmit={handleOrderLabSubmit}>
-                <div className="pd-modal-header">
-                  <h2>Order Diagnostic Lab Test</h2>
-                  <button className="pd-modal-close" type="button" onClick={() => setShowOrderLabModal(false)}>&times;</button>
-                </div>
-                <div className="pd-modal-body">
-                  <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Select Diagnostic Panel</label>
-                    <select 
-                      value={newLabTestName} 
-                      onChange={(e) => setNewLabTestName(e.target.value)} 
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
-                    >
-                      {(labFacilities && labFacilities.length > 0 ? labFacilities : defaultLabFacilitiesList).map((fac, idx) => (
-                        <option key={idx} value={fac.name}>{fac.name}</option>
-                      ))}
-                    </select>
+                <div className="pd-modal-header" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: 'white', padding: '16px 24px' }}>
+                  <div>
+                    <h2 style={{ color: 'white', margin: 0, fontSize: '18px' }}>Order Diagnostic Lab Tests</h2>
+                    <span style={{ fontSize: '12px', opacity: 0.9 }}>Select one or multiple tests to order in a single diagnostic session</span>
                   </div>
-                  <p style={{ fontSize: '12px', color: '#64748b', marginTop: '12px', lineHeight: '1.4' }}>
-                    Orders will be automatically submitted to our central diagnostic laboratory facility. You can visit the lab anytime to submit sample collection.
-                  </p>
+                  <button className="pd-modal-close" type="button" onClick={() => setShowOrderLabModal(false)} style={{ color: 'white' }}>&times;</button>
                 </div>
-                <div className="pd-modal-footer">
-                  <button className="pd-btn-primary" type="submit">Submit Laboratory Order</button>
+                
+                <div className="pd-modal-body" style={{ padding: '20px' }}>
+                  {/* Search and Selection Counter */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search tests by name, department, or test code..."
+                      value={labModalSearch}
+                      onChange={(e) => setLabModalSearch(e.target.value)}
+                      style={{ 
+                        flex: 1, 
+                        padding: '9px 12px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #cbd5e1', 
+                        fontSize: '13px',
+                        marginRight: '12px'
+                      }}
+                    />
+                    <span style={{ 
+                      background: selectedLabTests.length > 0 ? '#e0f2fe' : '#f1f5f9', 
+                      color: selectedLabTests.length > 0 ? '#0369a1' : '#64748b', 
+                      fontWeight: '700', 
+                      fontSize: '12px', 
+                      padding: '6px 12px', 
+                      borderRadius: '16px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {selectedLabTests.length} Selected
+                    </span>
+                  </div>
+
+                  {/* Multi-Test Selector Grid / List */}
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '8px', 
+                    maxHeight: '300px', 
+                    overflowY: 'auto', 
+                    border: '1px solid #e2e8f0', 
+                    borderRadius: '10px', 
+                    padding: '8px',
+                    background: '#f8fafc'
+                  }}>
+                    {(labFacilities && labFacilities.length > 0 ? labFacilities : defaultLabFacilitiesList)
+                      .filter(f => 
+                        !labModalSearch || 
+                        f.name.toLowerCase().includes(labModalSearch.toLowerCase()) ||
+                        (f.code && f.code.toLowerCase().includes(labModalSearch.toLowerCase())) ||
+                        (f.dept && f.dept.toLowerCase().includes(labModalSearch.toLowerCase()))
+                      )
+                      .map((fac, idx) => {
+                        const isChecked = selectedLabTests.some(t => (t.code && t.code === fac.code) || t.name === fac.name);
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={() => handleTogglePatientLabTest(fac)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              background: isChecked ? '#eff6ff' : 'white',
+                              border: isChecked ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked} 
+                                onChange={() => {}} // Handled by parent div
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#3b82f6' }}
+                              />
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {fac.code && (
+                                    <span style={{ fontSize: '10.5px', background: '#e0e7ff', color: '#4338ca', padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                      {fac.code}
+                                    </span>
+                                  )}
+                                  <strong style={{ fontSize: '13.5px', color: '#1e293b' }}>{fac.name}</strong>
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                  {fac.dept || 'Diagnostics'} • Turnaround: {fac.time || '24 Hours'}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: '14px', fontWeight: '800', color: '#0369a1' }}>
+                                {fac.cost.startsWith('₹') ? fac.cost : `₹${fac.cost}`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Summary Footer in Modal */}
+                  <div style={{ 
+                    marginTop: '14px', 
+                    padding: '12px 16px', 
+                    background: '#f1f5f9', 
+                    borderRadius: '8px', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center' 
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Total Selected ({selectedLabTests.length}):</span>
+                      <div style={{ fontSize: '12px', color: '#1e293b', fontWeight: '600', maxWidth: '340px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {selectedLabTests.length > 0 
+                          ? selectedLabTests.map(t => t.name).join(', ') 
+                          : 'No tests selected (select at least one test above)'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Total Payable:</span>
+                      <strong style={{ fontSize: '16.5px', color: '#0f766e' }}>
+                        ₹{selectedLabTests.reduce((sum, t) => sum + (parseFloat(t.cost.replace(/[^0-9.]/g, '')) || 0), 0).toFixed(2)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pd-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                   <button className="pd-btn-outline" type="button" onClick={() => setShowOrderLabModal(false)}>Cancel</button>
+                  <button 
+                    className="pd-btn-primary" 
+                    type="submit"
+                    disabled={selectedLabTests.length === 0}
+                    style={{
+                      background: selectedLabTests.length === 0 ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      cursor: selectedLabTests.length === 0 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Proceed to Online Payment ({selectedLabTests.length} Tests) &rarr;
+                  </button>
                 </div>
               </form>
             </div>
