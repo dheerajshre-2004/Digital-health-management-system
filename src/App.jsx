@@ -738,18 +738,21 @@ function App() {
               clearAuthFields();
               setActiveTab('signin');
             }}
+            style={isPatientPortal ? { flex: 1 } : {}}
           >
-            {isPatientPortal ? 'Citizen Sign In' : 'Sign In'}
+            {isPatientPortal ? 'Patient Sign In' : 'Sign In'}
           </button>
-          <button 
-            className={`tab ${activeTab === 'register' ? 'active' : ''}`}
-            onClick={() => {
-              clearAuthFields();
-              setActiveTab('register');
-            }}
-          >
-            {isPatientPortal ? 'New Patient Registration' : 'Staff Registration'}
-          </button>
+          {!isPatientPortal && (
+            <button 
+              className={`tab ${activeTab === 'register' ? 'active' : ''}`}
+              onClick={() => {
+                clearAuthFields();
+                setActiveTab('register');
+              }}
+            >
+              Staff Registration
+            </button>
+          )}
         </div>
 
         {registrationSuccessData ? (
@@ -820,7 +823,7 @@ function App() {
         ) : activeTab === 'signin' ? (
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             <div className="form-group">
-              <label>{isPatientPortal ? 'Patient ID / Email / Mobile Number' : 'Email Address / Staff ID'}</label>
+              <label>{isPatientPortal ? 'Patient ID (UHID) / Email / Mobile Number' : 'Email Address / Staff ID'}</label>
               <div className="input-wrapper">
                 <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
@@ -828,12 +831,22 @@ function App() {
                 </svg>
                 <input 
                   type="text" 
-                  placeholder={isPatientPortal ? "e.g. PAT-1001, email or mobile" : "Enter registered email address or ID"} 
+                  placeholder={isPatientPortal ? "e.g. PAT-1001, EMAIL OR MOBILE" : "Enter registered email address or ID"} 
                   required 
                   value={signInIdentifier}
-                  onChange={(e) => setSignInIdentifier(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Automatically capitalize if in patient portal (for PAT-XXXX format)
+                    setSignInIdentifier(isPatientPortal ? val.toUpperCase() : val);
+                  }}
+                  style={isPatientPortal ? { textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' } : {}}
                 />
               </div>
+              {isPatientPortal && (
+                <p style={{ margin: '6px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                  ℹ️ <em>Enter the Unique Patient ID (e.g., PAT-1001) generated & issued by the Hospital Reception Desk.</em>
+                </p>
+              )}
             </div>
             
             <div className="form-group">
