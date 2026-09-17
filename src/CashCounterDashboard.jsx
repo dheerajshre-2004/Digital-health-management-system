@@ -42,6 +42,15 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const [unpaidCurrentPage, setUnpaidCurrentPage] = useState(1);
   const unpaidItemsPerPage = 6;
 
+  // Tally & Accounting States
+  const [tallyDateFrom, setTallyDateFrom] = useState('');
+  const [tallyDateTo, setTallyDateTo] = useState('');
+  const [tallyDeptFilter, setTallyDeptFilter] = useState('All');
+  const [tallyChannelFilter, setTallyChannelFilter] = useState('All');
+  const [tallySearchQuery, setTallySearchQuery] = useState('');
+  const [tallyCurrentPage, setTallyCurrentPage] = useState(1);
+  const tallyItemsPerPage = 8;
+
   // Payment Collection Modal State
   const [paymentModalData, setPaymentModalData] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('Physical Cash Payment');
@@ -466,6 +475,264 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
 
   const stats = getFinancialStats();
 
+  // Clean numerical parsing helper
+  const cleanNum = (val) => parseFloat((val || '').toString().replace(/[^0-9.]/g, '').trim()) || 0;
+
+  // Master Excel Export Engine for Cash Flow, Tally, and Detailed Ledgers
+  const handleExportCashFlowExcel = (recordsToExport = null, exportType = 'full_tally') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const timestampStr = new Date().toLocaleString();
+    const targetRecords = recordsToExport || billingList;
+
+    // Filter by dates/filters if specified
+    const activeData = targetRecords.filter(inv => {
+      const invDate = inv.date || inv.paymentDate || '';
+      if (tallyDateFrom && invDate < tallyDateFrom) return false;
+      if (tallyDateTo && invDate > tallyDateTo) return false;
+      const dept = categorizeDepartment(inv.type);
+      if (tallyDeptFilter !== 'All' && dept !== tallyDeptFilter) return false;
+      const channel = categorizeChannel(inv.paymentMethod, inv.paymentRemarks);
+      if (tallyChannelFilter === 'Online' && channel !== 'Online / Digital') return false;
+      if (tallyChannelFilter === 'Offline' && channel !== 'Offline Cash') return false;
+      if (tallyChannelFilter === 'Insurance' && channel !== 'Insurance / TPA') return false;
+      return true;
+    });
+
+    // Compute Summary Stats for Export
+    const totalBilled = activeData.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const paidRecords = activeData.filter(r => r.status === 'Paid');
+    const unpaidRecords = activeData.filter(r => r.status === 'Unpaid');
+    const claimRecords = activeData.filter(r => r.status === 'Claim Submitted');
+
+    const totalPaid = paidRecords.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const totalUnpaid = unpaidRecords.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const totalClaims = claimRecords.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const onlinePaid = paidRecords
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Online / Digital')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const cashPaid = paidRecords
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Offline Cash')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const insurancePaid = paidRecords
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Insurance / TPA')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    // Department Totals for Export
+    const deptTotals = {
+      Laboratory: { paid: 0, unpaid: 0, count: 0 },
+      Pharmacy: { paid: 0, unpaid: 0, count: 0 },
+      'Inpatient (IPD)': { paid: 0, unpaid: 0, count: 0 },
+      'Consultation (OPD)': { paid: 0, unpaid: 0, count: 0 },
+      'General Billing': { paid: 0, unpaid: 0, count: 0 }
+    };
+
+    activeData.forEach(r => {
+      const d = categorizeDepartment(r.type);
+      const val = cleanNum(r.amount);
+      if (deptTotals[d]) {
+        deptTotals[d].count += 1;
+        if (r.status === 'Paid') deptTotals[d].paid += val;
+        else if (r.status === 'Unpaid') deptTotals[d].unpaid += val;
+      }
+    });
+
+    // Build Microsoft Excel HTML XML Workbook
+    const excelContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Cash Flow & Tally Ledger</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+          .header-main { background-color: #1e3a8a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 40px; vertical-align: middle; }
+          .header-sub { background-color: #2563eb; color: #ffffff; font-size: 11pt; font-weight: bold; text-align: center; height: 26px; vertical-align: middle; }
+          .meta-label { font-weight: bold; background-color: #f1f5f9; }
+          .section-banner { background-color: #0f766e; color: #ffffff; font-weight: bold; font-size: 12pt; height: 30px; vertical-align: middle; }
+          .table-header { background-color: #334155; color: #ffffff; font-weight: bold; text-align: center; height: 28px; }
+          .table-header-tally { background-color: #4338ca; color: #ffffff; font-weight: bold; text-align: center; height: 28px; }
+          .num-cell { text-align: right; mso-number-format: "\\₹#,##0.00"; }
+          .text-cell { text-align: left; }
+          .center-cell { text-align: center; }
+          .kpi-title { font-weight: bold; background-color: #f8fafc; font-size: 10pt; }
+          .kpi-val { font-weight: bold; font-size: 12pt; text-align: right; }
+          .total-row { background-color: #e2e8f0; font-weight: bold; height: 26px; }
+          .paid-badge { color: #047857; font-weight: bold; }
+          .unpaid-badge { color: #b91c1c; font-weight: bold; }
+          .claim-badge { color: #7c3aed; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <table border="1" style="border-collapse:collapse; width:100%;">
+          <!-- HOSPITAL BANNER -->
+          <tr>
+            <td colspan="12" class="header-main">DHMS CENTRAL CLINICAL CENTER & HOSPITAL MANAGEMENT SYSTEM</td>
+          </tr>
+          <tr>
+            <td colspan="12" class="header-sub">AUDITED CASH FLOW ACCOUNTING & TALLY GENERAL LEDGER STATEMENT</td>
+          </tr>
+          <tr>
+            <td colspan="12" style="background-color: #f8fafc; text-align: center; font-size: 9pt; color: #475569;">
+              Generated On: <strong>${timestampStr}</strong> | Exported By: <strong>${loggedInStaff?.name || 'Hospital Administrator'} (${loggedInStaff?.role || 'System Admin'})</strong> | Status: <strong>Official Accounting Record</strong>
+            </td>
+          </tr>
+          <tr><td colspan="12" style="height: 12px; background-color: #ffffff; border: none;"></td></tr>
+
+          <!-- EXECUTIVE ACCOUNTING & TALLY KPI SUMMARY -->
+          <tr>
+            <td colspan="12" class="section-banner">📊 EXECUTIVE FINANCIAL TALLY & REVENUE SUMMARY</td>
+          </tr>
+          <tr style="background-color: #f1f5f9;">
+            <td colspan="2" class="kpi-title">TOTAL REGISTERED INVOICES</td>
+            <td colspan="2" class="kpi-title">TOTAL BILLED AMOUNT</td>
+            <td colspan="2" class="kpi-title">REALIZED REVENUE (PAID)</td>
+            <td colspan="2" class="kpi-title">OUTSTANDING RECEIVABLES</td>
+            <td colspan="2" class="kpi-title">ONLINE / DIGITAL GATEWAYS</td>
+            <td colspan="2" class="kpi-title">PHYSICAL CASH COUNTER</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="center-cell" style="font-size: 13pt; font-weight: bold; color: #1e293b;">${activeData.length} Bills</td>
+            <td colspan="2" class="num-cell" style="font-size: 13pt; font-weight: bold; color: #0284c7;">₹${totalBilled.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="font-size: 13pt; font-weight: bold; color: #15803d;">₹${totalPaid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="font-size: 13pt; font-weight: bold; color: #b91c1c;">₹${totalUnpaid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="font-size: 13pt; font-weight: bold; color: #0369a1;">₹${onlinePaid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="font-size: 13pt; font-weight: bold; color: #16a34a;">₹${cashPaid.toFixed(2)}</td>
+          </tr>
+          <tr><td colspan="12" style="height: 12px; background-color: #ffffff; border: none;"></td></tr>
+
+          <!-- DEPARTMENT-WISE ACCOUNTING BREAKDOWN -->
+          <tr>
+            <td colspan="12" class="section-banner">🏥 DEPARTMENT-WISE REVENUE & TALLY BREAKDOWN</td>
+          </tr>
+          <tr class="table-header-tally">
+            <td colspan="3">Department / Cost Center</td>
+            <td colspan="2">Total Transactions</td>
+            <td colspan="3">Realized Revenue (Settled)</td>
+            <td colspan="2">Pending Receivables</td>
+            <td colspan="2">Settlement Rate</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-cell"><strong>🧪 Diagnostic Laboratory (Pathology & Imaging)</strong></td>
+            <td colspan="2" class="center-cell">${deptTotals.Laboratory.count}</td>
+            <td colspan="3" class="num-cell" style="color: #047857; font-weight: bold;">₹${deptTotals.Laboratory.paid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="color: #b91c1c;">₹${deptTotals.Laboratory.unpaid.toFixed(2)}</td>
+            <td colspan="2" class="center-cell">${deptTotals.Laboratory.paid + deptTotals.Laboratory.unpaid > 0 ? ((deptTotals.Laboratory.paid / (deptTotals.Laboratory.paid + deptTotals.Laboratory.unpaid)) * 100).toFixed(1) + '%' : '100%'}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-cell"><strong>💊 Pharmacy & Medication Dispensation</strong></td>
+            <td colspan="2" class="center-cell">${deptTotals.Pharmacy.count}</td>
+            <td colspan="3" class="num-cell" style="color: #047857; font-weight: bold;">₹${deptTotals.Pharmacy.paid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="color: #b91c1c;">₹${deptTotals.Pharmacy.unpaid.toFixed(2)}</td>
+            <td colspan="2" class="center-cell">${deptTotals.Pharmacy.paid + deptTotals.Pharmacy.unpaid > 0 ? ((deptTotals.Pharmacy.paid / (deptTotals.Pharmacy.paid + deptTotals.Pharmacy.unpaid)) * 100).toFixed(1) + '%' : '100%'}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-cell"><strong>🛏️ Inpatient Ward (IPD / ICU / Surgeries)</strong></td>
+            <td colspan="2" class="center-cell">${deptTotals['Inpatient (IPD)'].count}</td>
+            <td colspan="3" class="num-cell" style="color: #047857; font-weight: bold;">₹${deptTotals['Inpatient (IPD)'].paid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="color: #b91c1c;">₹${deptTotals['Inpatient (IPD)'].unpaid.toFixed(2)}</td>
+            <td colspan="2" class="center-cell">${deptTotals['Inpatient (IPD)'].paid + deptTotals['Inpatient (IPD)'].unpaid > 0 ? ((deptTotals['Inpatient (IPD)'].paid / (deptTotals['Inpatient (IPD)'].paid + deptTotals['Inpatient (IPD)'].unpaid)) * 100).toFixed(1) + '%' : '100%'}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-cell"><strong>👨‍⚕️ Outpatient Consultations (OPD)</strong></td>
+            <td colspan="2" class="center-cell">${deptTotals['Consultation (OPD)'].count}</td>
+            <td colspan="3" class="num-cell" style="color: #047857; font-weight: bold;">₹${deptTotals['Consultation (OPD)'].paid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="color: #b91c1c;">₹${deptTotals['Consultation (OPD)'].unpaid.toFixed(2)}</td>
+            <td colspan="2" class="center-cell">${deptTotals['Consultation (OPD)'].paid + deptTotals['Consultation (OPD)'].unpaid > 0 ? ((deptTotals['Consultation (OPD)'].paid / (deptTotals['Consultation (OPD)'].paid + deptTotals['Consultation (OPD)'].unpaid)) * 100).toFixed(1) + '%' : '100%'}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-cell"><strong>📋 General Administrative & Other Billing</strong></td>
+            <td colspan="2" class="center-cell">${deptTotals['General Billing'].count}</td>
+            <td colspan="3" class="num-cell" style="color: #047857; font-weight: bold;">₹${deptTotals['General Billing'].paid.toFixed(2)}</td>
+            <td colspan="2" class="num-cell" style="color: #b91c1c;">₹${deptTotals['General Billing'].unpaid.toFixed(2)}</td>
+            <td colspan="2" class="center-cell">${deptTotals['General Billing'].paid + deptTotals['General Billing'].unpaid > 0 ? ((deptTotals['General Billing'].paid / (deptTotals['General Billing'].paid + deptTotals['General Billing'].unpaid)) * 100).toFixed(1) + '%' : '100%'}</td>
+          </tr>
+          <tr class="total-row">
+            <td colspan="3" class="text-cell"><strong>GRAND TOTAL DEPARTMENTAL RECONCILIATION</strong></td>
+            <td colspan="2" class="center-cell"><strong>${activeData.length}</strong></td>
+            <td colspan="3" class="num-cell"><strong>₹${totalPaid.toFixed(2)}</strong></td>
+            <td colspan="2" class="num-cell"><strong>₹${totalUnpaid.toFixed(2)}</strong></td>
+            <td colspan="2" class="center-cell"><strong>${totalBilled > 0 ? ((totalPaid / totalBilled) * 100).toFixed(1) + '%' : '100%'}</strong></td>
+          </tr>
+          <tr><td colspan="12" style="height: 14px; background-color: #ffffff; border: none;"></td></tr>
+
+          <!-- ITEMIZED TRANSACTION LEDGER TABLE -->
+          <tr>
+            <td colspan="12" class="section-banner">📑 ITEMIZED TRANSACTION GENERAL LEDGER ENTRIES</td>
+          </tr>
+          <tr class="table-header">
+            <th style="width: 100px;">Invoice ID</th>
+            <th style="width: 90px;">Billing Date</th>
+            <th style="width: 90px;">Payment Date</th>
+            <th style="width: 130px;">Patient ID (UHID)</th>
+            <th style="width: 170px;">Patient Full Name</th>
+            <th style="width: 140px;">Department</th>
+            <th style="width: 220px;">Charge Type / Service Description</th>
+            <th style="width: 120px;">Payment Mode</th>
+            <th style="width: 120px;">Payment Channel</th>
+            <th style="width: 110px;">Amount (₹)</th>
+            <th style="width: 100px;">Settlement Status</th>
+            <th style="width: 220px;">Audit Ref & Remarks</th>
+          </tr>
+          ${activeData.map((inv, idx) => {
+            const dept = categorizeDepartment(inv.type);
+            const channel = categorizeChannel(inv.paymentMethod, inv.paymentRemarks);
+            const amtNum = cleanNum(inv.amount);
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            return `
+              <tr style="background-color: ${rowBg}; height: 24px;">
+                <td class="center-cell" style="font-weight: bold; mso-number-format: '\\@';">${inv.id || '-'}</td>
+                <td class="center-cell">${inv.date || '-'}</td>
+                <td class="center-cell">${inv.paymentDate || (inv.status === 'Paid' ? inv.date : '-')}</td>
+                <td class="center-cell" style="mso-number-format: '\\@';">${inv.patientId || '-'}</td>
+                <td class="text-cell" style="font-weight: bold;">${inv.patientName || 'Anonymous / Walk-in'}</td>
+                <td class="text-cell">${dept}</td>
+                <td class="text-cell">${inv.type || 'General Service'}</td>
+                <td class="text-cell">${inv.paymentMethod || 'Physical Cash Payment'}</td>
+                <td class="center-cell">${channel}</td>
+                <td class="num-cell" style="font-weight: bold;">₹${amtNum.toFixed(2)}</td>
+                <td class="center-cell ${inv.status === 'Paid' ? 'paid-badge' : inv.status === 'Unpaid' ? 'unpaid-badge' : 'claim-badge'}">
+                  ${inv.status || 'Paid'}
+                </td>
+                <td class="text-cell" style="font-size: 9pt; color: #475569;">${inv.paymentRemarks || '-'}</td>
+              </tr>
+            `;
+          }).join('')}
+          <tr class="total-row">
+            <td colspan="9" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTAL SUM OF ALL ITEMIZED TRANSACTIONS:</td>
+            <td class="num-cell" style="font-size: 11pt; font-weight: bold; color: #0f766e;">₹${totalBilled.toFixed(2)}</td>
+            <td colspan="2" class="center-cell" style="font-size: 9pt; color: #334155;">Audited & Verified in Tally</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `DHMS_Hospital_Cash_Flow_Tally_${todayStr}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Filter and Search logic
   const filteredBilling = billingList.filter(inv => {
     const query = searchQuery.toLowerCase();
@@ -502,10 +769,38 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const renderOverview = () => {
     return (
       <div className="cc-view-container animate-fade-in">
-        <div className="cc-header-banner">
+        <div className="cc-header-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2>Hospital Cash Flow & Financial Center</h2>
             <p>Overall revenue tracking with real-time differentiation across <strong>Online Gateways</strong>, <strong>Physical Cash Counter</strong>, and Department Collections (<strong>Laboratory, Pharmacy, Inpatient IPD, OPD Consultations & Insurance</strong>).</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="cc-btn-excel-export"
+              onClick={() => handleExportCashFlowExcel()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                border: 'none',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(4, 120, 87, 0.25)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              📥 Export Tally Excel
+            </button>
           </div>
         </div>
 
@@ -882,10 +1177,37 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const renderTransactions = () => {
     return (
       <div className="cc-view-container">
-        <div className="cc-header-banner">
+        <div className="cc-header-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2>{adminMode ? 'Completed Transactions Ledger' : 'All Billing Transactions'}</h2>
             <p>{adminMode ? 'Audit trail of all finalized payments collected by the cashier.' : 'Search, filter, and audit all invoice lists generated across the hospital.'}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="cc-btn-excel-export"
+              onClick={() => handleExportCashFlowExcel(filteredBilling, 'filtered')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                border: 'none',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(4, 120, 87, 0.25)'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              📥 Export Transactions Excel ({filteredBilling.length})
+            </button>
           </div>
         </div>
 
@@ -1106,6 +1428,518 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                   <button 
                     disabled={currentPage === totalPages} 
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="cc-page-btn"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderAccountingTally = () => {
+    // Filter billing dataset for Tally view
+    const filteredTallyData = billingList.filter(inv => {
+      const invDate = inv.date || inv.paymentDate || '';
+      if (tallyDateFrom && invDate < tallyDateFrom) return false;
+      if (tallyDateTo && invDate > tallyDateTo) return false;
+      const dept = categorizeDepartment(inv.type);
+      if (tallyDeptFilter !== 'All' && dept !== tallyDeptFilter) return false;
+      const channel = categorizeChannel(inv.paymentMethod, inv.paymentRemarks);
+      if (tallyChannelFilter === 'Online' && channel !== 'Online / Digital') return false;
+      if (tallyChannelFilter === 'Offline' && channel !== 'Offline Cash') return false;
+      if (tallyChannelFilter === 'Insurance' && channel !== 'Insurance / TPA') return false;
+      
+      if (tallySearchQuery) {
+        const q = tallySearchQuery.toLowerCase();
+        const matches = (inv.id || '').toLowerCase().includes(q) ||
+                        (inv.patientName || '').toLowerCase().includes(q) ||
+                        (inv.patientId || '').toLowerCase().includes(q) ||
+                        (inv.type || '').toLowerCase().includes(q) ||
+                        (inv.paymentMethod || '').toLowerCase().includes(q) ||
+                        (inv.paymentRemarks || '').toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+
+    // Compute live Tally metrics on filtered set
+    const totalBilled = filteredTallyData.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const paidList = filteredTallyData.filter(r => r.status === 'Paid');
+    const unpaidList = filteredTallyData.filter(r => r.status === 'Unpaid');
+    const claimList = filteredTallyData.filter(r => r.status === 'Claim Submitted');
+
+    const totalPaid = paidList.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const totalUnpaid = unpaidList.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+    const totalClaimAmt = claimList.reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const onlineTotal = paidList
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Online / Digital')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const offlineCashTotal = paidList
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Offline Cash')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    const insuranceTotal = paidList
+      .filter(r => categorizeChannel(r.paymentMethod, r.paymentRemarks) === 'Insurance / TPA')
+      .reduce((acc, curr) => acc + cleanNum(curr.amount), 0);
+
+    // Department Stats for Tally
+    const tallyDeptStats = {
+      Laboratory: { paid: 0, unpaid: 0, count: 0 },
+      Pharmacy: { paid: 0, unpaid: 0, count: 0 },
+      'Inpatient (IPD)': { paid: 0, unpaid: 0, count: 0 },
+      'Consultation (OPD)': { paid: 0, unpaid: 0, count: 0 },
+      'General Billing': { paid: 0, unpaid: 0, count: 0 }
+    };
+
+    filteredTallyData.forEach(r => {
+      const d = categorizeDepartment(r.type);
+      const val = cleanNum(r.amount);
+      if (tallyDeptStats[d]) {
+        tallyDeptStats[d].count += 1;
+        if (r.status === 'Paid') tallyDeptStats[d].paid += val;
+        else if (r.status === 'Unpaid') tallyDeptStats[d].unpaid += val;
+      }
+    });
+
+    const tallyTotalPages = Math.ceil(filteredTallyData.length / tallyItemsPerPage) || 1;
+    const tallyStartIndex = (tallyCurrentPage - 1) * tallyItemsPerPage;
+    const paginatedTallyData = filteredTallyData.slice(tallyStartIndex, tallyStartIndex + tallyItemsPerPage);
+
+    return (
+      <div className="cc-view-container animate-fade-in">
+        {/* Banner Header */}
+        <div className="cc-header-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2>📚 Accounting, Cash Flow & Tally Central Ledger</h2>
+            <p>Complete hospital-wide financial reconciliation, debit/credit audit trail, department cost centers, and 1-click comprehensive Excel balance sheet download.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button 
+              className="cc-btn-excel-export"
+              onClick={() => handleExportCashFlowExcel(filteredTallyData, 'tally_filtered')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                border: 'none',
+                padding: '11px 20px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '14px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(4, 120, 87, 0.3)'
+              }}
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              📥 Download Full Excel Ledger (.XLS)
+            </button>
+          </div>
+        </div>
+
+        {/* Tally Balance Reconciliation Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+          {/* Total Billed Gross */}
+          <div className="cc-card" style={{ borderLeft: '4px solid #0284c7', padding: '18px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase' }}>
+              Gross Hospital Billing
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b', marginTop: '6px' }}>
+              ₹{totalBilled.toFixed(2)}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
+              {filteredTallyData.length} Total Invoices Generated
+            </div>
+          </div>
+
+          {/* Realized / Settled Cash Inflow */}
+          <div className="cc-card" style={{ borderLeft: '4px solid #10b981', padding: '18px', background: 'linear-gradient(to bottom, #f0fdf4, #ffffff)' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#047857', textTransform: 'uppercase' }}>
+              Realized Cash Inflow (Credit)
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: '800', color: '#047857', marginTop: '6px' }}>
+              ₹{totalPaid.toFixed(2)}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#15803d', marginTop: '4px', fontWeight: '600' }}>
+              {paidList.length} Invoices Fully Settled
+            </div>
+          </div>
+
+          {/* Outstanding Receivables */}
+          <div className="cc-card" style={{ borderLeft: '4px solid #ef4444', padding: '18px', background: 'linear-gradient(to bottom, #fef2f2, #ffffff)' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#b91c1c', textTransform: 'uppercase' }}>
+              Outstanding Receivables (Debit)
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: '800', color: '#b91c1c', marginTop: '6px' }}>
+              ₹{totalUnpaid.toFixed(2)}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#dc2626', marginTop: '4px', fontWeight: '600' }}>
+              {unpaidList.length} Bills Pending Collection
+            </div>
+          </div>
+
+          {/* Insurance Claims Pending */}
+          <div className="cc-card" style={{ borderLeft: '4px solid #8b5cf6', padding: '18px', background: 'linear-gradient(to bottom, #faf5ff, #ffffff)' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#6d28d9', textTransform: 'uppercase' }}>
+              Active Insurance / TPA Inflow
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: '800', color: '#6d28d9', marginTop: '6px' }}>
+              ₹{(insuranceTotal + totalClaimAmt).toFixed(2)}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#7c3aed', marginTop: '4px' }}>
+              ₹{insuranceTotal.toFixed(2)} Settled | ₹{totalClaimAmt.toFixed(2)} Claims Active
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Channels Matrix */}
+        <div className="cc-card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            💳 Cash Flow Channel Breakdown (Tally Reconciliation)
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid #bae6fd', background: '#f0f9ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: '#0369a1', fontSize: '13px' }}>📱 Online Digital Settlements</strong>
+                <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>Bank / UPI / POS</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#0369a1', marginTop: '8px' }}>
+                ₹{onlineTotal.toFixed(2)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Direct electronic credit into hospital merchant account
+              </div>
+            </div>
+
+            <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid #bbf7d0', background: '#f0fdf4' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: '#15803d', fontSize: '13px' }}>💵 Physical Cash Counter</strong>
+                <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>Cash-In-Hand</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803d', marginTop: '8px' }}>
+                ₹{offlineCashTotal.toFixed(2)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Physical currency received at front desk drawers
+              </div>
+            </div>
+
+            <div style={{ padding: '14px', borderRadius: '8px', border: '1px solid #e9d5ff', background: '#faf5ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: '#6d28d9', fontSize: '13px' }}>🛡️ Insurance / TPA Direct Credit</strong>
+                <span style={{ fontSize: '11px', background: '#f3e8ff', color: '#6d28d9', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>TPA Settlements</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#6d28d9', marginTop: '8px' }}>
+                ₹{insuranceTotal.toFixed(2)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Claims verified and reimbursed by health insurers
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Department-Wise Financial Ledger Matrix */}
+        <div className="cc-card" style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
+              🏥 Departmental Revenue & Cost Centers (Tally Summary)
+            </h3>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>Realized vs Outstanding Matrix</span>
+          </div>
+
+          <table className="cc-table">
+            <thead>
+              <tr>
+                <th>Department / Cost Center</th>
+                <th>Total Invoiced</th>
+                <th>Realized Revenue (Credit)</th>
+                <th>Pending Receivables (Debit)</th>
+                <th>Total Invoiced (Gross)</th>
+                <th>Collection Realization Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(tallyDeptStats).map(([deptName, deptData]) => {
+                const grossDept = deptData.paid + deptData.unpaid;
+                const rate = grossDept > 0 ? ((deptData.paid / grossDept) * 100).toFixed(1) : '100.0';
+                return (
+                  <tr key={deptName}>
+                    <td>
+                      <strong style={{ color: '#1e293b' }}>
+                        {deptName === 'Laboratory' && '🧪 Diagnostic Laboratory'}
+                        {deptName === 'Pharmacy' && '💊 Pharmacy & Medications'}
+                        {deptName === 'Inpatient (IPD)' && '🛏️ Inpatient (IPD & ICU)'}
+                        {deptName === 'Consultation (OPD)' && '👨‍⚕️ OPD Consultations'}
+                        {deptName === 'General Billing' && '📋 General Hospital Billing'}
+                      </strong>
+                    </td>
+                    <td><span style={{ fontWeight: '600', color: '#475569' }}>{deptData.count} Invoices</span></td>
+                    <td style={{ fontWeight: '700', color: '#047857' }}>₹{deptData.paid.toFixed(2)}</td>
+                    <td style={{ fontWeight: '700', color: deptData.unpaid > 0 ? '#b91c1c' : '#64748b' }}>₹{deptData.unpaid.toFixed(2)}</td>
+                    <td style={{ fontWeight: '800', color: '#1e293b' }}>₹{grossDept.toFixed(2)}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${rate}%`, height: '100%', background: parseFloat(rate) > 80 ? '#10b981' : parseFloat(rate) > 50 ? '#f59e0b' : '#ef4444' }}></div>
+                        </div>
+                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>{rate}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                <td><strong>GRAND TOTAL (ALL DEPARTMENTS)</strong></td>
+                <td><strong>{filteredTallyData.length} Invoices</strong></td>
+                <td style={{ color: '#047857' }}><strong>₹{totalPaid.toFixed(2)}</strong></td>
+                <td style={{ color: '#b91c1c' }}><strong>₹{totalUnpaid.toFixed(2)}</strong></td>
+                <td style={{ color: '#1e293b' }}><strong>₹{totalBilled.toFixed(2)}</strong></td>
+                <td>
+                  <strong style={{ color: '#047857' }}>
+                    {totalBilled > 0 ? ((totalPaid / totalBilled) * 100).toFixed(1) + '%' : '100%'}
+                  </strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Comprehensive Itemized Tally Ledger with Filters */}
+        <div className="cc-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
+              📑 Itemized Accounting & Tally General Ledger
+            </h3>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>
+              Showing {filteredTallyData.length} total ledger records
+            </div>
+          </div>
+
+          {/* Tally Filter Controls Bar */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <input 
+                type="text"
+                placeholder="Search Invoice ID, Patient Name, UHID, Type..."
+                value={tallySearchQuery}
+                onChange={(e) => { setTallySearchQuery(e.target.value); setTallyCurrentPage(1); }}
+                className="cc-filter-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>From:</label>
+              <input 
+                type="date"
+                value={tallyDateFrom}
+                onChange={(e) => { setTallyDateFrom(e.target.value); setTallyCurrentPage(1); }}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>To:</label>
+              <input 
+                type="date"
+                value={tallyDateTo}
+                onChange={(e) => { setTallyDateTo(e.target.value); setTallyCurrentPage(1); }}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+              />
+            </div>
+
+            <select 
+              value={tallyDeptFilter} 
+              onChange={(e) => { setTallyDeptFilter(e.target.value); setTallyCurrentPage(1); }}
+              className="cc-filter-select"
+              style={{ background: '#ffffff' }}
+            >
+              <option value="All">🏥 All Departments</option>
+              <option value="Laboratory">🧪 Laboratory</option>
+              <option value="Pharmacy">💊 Pharmacy</option>
+              <option value="Inpatient (IPD)">🛏️ Inpatient (IPD)</option>
+              <option value="Consultation (OPD)">👨‍⚕️ Consultation (OPD)</option>
+              <option value="General Billing">📋 General Billing</option>
+            </select>
+
+            <select 
+              value={tallyChannelFilter} 
+              onChange={(e) => { setTallyChannelFilter(e.target.value); setTallyCurrentPage(1); }}
+              className="cc-filter-select"
+              style={{ background: '#ffffff' }}
+            >
+              <option value="All">💳 All Channels</option>
+              <option value="Online">📱 Online / UPI / Card</option>
+              <option value="Offline">💵 Cash Counter</option>
+              <option value="Insurance">🛡️ Insurance Claims</option>
+            </select>
+
+            {(tallyDateFrom || tallyDateTo || tallyDeptFilter !== 'All' || tallyChannelFilter !== 'All' || tallySearchQuery) && (
+              <button 
+                className="cc-btn-small outline"
+                onClick={() => {
+                  setTallyDateFrom('');
+                  setTallyDateTo('');
+                  setTallyDeptFilter('All');
+                  setTallyChannelFilter('All');
+                  setTallySearchQuery('');
+                  setTallyCurrentPage(1);
+                }}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+
+          {/* Ledger Table */}
+          <div className="cc-table-wrapper">
+            <table className="cc-table">
+              <thead>
+                <tr>
+                  <th>Invoice ID</th>
+                  <th>Date</th>
+                  <th>Patient Details</th>
+                  <th>Department</th>
+                  <th>Charge Category</th>
+                  <th>Payment Channel & Mode</th>
+                  <th>Amount</th>
+                  <th>Tally Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedTallyData.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '48px', color: '#64748b' }}>
+                      No ledger transactions found matching the selected filters.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedTallyData.map(inv => {
+                    const dept = categorizeDepartment(inv.type);
+                    const channel = categorizeChannel(inv.paymentMethod, inv.paymentRemarks);
+                    return (
+                      <tr key={inv.id}>
+                        <td>
+                          <strong>{inv.id}</strong>
+                          <div style={{ fontSize: '10.5px', color: '#64748b' }}>{inv.date}</div>
+                        </td>
+                        <td>{inv.paymentDate || inv.date || '-'}</td>
+                        <td>
+                          <strong>{inv.patientName || 'Anonymous'}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>UHID: {inv.patientId || '-'}</div>
+                        </td>
+                        <td>
+                          <span style={{ 
+                            fontSize: '11px', 
+                            fontWeight: '700', 
+                            padding: '3px 8px', 
+                            borderRadius: '5px',
+                            background: dept === 'Laboratory' ? '#ede9fe' : dept === 'Pharmacy' ? '#fce7f3' : dept === 'Inpatient (IPD)' ? '#dbeafe' : '#f0fdf4',
+                            color: dept === 'Laboratory' ? '#6d28d9' : dept === 'Pharmacy' ? '#be185d' : dept === 'Inpatient (IPD)' ? '#1d4ed8' : '#047857'
+                          }}>
+                            {dept}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '11.5px', background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', display: 'inline-block' }}>
+                            {inv.type}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ 
+                              fontSize: '10.5px', 
+                              fontWeight: '700', 
+                              padding: '2px 6px', 
+                              borderRadius: '4px',
+                              display: 'inline-block',
+                              width: 'fit-content',
+                              background: channel === 'Online / Digital' ? '#e0f2fe' : channel === 'Insurance / TPA' ? '#f3e8ff' : '#dcfce7',
+                              color: channel === 'Online / Digital' ? '#0369a1' : channel === 'Insurance / TPA' ? '#7c3aed' : '#15803d'
+                            }}>
+                              {channel === 'Online / Digital' ? '📱 Online' : channel === 'Insurance / TPA' ? '🛡️ Insurance' : '💵 Cash'}
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#334155', fontWeight: '500' }}>
+                              {inv.paymentMethod || 'Physical Cash'}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: '800', color: inv.status === 'Paid' ? '#047857' : '#b91c1c', fontSize: '13.5px' }}>
+                          {inv.amount}
+                        </td>
+                        <td>
+                          <span className={`cc-status-badge ${inv.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td>
+                          {inv.status === 'Paid' ? (
+                            <button 
+                              className="cc-btn-small"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => setPrintedInvoiceData(inv)}
+                            >
+                              Receipt
+                            </button>
+                          ) : (
+                            <button 
+                              className="cc-btn-small outline"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => setPaymentModalData(inv)}
+                            >
+                              Collect
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredTallyData.length > 0 && (
+            <div className="cc-pagination">
+              <span className="cc-page-info">
+                Showing {tallyStartIndex + 1} to {Math.min(tallyStartIndex + tallyItemsPerPage, filteredTallyData.length)} of {filteredTallyData.length} records
+              </span>
+              {tallyTotalPages > 1 && (
+                <div className="cc-pagination-buttons">
+                  <button 
+                    disabled={tallyCurrentPage === 1} 
+                    onClick={() => setTallyCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="cc-page-btn"
+                  >
+                    Prev
+                  </button>
+                  {Array.from({ length: tallyTotalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setTallyCurrentPage(page)}
+                      className={`cc-page-btn ${tallyCurrentPage === page ? 'active' : ''}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button 
+                    disabled={tallyCurrentPage === tallyTotalPages} 
+                    onClick={() => setTallyCurrentPage(prev => Math.min(prev + 1, tallyTotalPages))}
                     className="cc-page-btn"
                   >
                     Next
@@ -1785,6 +2619,10 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 </span>
               )}
             </li>
+            <li className={activeTab === 'accounting_tally' ? 'active' : ''} onClick={() => { setActiveTab('accounting_tally'); setTallyCurrentPage(1); }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="16" y2="6"></line><line x1="12" y1="10" x2="16" y2="10"></line><line x1="8" y1="6" x2="8.01" y2="6"></line><line x1="8" y1="10" x2="8.01" y2="10"></line></svg>
+              Accounting & Tally Ledger
+            </li>
             <li className={activeTab === 'transactions' ? 'active' : ''} onClick={() => { setActiveTab('transactions'); setCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
@@ -1803,6 +2641,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
         {/* Main Content */}
         <main className="cc-main">
           {activeTab === 'overview' && renderOverview()}
+          {activeTab === 'accounting_tally' && renderAccountingTally()}
           {activeTab === 'unpaid' && renderUnpaidInvoices()}
           {activeTab === 'ipd_settlement' && renderIpdSettlement()}
           {activeTab === 'transactions' && renderTransactions()}

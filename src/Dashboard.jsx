@@ -2602,7 +2602,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'laboratory_staff', label: 'Laboratory Staff' },
           { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
-          { id: 'cashcounter', label: 'Cash Counter & Central Billing' },
+          { id: 'cashcounter', label: 'Cash Flow, Billing & Tally Accounting' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Beds & Wards' },
           { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
