@@ -2948,29 +2948,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       <td><strong>{d.name}</strong></td>
                       <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{d.department}</span></td>
                       <td>
-                        {role === 'admin' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontWeight: '700', color: '#166534' }}>₹</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="50"
-                              defaultValue={fee}
-                              onBlur={(e) => {
-                                const newFee = parseFloat(e.target.value);
-                                if (!isNaN(newFee) && newFee >= 0) {
-                                  const updated = doctorsRoster.map(item => item.id === d.id ? { ...item, consultationFee: newFee } : item);
-                                  setDoctorsRoster(updated);
-                                  localStorage.setItem('dhms_doctors', JSON.stringify(updated));
-                                  if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
-                                }
-                              }}
-                              style={{ width: '80px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#166534', fontSize: '13px' }}
-                            />
-                          </div>
-                        ) : (
-                          <strong style={{ color: '#166534' }}>₹{fee.toFixed(2)}</strong>
-                        )}
+                        <strong style={{ color: '#166534', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-block' }}>₹{fee.toFixed(2)}</strong>
                       </td>
                       <td>{d.email}</td>
                       <td>
