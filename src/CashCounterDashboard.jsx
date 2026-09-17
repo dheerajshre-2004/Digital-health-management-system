@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './CashCounterDashboard.css';
 
 export default function CashCounterDashboard({ onLogout, embedMode = false, adminMode = false, loggedInStaff }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(adminMode ? 'accounting_tally' : 'overview');
 
   // Datasets from localStorage
   const [patients, setPatients] = useState(() => {
@@ -2610,15 +2610,17 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 )}
               </li>
             )}
-            <li className={activeTab === 'ipd_settlement' ? 'active' : ''} onClick={() => setActiveTab('ipd_settlement')}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
-              IPD Final Settlement
-              {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length > 0 && (
-                <span style={{ marginLeft: 'auto', background: '#4338ca', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
-                  {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length}
-                </span>
-              )}
-            </li>
+            {!adminMode && (
+              <li className={activeTab === 'ipd_settlement' ? 'active' : ''} onClick={() => setActiveTab('ipd_settlement')}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"></path><path d="M2 8h18a2 2 0 0 1 2 2v10"></path><path d="M2 17h20"></path><path d="M6 8v9"></path></svg>
+                IPD Final Settlement
+                {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length > 0 && (
+                  <span style={{ marginLeft: 'auto', background: '#4338ca', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                    {admissions.filter(a => a.status === 'Fit for Discharge / Settle Billing').length}
+                  </span>
+                )}
+              </li>
+            )}
             <li className={activeTab === 'accounting_tally' ? 'active' : ''} onClick={() => { setActiveTab('accounting_tally'); setTallyCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="16" y2="6"></line><line x1="12" y1="10" x2="16" y2="10"></line><line x1="8" y1="6" x2="8.01" y2="6"></line><line x1="8" y1="10" x2="8.01" y2="10"></line></svg>
               Accounting & Tally Ledger
@@ -2627,10 +2629,12 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
             </li>
-            <li className={activeTab === 'receipts' ? 'active' : ''} onClick={() => setActiveTab('receipts')}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-              Receipt Editor
-            </li>
+            {!adminMode && (
+              <li className={activeTab === 'receipts' ? 'active' : ''} onClick={() => setActiveTab('receipts')}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Receipt Editor
+              </li>
+            )}
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               {adminMode ? 'Cashier Shift Log' : 'Shift Attendance'}
@@ -2642,10 +2646,10 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
         <main className="cc-main">
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'accounting_tally' && renderAccountingTally()}
-          {activeTab === 'unpaid' && renderUnpaidInvoices()}
-          {activeTab === 'ipd_settlement' && renderIpdSettlement()}
+          {activeTab === 'unpaid' && !adminMode && renderUnpaidInvoices()}
+          {activeTab === 'ipd_settlement' && !adminMode && renderIpdSettlement()}
           {activeTab === 'transactions' && renderTransactions()}
-          {activeTab === 'receipts' && renderReceiptEditor()}
+          {activeTab === 'receipts' && !adminMode && renderReceiptEditor()}
           {activeTab === 'attendance' && renderAttendance()}
         </main>
       </div>
