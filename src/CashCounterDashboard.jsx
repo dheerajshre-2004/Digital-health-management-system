@@ -2621,10 +2621,6 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 )}
               </li>
             )}
-            <li className={activeTab === 'accounting_tally' ? 'active' : ''} onClick={() => { setActiveTab('accounting_tally'); setTallyCurrentPage(1); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="16" y2="6"></line><line x1="12" y1="10" x2="16" y2="10"></line><line x1="8" y1="6" x2="8.01" y2="6"></line><line x1="8" y1="10" x2="8.01" y2="10"></line></svg>
-              Accounting & Tally Ledger
-            </li>
             <li className={activeTab === 'transactions' ? 'active' : ''} onClick={() => { setActiveTab('transactions'); setCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
