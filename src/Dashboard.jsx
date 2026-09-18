@@ -2615,9 +2615,9 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       case 'doctor':
         return [
           { id: 'overview', label: 'My Dashboard' },
-          { id: 'doctor_profile', label: '👨‍⚕️ My Doctor Profile' },
-          { id: 'departments', label: '🏥 Hospital Departments' },
-          { id: 'doctors', label: '👨‍⚕️ Doctors & Medical Roster' },
+          { id: 'doctor_profile', label: 'My Doctor Profile' },
+          { id: 'departments', label: 'Hospital Departments' },
+          { id: 'doctors', label: 'Doctors & Medical Roster' },
           { id: 'patients', label: 'Patient EHR Records' },
           { id: 'appointments', label: 'Appointments' },
           { id: 'inpatient_ward', label: 'Inpatient (IPD) Ward' },
@@ -4577,7 +4577,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           <div className="module-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <h2>👨‍⚕️ My Doctor Profile & Department Configuration</h2>
+                <h2>My Doctor Profile & Department Configuration</h2>
                 <p style={{ margin: 0, color: '#64748b', fontSize: '14.5px' }}>
                   Manage your clinical identity, assigned hospital department, consultation tariff, duty status, and OPD room details.
                 </p>
