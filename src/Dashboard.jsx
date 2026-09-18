@@ -5,7 +5,6 @@ import { sendPatientWelcomeEmail } from './emailService';
 import { calculateStaffPaycheck, generateFullHospitalPayroll, convertNumberToWords } from './payrollService';
 import { teleSignaling, cleanDoctorName } from './telemedicineService';
 import BedManagementModal from './BedManagementModal';
-import LanguageSelector from './LanguageSelector';
 import BloodBankManagement from './BloodBank';
 import OperationTheatreManagement from './OperationTheatre';
 import { t } from './i18nService';
@@ -5914,8 +5913,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             >
               Bed Matrix
             </button>
-
-            <LanguageSelector />
 
             {role === 'doctor' && (
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', background: '#f1f5f9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>

@@ -9,7 +9,6 @@ import {
   showIncomingCallNotification,
   clearIncomingCallNotification 
 } from './telemedicineService';
-import LanguageSelector from './LanguageSelector';
 import BloodBankManagement from './BloodBank';
 import { t } from './i18nService';
 import PillTracker from './PillTracker';
@@ -5118,8 +5117,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <span className="pd-logo-sub">Health Console</span>
         </div>
         <div className="pd-topbar-right">
-          <LanguageSelector style={{ marginRight: '8px' }} />
-
           <div className="pd-profile-info">
             <div className="pd-avatar">{(currentPatient?.firstName?.[0] || "J").toUpperCase()}</div>
             <div className="pd-user-details">

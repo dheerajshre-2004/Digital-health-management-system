@@ -4,7 +4,6 @@ import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 import BedManagementModal from './BedManagementModal';
 import BloodBankManagement from './BloodBank';
 import OperationTheatreManagement from './OperationTheatre';
-import LanguageSelector from './LanguageSelector';
 import { t } from './i18nService';
 import { 
   sendAppointmentWhatsApp, 
@@ -3573,8 +3572,6 @@ End of Generated Health Summary Report
           >
             Bed Matrix
           </button>
-
-          <LanguageSelector />
 
           <div className="rd-profile-info">
             <div className="rd-avatar">{loggedInStaff?.name ? loggedInStaff.name.charAt(0) : 'R'}</div>

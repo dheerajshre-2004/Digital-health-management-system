@@ -8,7 +8,6 @@ import PharmacistDashboard from './PharmacistDashboard';
 import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
-import LanguageSelector from './LanguageSelector';
 import { t } from './i18nService';
 
 class ErrorBoundary extends React.Component {
@@ -734,10 +733,6 @@ function App() {
 
   return (
     <div className="auth-container">
-      <div style={{ position: 'absolute', top: '20px', right: '24px', zIndex: 100 }}>
-        <LanguageSelector />
-      </div>
-
       <div className="auth-header">
         <h1>{t('welcome')} <span className="highlight">DHMS</span></h1>
         <p>
