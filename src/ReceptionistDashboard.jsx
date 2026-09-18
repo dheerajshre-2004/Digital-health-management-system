@@ -687,36 +687,6 @@ End of Generated Health Summary Report
               >
                 📋 Copy Credentials
               </button>
-
-              <button 
-                type="button" 
-                onClick={() => {
-                  const patName = `${patientData.firstName} ${patientData.lastName}`.trim();
-                  const msg = `🏥 *APOLLO SUPER SPECIALTY MEDICAL CENTER*\n*Welcome to DHMS Healthcare*\n\nHello *${patName}*,\nYour patient profile has been registered successfully.\n\n📋 *Your Portal Access Credentials:*\n• *Patient UHID / ID:* ${generatedId}\n• *Password:* ${generatedPassword}\n• *Portal Link:* https://dhms.org\n\n❤️ _"Thank you for choosing our hospital and we will always take care of you."_\n_DHMS Patient Desk_`;
-                  openWhatsAppMessage(patientData.phone, msg);
-                }}
-                style={{ background: '#25d366', color: '#064e3b', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                💬 Send via WhatsApp
-              </button>
-
-              {patientData.email && (
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    openDefaultMailClient({
-                      patientName: `${patientData.firstName} ${patientData.lastName}`.trim(),
-                      email: patientData.email,
-                      patientId: generatedId,
-                      password: generatedPassword,
-                      phone: patientData.phone
-                    });
-                  }}
-                  style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', padding: '9px 16px', borderRadius: '8px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
-                >
-                  ✉️ Open Email Draft
-                </button>
-              )}
             </div>
           </div>
         ) : (
