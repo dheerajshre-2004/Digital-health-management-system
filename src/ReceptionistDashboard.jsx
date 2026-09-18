@@ -287,11 +287,11 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
 
-    // Indian contact / phone number validation (starts with 6-9, 10 digits total, optional prefix +91/91/0)
-    const cleanPhone = (patientData.phone || '').replace(/[\s\-\(\)]/g, '');
-    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-    if (!indianPhoneRegex.test(cleanPhone)) {
-      alert("Invalid Contact Number: Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 98765 43210).");
+    // Strict 10-digit mobile number validation (starts with 6-9, exactly 10 numeric digits)
+    const cleanPhone = (patientData.phone || '').replace(/[\s\-\(\)\+]/g, '');
+    const tenDigitRegex = /^[6-9]\d{9}$/;
+    if (!tenDigitRegex.test(cleanPhone)) {
+      alert("Invalid Contact Number: Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210).");
       return;
     }
 
@@ -724,25 +724,29 @@ End of Generated Health Summary Report
                 <input 
                   type="tel" 
                   required 
-                  maxLength={16}
+                  maxLength={10}
                   value={patientData.phone} 
                   onChange={e => {
-                    const val = e.target.value.replace(/[^0-9\+\s\-]/g, '');
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                     setPatientData({...patientData, phone: val});
                   }} 
-                  placeholder="e.g. 9876543210 or +91 98765 43210" 
+                  placeholder="e.g. 9876543210" 
                   style={{
                     borderColor: patientData.phone 
-                      ? (/^(?:\+91|91|0)?[6-9]\d{9}$/.test(patientData.phone.replace(/[\s\-\(\)]/g, '')) ? '#10b981' : '#ef4444')
+                      ? (/^[6-9]\d{9}$/.test(patientData.phone) ? '#10b981' : '#ef4444')
                       : undefined
                   }}
                 />
                 {patientData.phone && (
                   <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                    {/^(?:\+91|91|0)?[6-9]\d{9}$/.test(patientData.phone.replace(/[\s\-\(\)]/g, '')) ? (
+                    {/^[6-9]\d{9}$/.test(patientData.phone) ? (
                       <span style={{ color: '#10b981', fontWeight: '500' }}>✓ Valid 10-digit contact number</span>
                     ) : (
-                      <span style={{ color: '#ef4444', fontWeight: '500' }}>⚠️ Must be a valid 10-digit mobile number (starts with 6-9)</span>
+                      <span style={{ color: '#ef4444', fontWeight: '500' }}>
+                        {patientData.phone.length < 10 
+                          ? `⚠️ Enter 10 digits (${patientData.phone.length}/10)` 
+                          : '⚠️ Must start with 6, 7, 8, or 9'}
+                      </span>
                     )}
                   </div>
                 )}
