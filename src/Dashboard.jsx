@@ -2603,7 +2603,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
           { id: 'cashcounter', label: 'Cash Flow, Billing & Tally Accounting' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
-          { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
           { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'pharmacy', label: 'Pharmacy Stock & Meds' },
           { id: 'laboratory', label: 'Diagnostic Lab Orders' },
