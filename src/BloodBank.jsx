@@ -14,8 +14,17 @@ import {
 } from './bloodBankService';
 
 export default function BloodBankManagement({ role = 'admin', loggedInUser = null }) {
-  const [activeSubTab, setActiveSubTab] = useState('inventory'); // 'inventory', 'crossmatch', 'donors', 'wastage'
+  const isPatient = role === 'patient';
+  const [activeSubTab, setActiveSubTab] = useState(isPatient ? 'patient_pledge' : 'inventory'); // 'inventory', 'crossmatch', 'donors', 'wastage', 'patient_pledge'
   
+  // Resolve current patient's full medical record if patient role
+  const resolvedPatient = React.useMemo(() => {
+    if (!loggedInUser) return null;
+    const patients = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const match = patients.find(p => p.id === loggedInUser.id || p.email === loggedInUser.email || p.phone === loggedInUser.phone);
+    return match || loggedInUser;
+  }, [loggedInUser]);
+
   // Data states
   const [stock, setStock] = useState([]);
   const [donors, setDonors] = useState([]);
@@ -31,9 +40,32 @@ export default function BloodBankManagement({ role = 'admin', loggedInUser = nul
   const [showAddBagModal, setShowAddBagModal] = useState(false);
   const [showAddDonorModal, setShowAddDonorModal] = useState(false);
   const [showTransfusionReqModal, setShowTransfusionReqModal] = useState(false);
+  const [showPatientDonateModal, setShowPatientDonateModal] = useState(false);
   const [selectedTransfusionForIssue, setSelectedTransfusionForIssue] = useState(null);
   const [selectedBagForDiscard, setSelectedBagForDiscard] = useState(null);
   const [discardReasonInput, setDiscardReasonInput] = useState('Shelf-life expired');
+
+  // Patient Voluntary Donation Pledge state
+  const [patientPledgeForm, setPatientPledgeForm] = useState({
+    weightKg: 65,
+    hemoglobinGdl: 13.5,
+    preferredDate: new Date().toISOString().split('T')[0],
+    preferredSlot: 'Morning (09:00 AM - 12:00 PM)',
+    componentChoice: 'Whole Blood / PRBC',
+    notes: 'Voluntary patient donation'
+  });
+
+  // Calculate age from dob
+  const patientAge = React.useMemo(() => {
+    if (!resolvedPatient?.dob) return 28;
+    const birthYear = new Date(resolvedPatient.dob).getFullYear();
+    const currentYear = new Date().getFullYear();
+    return Math.max(18, currentYear - birthYear) || 28;
+  }, [resolvedPatient]);
+
+  const patientFullName = resolvedPatient ? `${resolvedPatient.firstName || ''} ${resolvedPatient.lastName || ''}`.trim() || resolvedPatient.name || 'Registered Patient' : 'Registered Patient';
+  const patientBloodGroup = resolvedPatient?.bloodType || resolvedPatient?.bloodGroup || 'O+';
+  const patientUHID = resolvedPatient?.id || 'PT-80234';
 
   // New Blood Bag Form
   const [newBagForm, setNewBagForm] = useState({
@@ -360,6 +392,93 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
     alert(`Blood bag ${selectedBagForDiscard.bagNumber} marked as Discarded in hospital wastage audit logs.`);
   };
 
+  // Handle Patient Voluntary Donation Pledge / Donation directly (No manual re-registration needed)
+  const handlePatientVoluntaryDonation = (e) => {
+    e.preventDefault();
+    if (Number(patientPledgeForm.weightKg) < 50) {
+      alert('Donor Safety Check: Minimum body weight required for voluntary donation is 50 kg.');
+      return;
+    }
+    if (Number(patientPledgeForm.hemoglobinGdl) < 12.5) {
+      alert('Donor Safety Check: Hemoglobin level must be at least 12.5 g/dL.');
+      return;
+    }
+
+    const donorId = `DNR-${resolvedPatient?.id ? resolvedPatient.id.replace(/[^0-9]/g, '') || Math.floor(100 + Math.random() * 900) : Math.floor(500 + Math.random() * 500)}`;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Check if donor already exists in donor registry
+    const existingDonor = donors.find(d => d.donorId === donorId || d.email === resolvedPatient?.email || d.phone === resolvedPatient?.phone);
+    let updatedDonors;
+    if (existingDonor) {
+      updatedDonors = donors.map(d => {
+        if (d.donorId === existingDonor.donorId) {
+          return {
+            ...d,
+            lastDonatedDate: todayStr,
+            weightKg: Number(patientPledgeForm.weightKg),
+            hemoglobinGdl: Number(patientPledgeForm.hemoglobinGdl),
+            totalDonations: (d.totalDonations || 1) + 1,
+            eligibilityStatus: 'Donated Today (Next eligible in 90 days)'
+          };
+        }
+        return d;
+      });
+    } else {
+      const newDonorEntry = {
+        donorId: donorId,
+        name: patientFullName,
+        age: patientAge,
+        gender: resolvedPatient?.gender ? resolvedPatient.gender.charAt(0).toUpperCase() + resolvedPatient.gender.slice(1) : 'Other',
+        bloodGroup: patientBloodGroup,
+        phone: resolvedPatient?.phone || 'On Record',
+        email: resolvedPatient?.email || 'patient@hospital.org',
+        weightKg: Number(patientPledgeForm.weightKg),
+        hemoglobinGdl: Number(patientPledgeForm.hemoglobinGdl),
+        address: resolvedPatient?.address || 'Registered Hospital Patient',
+        lastDonatedDate: todayStr,
+        eligibilityStatus: 'Donated Today (Next eligible in 90 days)',
+        totalDonations: 1,
+        isRegisteredPatient: true,
+        patientUHID: patientUHID
+      };
+      updatedDonors = [newDonorEntry, ...donors];
+    }
+
+    saveBloodDonors(updatedDonors);
+    setDonors(updatedDonors);
+
+    // Add collected blood bag to hospital stock automatically
+    const comp = COMPONENT_TYPES[0]; // PRBC
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + comp.shelfLifeDays);
+
+    const autoBag = {
+      bagNumber: `BB-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
+      bloodGroup: patientBloodGroup,
+      component: comp.name,
+      componentCode: comp.id,
+      volumeMl: 350,
+      donorId: donorId,
+      donorName: `${patientFullName} (UHID: ${patientUHID})`,
+      collectedDate: todayStr,
+      expiryDate: expDate.toISOString().split('T')[0],
+      storageLocation: 'Voluntary Blood Center - Refrigerator Unit 1',
+      serologyScreening: 'Negative (HIV/HBsAg/HCV/VDRL/MP Clear)',
+      status: 'Available',
+      discardReason: null,
+      reservedForPatientId: null,
+      reservedForPatientName: null
+    };
+
+    const updatedStock = [autoBag, ...stock];
+    saveBloodStock(updatedStock);
+    setStock(updatedStock);
+
+    setShowPatientDonateModal(false);
+    alert(`Thank you, ${patientFullName}! Your voluntary blood donation has been recorded. Blood Bag ${autoBag.bagNumber} (${patientBloodGroup} PRBC) has been registered in the hospital blood bank.`);
+  };
+
   // Filtered Stock List
   const filteredStock = stock.filter(b => {
     const matchQ = b.bagNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -370,6 +489,13 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
     const matchStatus = stockStatusFilter === 'All' || b.status === stockStatusFilter;
     return matchQ && matchGroup && matchComp && matchStatus;
   });
+
+  // Patient's own donation history
+  const patientDonations = donors.filter(d => 
+    d.donorId?.includes(patientUHID.replace(/[^0-9]/g, '')) || 
+    d.patientUHID === patientUHID ||
+    (d.name && patientFullName && d.name.toLowerCase().includes(patientFullName.toLowerCase()))
+  );
 
   return (
     <div className="bb-container">
@@ -382,26 +508,115 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
             </svg>
           </div>
           <div>
-            <h2>Blood Bank & Transfusion Safety Management</h2>
-            <p>Component inventory, cross-match validation, donor registry, and shelf-life wastage prevention.</p>
+            <h2>{isPatient ? 'Voluntary Blood Donation & Health File' : 'Blood Bank & Transfusion Safety Management'}</h2>
+            <p>
+              {isPatient 
+                ? 'Donate blood voluntarily to save lives. Your registered health profile is automatically verified without re-registering.' 
+                : 'Component inventory, cross-match validation, donor registry, and shelf-life wastage prevention.'}
+            </p>
           </div>
         </div>
 
         <div className="bb-actions-group">
-          <button className="bb-btn bb-btn-primary" onClick={() => setShowAddBagModal(true)}>
-            + Register Blood Bag
-          </button>
-          <button className="bb-btn bb-btn-secondary" onClick={() => setShowAddDonorModal(true)}>
-            + Add Voluntary Donor
-          </button>
-          <button className="bb-btn bb-btn-danger" onClick={() => setShowTransfusionReqModal(true)}>
-            + Request Transfusion
-          </button>
+          {isPatient ? (
+            <button className="bb-btn bb-btn-primary" onClick={() => setShowPatientDonateModal(true)}>
+              + Donate Blood Voluntarily
+            </button>
+          ) : (
+            <>
+              <button className="bb-btn bb-btn-primary" onClick={() => setShowAddBagModal(true)}>
+                + Register Blood Bag
+              </button>
+              <button className="bb-btn bb-btn-secondary" onClick={() => setShowAddDonorModal(true)}>
+                + Add Voluntary Donor
+              </button>
+              <button className="bb-btn bb-btn-danger" onClick={() => setShowTransfusionReqModal(true)}>
+                + Request Transfusion
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Critical Expiry Alert Banner */}
-      {criticalExpiringUnits.length > 0 && (
+      {/* Patient Health File & Verified Medical Profile Summary Card (Shown in Patient Role) */}
+      {isPatient && resolvedPatient && (
+        <div className="bb-health-file-card" style={{
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '20px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ 
+                background: '#dc2626', 
+                color: '#ffffff', 
+                fontWeight: 'bold', 
+                fontSize: '11px', 
+                padding: '4px 8px', 
+                borderRadius: '6px',
+                letterSpacing: '0.5px'
+              }}>
+                HEALTH FILE & EHR SUMMARY
+              </span>
+              <h3 style={{ margin: 0, fontSize: '17px', color: '#0f172a', fontWeight: '700' }}>
+                {patientFullName}
+              </h3>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>UHID: <strong>{patientUHID}</strong></span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '20px' }}>
+                Auto-Verified Patient
+              </span>
+              <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '12px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px' }}>
+                Blood Group: {patientBloodGroup}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+            <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Age / Gender</div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
+                {patientAge} Yrs / {resolvedPatient?.gender || 'Not specified'}
+              </div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Contact Phone</div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
+                {resolvedPatient?.phone || 'On Record'}
+              </div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Known Allergies</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: resolvedPatient?.allergies ? '#dc2626' : '#15803d', marginTop: '2px' }}>
+                {resolvedPatient?.allergies || 'No known drug allergies'}
+              </div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Chronic Conditions</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', marginTop: '2px' }}>
+                {resolvedPatient?.chronicConditions || 'None reported'}
+              </div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Donation Eligibility</div>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#15803d', marginTop: '2px' }}>
+                Eligible to Donate
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Critical Expiry Alert Banner (Hidden from patient) */}
+      {!isPatient && criticalExpiringUnits.length > 0 && (
         <div className="bb-alert-banner">
           <div style={{ flexShrink: 0 }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -422,42 +637,43 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
       {/* Executive Overview Cards */}
       <div className="bb-metrics-grid">
         <div className="bb-metric-card" style={{ borderLeft: '4px solid #16a34a' }}>
-          <span className="bb-metric-label">Available Blood Stock</span>
+          <span className="bb-metric-label">{isPatient ? 'Hospital Blood Units Available' : 'Available Blood Stock'}</span>
           <div className="bb-metric-val">{totalUnitsAvailable} Units</div>
-          <span className="bb-metric-sub">Tested and ready for cross-match</span>
+          <span className="bb-metric-sub">Tested and ready for patients</span>
         </div>
-        <div className="bb-metric-card" style={{ borderLeft: '4px solid #eab308' }}>
-          <span className="bb-metric-label">Expiring Soon (&le;3 Days)</span>
-          <div className="bb-metric-val" style={{ color: criticalExpiringUnits.length > 0 ? '#dc2626' : '#0f172a' }}>
-            {criticalExpiringUnits.length} Units
+        <div className="bb-metric-card" style={{ borderLeft: '4px solid #dc2626' }}>
+          <span className="bb-metric-label">{isPatient ? 'My Blood Type' : 'Expiring Soon (<= 3 Days)'}</span>
+          <div className="bb-metric-val" style={{ color: '#dc2626' }}>
+            {isPatient ? patientBloodGroup : `${criticalExpiringUnits.length} Units`}
           </div>
-          <span className="bb-metric-sub">Requires urgent clinical allocation</span>
+          <span className="bb-metric-sub">{isPatient ? 'Verified in Clinical Health File' : 'Requires urgent clinical allocation'}</span>
         </div>
         <div className="bb-metric-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <span className="bb-metric-label">Transfusion Requests</span>
-          <div className="bb-metric-val">{transfusions.length} Requests</div>
-          <span className="bb-metric-sub">{pendingCrossmatchCount} Pending Cross-Match</span>
+          <span className="bb-metric-label">{isPatient ? 'My Voluntary Donations' : 'Transfusion Requests'}</span>
+          <div className="bb-metric-val">{isPatient ? patientDonations.length : `${transfusions.length} Requests`}</div>
+          <span className="bb-metric-sub">{isPatient ? 'Recorded in hospital network' : `${pendingCrossmatchCount} Pending Cross-Match`}</span>
         </div>
         <div className="bb-metric-card" style={{ borderLeft: '4px solid #64748b' }}>
-          <span className="bb-metric-label">Registered Donors</span>
+          <span className="bb-metric-label">{isPatient ? 'Total Voluntary Donors' : 'Registered Donors'}</span>
           <div className="bb-metric-val">{donors.length} Donors</div>
-          <span className="bb-metric-sub">Voluntary & Replacement base</span>
+          <span className="bb-metric-sub">Voluntary & Replacement community</span>
         </div>
       </div>
 
       {/* Blood Group Availability Matrix */}
       <div>
         <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>
-          Live Stock Availability by Blood Group (All Components)
+          {isPatient ? 'Live Hospital Blood Stock Reserve' : 'Live Stock Availability by Blood Group (All Components)'}
         </h3>
         <div className="bb-matrix-grid">
           {BLOOD_GROUPS.map(grp => {
             const count = stock.filter(b => b.bloodGroup === grp && b.status === 'Available').length;
             const isLow = count === 0;
             const isNormal = count >= 2;
+            const isPatientGroup = isPatient && grp === patientBloodGroup;
             return (
-              <div key={grp} className={`bb-group-card ${isLow ? 'critical' : ''}`}>
-                <div className="bb-group-badge">{grp}</div>
+              <div key={grp} className={`bb-group-card ${isLow ? 'critical' : ''}`} style={isPatientGroup ? { border: '2px solid #dc2626', background: '#fff5f5' } : {}}>
+                <div className="bb-group-badge">{grp} {isPatientGroup && <span style={{ fontSize: '10px', display: 'block' }}>(Yours)</span>}</div>
                 <div className="bb-group-units">{count} <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>Units</span></div>
                 <span className={`bb-group-status ${isLow ? 'bb-status-critical' : isNormal ? 'bb-status-normal' : 'bb-status-low'}`}>
                   {isLow ? 'Critical / Zero' : isNormal ? 'Normal Stock' : 'Low Reserve'}
@@ -470,35 +686,154 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
 
       {/* Navigation Sub-Tabs */}
       <div className="bb-subtabs">
-        <button 
-          className={`bb-tab-item ${activeSubTab === 'inventory' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('inventory')}
-        >
-          Blood Stock & Component Registry
-          <span className="bb-tab-badge">{stock.filter(b => b.status === 'Available').length}</span>
-        </button>
-        <button 
-          className={`bb-tab-item ${activeSubTab === 'crossmatch' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('crossmatch')}
-        >
-          Cross-Match & Transfusion Orders
-          <span className="bb-tab-badge">{transfusions.length}</span>
-        </button>
-        <button 
-          className={`bb-tab-item ${activeSubTab === 'donors' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('donors')}
-        >
-          Donor Registry & History
-          <span className="bb-tab-badge">{donors.length}</span>
-        </button>
-        <button 
-          className={`bb-tab-item ${activeSubTab === 'wastage' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('wastage')}
-        >
-          Shelf-Life Expiry & Wastage Audit
-          <span className="bb-tab-badge">{discardedUnits.length}</span>
-        </button>
+        {isPatient ? (
+          <>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'patient_pledge' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('patient_pledge')}
+            >
+              Voluntary Donation & Health File
+            </button>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('inventory')}
+            >
+              Hospital Blood Inventory Status
+              <span className="bb-tab-badge">{stock.filter(b => b.status === 'Available').length}</span>
+            </button>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'donors' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('donors')}
+            >
+              Donor Honor Roll & History
+              <span className="bb-tab-badge">{donors.length}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('inventory')}
+            >
+              Blood Stock & Component Registry
+              <span className="bb-tab-badge">{stock.filter(b => b.status === 'Available').length}</span>
+            </button>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'crossmatch' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('crossmatch')}
+            >
+              Cross-Match & Transfusion Orders
+              <span className="bb-tab-badge">{transfusions.length}</span>
+            </button>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'donors' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('donors')}
+            >
+              Donor Registry & History
+              <span className="bb-tab-badge">{donors.length}</span>
+            </button>
+            <button 
+              className={`bb-tab-item ${activeSubTab === 'wastage' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('wastage')}
+            >
+              Shelf-Life Expiry & Wastage Audit
+              <span className="bb-tab-badge">{discardedUnits.length}</span>
+            </button>
+          </>
+        )}
       </div>
+
+      {/* Tab: Patient Voluntary Donation Hub */}
+      {isPatient && activeSubTab === 'patient_pledge' && (
+        <div className="bb-table-card" style={{ padding: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+            {/* Left Card: 1-Click Voluntary Donation Action */}
+            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ width: '36px', height: '36px', background: '#fee2e2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontWeight: 'bold' }}>
+                  +
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>Voluntary Blood Donation</h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>No manual registration needed — your profile is linked</span>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#64748b' }}>Registered Donor Name:</span>
+                  <strong>{patientFullName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#64748b' }}>Patient UHID:</span>
+                  <strong>{patientUHID}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#64748b' }}>Blood Group:</span>
+                  <strong style={{ color: '#dc2626' }}>{patientBloodGroup}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
+                  <span style={{ color: '#64748b' }}>Contact Phone:</span>
+                  <strong>{resolvedPatient?.phone || 'On Record'}</strong>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+                As an active registered patient, you can give blood voluntarily directly to the hospital blood bank. Each donation can save up to three lives.
+              </p>
+
+              <button 
+                className="bb-btn bb-btn-primary" 
+                style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+                onClick={() => setShowPatientDonateModal(true)}
+              >
+                + Pledge & Donate Blood Now
+              </button>
+            </div>
+
+            {/* Right Card: Donation History & Badges */}
+            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#0f172a' }}>
+                My Voluntary Donation History
+              </h3>
+
+              {patientDonations.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 16px', background: '#ffffff', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '14px', fontWeight: '500' }}>No previous donations recorded under this profile</div>
+                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: '6px 0 0 0' }}>Click "Pledge & Donate Blood Now" to make your first voluntary donation.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {patientDonations.map((d, i) => (
+                    <div key={i} style={{ background: '#ffffff', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0f172a' }}>Donation Record #{d.donorId}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>Date: {d.lastDonatedDate || 'Today'} • Group: {d.bloodGroup}</div>
+                        <div style={{ fontSize: '11.5px', color: '#15803d', fontWeight: '600', marginTop: '2px' }}>{d.eligibilityStatus}</div>
+                      </div>
+                      <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px' }}>
+                        Unit Archived
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Guidelines Box */}
+              <div style={{ marginTop: '16px', background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#1e40af', marginBottom: '4px' }}>
+                  Voluntary Donor Guidelines:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#1e3a8a', lineHeight: '1.5' }}>
+                  <li>Age between 18 and 65 years.</li>
+                  <li>Minimum body weight of 50 kg and Hb &ge; 12.5 g/dL.</li>
+                  <li>Gap of at least 90 days between donations.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Blood Inventory */}
       {activeSubTab === 'inventory' && (
@@ -610,22 +945,30 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
                           </span>
                         </td>
                         <td>
-                          {b.status === 'Available' && (
-                            <button 
-                              className="bb-btn bb-btn-danger" 
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => {
-                                setSelectedBagForDiscard(b);
-                                setDiscardReasonInput(isExp ? 'Shelf-life expired' : 'Temperature deviation or damaged port');
-                              }}
-                            >
-                              Discard
-                            </button>
-                          )}
-                          {b.status === 'Cross-Matched' && (
-                            <span style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 'bold' }}>
-                              Reserved: {b.reservedForPatientName}
+                          {isPatient ? (
+                            <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '600' }}>
+                              Safe & Verified
                             </span>
+                          ) : (
+                            <>
+                              {b.status === 'Available' && (
+                                <button 
+                                  className="bb-btn bb-btn-danger" 
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => {
+                                    setSelectedBagForDiscard(b);
+                                    setDiscardReasonInput(isExp ? 'Shelf-life expired' : 'Temperature deviation or damaged port');
+                                  }}
+                                >
+                                  Discard
+                                </button>
+                              )}
+                              {b.status === 'Cross-Matched' && (
+                                <span style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 'bold' }}>
+                                  Reserved: {b.reservedForPatientName}
+                                </span>
+                              )}
+                            </>
                           )}
                         </td>
                       </tr>
@@ -1263,6 +1606,103 @@ Transfusion is BLOCKED by safety protocol to prevent acute hemolytic reaction.`)
                 Authorize & Issue Blood Bag
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Patient Voluntary Blood Donation (Pre-filled from Health File) */}
+      {showPatientDonateModal && (
+        <div className="bb-modal-overlay">
+          <div className="bb-modal" style={{ maxWidth: '640px' }}>
+            <div className="bb-modal-header">
+              <h3>Voluntary Blood Donation — Verified Patient</h3>
+              <button className="bb-modal-close" onClick={() => setShowPatientDonateModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handlePatientVoluntaryDonation}>
+              <div className="bb-modal-body">
+                {/* Auto-Verified Alert */}
+                <div style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: '8px', border: '1px solid #bbf7d0', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>✓</span>
+                  <div style={{ fontSize: '13px', color: '#166534' }}>
+                    <strong>Profile Auto-Linked:</strong> You are donating as an authenticated hospital patient. Your demographics, clinical history, and verified blood type are automatically retrieved.
+                  </div>
+                </div>
+
+                {/* Patient Summary Card */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '13px' }}>
+                    <div><span style={{ color: '#64748b' }}>Full Name:</span> <strong>{patientFullName}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Patient UHID:</span> <strong>{patientUHID}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Verified Blood Group:</span> <strong style={{ color: '#dc2626', fontSize: '14px' }}>{patientBloodGroup}</strong></div>
+                    <div><span style={{ color: '#64748b' }}>Contact:</span> <strong>{resolvedPatient?.phone || 'On Record'}</strong></div>
+                  </div>
+                </div>
+
+                {/* Clinical Check Fields */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="bb-form-group">
+                    <label>Current Weight (kg) [Min 50 kg]</label>
+                    <input 
+                      type="number" 
+                      min="45" 
+                      max="200" 
+                      required 
+                      value={patientPledgeForm.weightKg} 
+                      onChange={e => setPatientPledgeForm({ ...patientPledgeForm, weightKg: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="bb-form-group">
+                    <label>Latest Hemoglobin (g/dL) [Min 12.5]</label>
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      min="10" 
+                      max="20" 
+                      required 
+                      value={patientPledgeForm.hemoglobinGdl} 
+                      onChange={e => setPatientPledgeForm({ ...patientPledgeForm, hemoglobinGdl: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="bb-form-group">
+                    <label>Preferred Donation Date</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={patientPledgeForm.preferredDate} 
+                      onChange={e => setPatientPledgeForm({ ...patientPledgeForm, preferredDate: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="bb-form-group">
+                    <label>Time Slot</label>
+                    <select 
+                      value={patientPledgeForm.preferredSlot} 
+                      onChange={e => setPatientPledgeForm({ ...patientPledgeForm, preferredSlot: e.target.value })}
+                    >
+                      <option value="Morning (09:00 AM - 12:00 PM)">Morning (09:00 AM - 12:00 PM)</option>
+                      <option value="Afternoon (12:00 PM - 03:00 PM)">Afternoon (12:00 PM - 03:00 PM)</option>
+                      <option value="Evening (03:00 PM - 06:00 PM)">Evening (03:00 PM - 06:00 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bb-form-group">
+                  <label>Self-Declaration & Consent</label>
+                  <div style={{ fontSize: '12px', color: '#475569', background: '#f1f5f9', padding: '10px', borderRadius: '6px', lineHeight: '1.4' }}>
+                    I confirm that I am voluntarily donating blood to the hospital blood bank. I declare that I am feeling healthy today, am not under medication that contraindicates blood donation, and have not had a tattoo or major surgery in the last 6 months.
+                  </div>
+                </div>
+              </div>
+
+              <div className="bb-modal-footer">
+                <button type="button" className="bb-btn bb-btn-secondary" onClick={() => setShowPatientDonateModal(false)}>Cancel</button>
+                <button type="submit" className="bb-btn bb-btn-primary">Confirm & Donate Blood Unit</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -46,7 +46,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     'laboratory',
     'telemedicine',
     'admissions_billing',
-    'insurance'
+    'insurance',
+    'blood_bank'
   ];
 
   // Navigate to a specific tab with browser URL hash sync
