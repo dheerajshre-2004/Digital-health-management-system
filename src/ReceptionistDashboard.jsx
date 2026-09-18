@@ -121,6 +121,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     lastName: '',
     dob: '',
     gender: '',
+    bloodType: 'O+',
     phone: '',
     email: '',
     hasInsurance: false,
@@ -315,6 +316,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       lastName: (patientData.lastName || '').trim(),
       dob: patientData.dob,
       gender: patientData.gender,
+      bloodType: patientData.bloodType || 'O+',
       phone: patientData.phone.trim(),
       email: patientData.email ? patientData.email.trim() : 'N/A',
       password: randomPassword,
@@ -324,6 +326,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     const updatedPatients = [newPatient, ...patients];
     setPatients(updatedPatients);
     localStorage.setItem('dhms_patients', JSON.stringify(updatedPatients));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
     setGeneratedId(newId);
     setGeneratedPassword(randomPassword);
 
@@ -670,7 +673,7 @@ End of Generated Health Summary Report
                 onClick={() => {
                   setGeneratedId(null);
                   setGeneratedPassword(null);
-                  setPatientData({firstName: '', lastName: '', dob: '', gender: '', phone: '', email: ''});
+                  setPatientData({firstName: '', lastName: '', dob: '', gender: '', bloodType: 'O+', phone: '', email: '', hasInsurance: false, insuranceProvider: 'Max Life Insurance', policyNo: '', coPay: '10', maxCoverage: '500000'});
                 }}
               >
                 ➕ Register Another Patient
@@ -714,6 +717,23 @@ End of Generated Health Summary Report
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="rd-form-group">
+                <label>Blood Group <span style={{ color: 'red' }}>*</span></label>
+                <select 
+                  required 
+                  value={patientData.bloodType} 
+                  onChange={e => setPatientData({...patientData, bloodType: e.target.value})}
+                >
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
                 </select>
               </div>
             </div>
@@ -890,6 +910,7 @@ End of Generated Health Summary Report
               <tr>
                 <th>Patient ID</th>
                 <th>Full Name</th>
+                <th>Blood Group</th>
                 <th>Date of Birth</th>
                 <th>Gender</th>
                 <th>Phone</th>
@@ -900,13 +921,25 @@ End of Generated Health Summary Report
             <tbody>
               {paginatedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '32px 0' }}>No patient records found</td>
+                  <td colSpan="8" style={{ textAlign: 'center', color: '#64748b', padding: '32px 0' }}>No patient records found</td>
                 </tr>
               ) : (
                 paginatedPatients.map(p => (
                   <tr key={p.id}>
                     <td><strong style={{ color: '#1e293b' }}>{p.id}</strong></td>
                     <td><strong>{p.firstName} {p.lastName}</strong></td>
+                    <td>
+                      <span style={{ 
+                        background: '#fee2e2', 
+                        color: '#dc2626', 
+                        fontWeight: '800', 
+                        fontSize: '12px', 
+                        padding: '2px 8px', 
+                        borderRadius: '4px' 
+                      }}>
+                        {p.bloodType || p.bloodGroup || 'O+'}
+                      </span>
+                    </td>
                     <td>{p.dob}</td>
                     <td style={{ textTransform: 'capitalize' }}>{p.gender}</td>
                     <td>{p.phone}</td>
