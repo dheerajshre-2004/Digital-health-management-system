@@ -1204,23 +1204,6 @@ function App() {
           </form>
         )}
 
-        <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
-          {isPatientPortal ? (
-            <a 
-              href="?portal=staff" 
-              style={{ color: '#475569', fontSize: '13px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              🏢 Are you hospital staff? <strong>Switch to Staff Portal →</strong>
-            </a>
-          ) : (
-            <a 
-              href="?portal=patient" 
-              style={{ color: '#0284c7', fontSize: '13px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              🏥 Are you a patient or citizen? <strong>Switch to Patient Portal →</strong>
-            </a>
-          )}
-        </div>
       </div>
     </div>
   );
