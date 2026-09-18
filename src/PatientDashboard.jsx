@@ -1346,10 +1346,28 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           <h1>Welcome back, <span className="highlight">{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe"}</span></h1>
           <p>Your comprehensive health profile is securely encrypted and maintained.</p>
         </div>
-        <button className="pd-btn-primary" onClick={() => openModal(setShowRequestApptModal, true)}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-          Request Appointment
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button 
+            type="button"
+            className="pd-btn-outline" 
+            onClick={() => navigateTab('blood_bank')}
+            style={{ 
+              borderColor: '#fecaca', 
+              color: '#dc2626', 
+              background: '#fef2f2',
+              fontWeight: '700'
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+            </svg>
+            Blood Bank & Donors
+          </button>
+          <button className="pd-btn-primary" onClick={() => openModal(setShowRequestApptModal, true)}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Request Appointment
+          </button>
+        </div>
       </div>
 
       {/* Inpatient Hospital Stay & Pending Admission Choice Banner */}
