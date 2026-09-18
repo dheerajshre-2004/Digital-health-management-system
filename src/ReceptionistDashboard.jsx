@@ -364,6 +364,18 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     }
   };
 
+  // Delete patient record
+  const handleDeletePatient = (patientId, patientName) => {
+    if (!window.confirm(`Are you sure you want to delete patient record ${patientId} (${patientName})? This will permanently remove the patient from the registry.`)) {
+      return;
+    }
+    const updated = patients.filter(p => p.id !== patientId);
+    setPatients(updated);
+    localStorage.setItem('dhms_patients', JSON.stringify(updated));
+    if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
+    alert(`Patient ${patientId} (${patientName}) removed successfully.`);
+  };
+
   // Helper to calculate doctor consultation fee
   const getDoctorConsultationFee = (docIdOrName) => {
     if (!docIdOrName) return 300.00;
@@ -945,37 +957,62 @@ End of Generated Health Summary Report
                     <td>{p.phone}</td>
                     <td>{p.email}</td>
                     <td>
-                      <button 
-                        onClick={() => {
-                          setSelectedPatientFile(p);
-                          // Refresh lists when opening
-                          setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
-                          setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
-                          setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
-                          const savedBilling = localStorage.getItem('dhms_billing');
-                          if (savedBilling) setBillingList(JSON.parse(savedBilling));
-                        }} 
-                        style={{ 
-                          backgroundColor: '#eff6ff', 
-                          color: '#1d4ed8', 
-                          border: '1px solid #bfdbfe', 
-                          borderRadius: '6px', 
-                          padding: '6px 12px', 
-                          cursor: 'pointer', 
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          transition: 'all 0.15s'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = '#dbeafe';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = '#eff6ff';
-                        }}
-                        title="View Patient File & Reports"
-                      >
-                        View File
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          onClick={() => {
+                            setSelectedPatientFile(p);
+                            // Refresh lists when opening
+                            setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
+                            setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+                            setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+                            const savedBilling = localStorage.getItem('dhms_billing');
+                            if (savedBilling) setBillingList(JSON.parse(savedBilling));
+                          }} 
+                          style={{ 
+                            backgroundColor: '#eff6ff', 
+                            color: '#1d4ed8', 
+                            border: '1px solid #bfdbfe', 
+                            borderRadius: '6px', 
+                            padding: '6px 10px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            transition: 'all 0.15s'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#dbeafe';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#eff6ff';
+                          }}
+                          title="View Patient File & Reports"
+                        >
+                          View File
+                        </button>
+                        <button 
+                          onClick={() => handleDeletePatient(p.id, `${p.firstName} ${p.lastName}`.trim())}
+                          style={{ 
+                            backgroundColor: '#fef2f2', 
+                            color: '#dc2626', 
+                            border: '1px solid #fecaca', 
+                            borderRadius: '6px', 
+                            padding: '6px 10px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            transition: 'all 0.15s'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fee2e2';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fef2f2';
+                          }}
+                          title="Delete Patient Record"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
