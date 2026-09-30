@@ -122,12 +122,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     gender: '',
     bloodType: 'O+',
     phone: '',
-    email: '',
-    hasInsurance: false,
-    insuranceProvider: 'Max Life Insurance',
-    policyNo: '',
-    coPay: '10',
-    maxCoverage: '500000'
+    email: ''
   });
   const [generatedId, setGeneratedId] = useState(null);
   const [generatedPassword, setGeneratedPassword] = useState(null);
@@ -197,7 +192,12 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     attendantRelation: 'Family Member',
     attendantPhone: '',
     advanceDeposit: '5000.00',
-    depositPaymentMode: 'Physical Cash Payment'
+    depositPaymentMode: 'Physical Cash Payment',
+    hasInsurance: false,
+    insuranceProvider: 'Max Life Insurance',
+    policyNo: '',
+    coPay: '10',
+    maxCoverage: '500000'
   });
   const [printedAdmissionPass, setPrintedAdmissionPass] = useState(null);
   const [ipdSubTab, setIpdSubTab] = useState('pending'); // 'pending' | 'admitted' | 'discharged'
@@ -284,8 +284,16 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     alert(`Attendance logged successfully for ${recAttendanceForm.staffName} (${recAttendanceForm.status}).`);
   };
 
-  const handleRegisterSubmit = (e) => {
-    e.preventDefault();
+    // Validate First Name and Last Name (alphabets only)
+    const nameRegex = /^[A-Za-z\s'\-]+$/;
+    if (!patientData.firstName || !nameRegex.test(patientData.firstName.trim())) {
+      alert("Invalid First Name: First Name must contain only letters (e.g. Jane). Numbers or special characters are not allowed.");
+      return;
+    }
+    if (patientData.lastName && patientData.lastName.trim() && !nameRegex.test(patientData.lastName.trim())) {
+      alert("Invalid Last Name: Last Name must contain only letters (e.g. Smith). Numbers or special characters are not allowed.");
+      return;
+    }
 
     // Strict 10-digit mobile number validation (starts with 6-9, exactly 10 numeric digits)
     const cleanPhone = (patientData.phone || '').replace(/[\s\-\(\)\+]/g, '');
@@ -318,8 +326,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       bloodType: patientData.bloodType || 'O+',
       phone: patientData.phone.trim(),
       email: patientData.email ? patientData.email.trim() : 'N/A',
-      password: randomPassword,
-      hasInsurance: !!patientData.hasInsurance
+      password: randomPassword
     };
 
     const updatedPatients = [newPatient, ...patients];
@@ -328,28 +335,6 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
     setGeneratedId(newId);
     setGeneratedPassword(randomPassword);
-
-    // If insurance coverage was provided during registration, automatically register policy
-    if (patientData.hasInsurance && (patientData.policyNo || patientData.insuranceProvider)) {
-      const pols = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
-      const newPolicy = {
-        patientId: newId,
-        patientName: `${newPatient.firstName} ${newPatient.lastName}`.trim(),
-        provider: patientData.insuranceProvider || 'Max Life Insurance',
-        policyNo: patientData.policyNo ? patientData.policyNo.trim() : `POL-${Math.floor(100000 + Math.random() * 900000)}`,
-        coPay: parseInt(patientData.coPay) || 10,
-        maxCoverage: parseFloat(patientData.maxCoverage) || 500000,
-        utilized: 0,
-        status: 'Active',
-        registeredDate: new Date().toISOString().split('T')[0]
-      };
-      const updatedPolicies = [newPolicy, ...pols];
-      localStorage.setItem('dhms_insurance_policies', JSON.stringify(updatedPolicies));
-      setInsurancePolicies(updatedPolicies);
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new Event('storage'));
-      }
-    }
 
     // Automatically dispatch welcome email with ID, password, and heartfelt care message
     if (newPatient.email && newPatient.email !== 'N/A' && newPatient.email.includes('@')) {
@@ -684,7 +669,7 @@ End of Generated Health Summary Report
                 onClick={() => {
                   setGeneratedId(null);
                   setGeneratedPassword(null);
-                  setPatientData({firstName: '', lastName: '', dob: '', gender: '', bloodType: 'O+', phone: '', email: '', hasInsurance: false, insuranceProvider: 'Max Life Insurance', policyNo: '', coPay: '10', maxCoverage: '500000'});
+                  setPatientData({firstName: '', lastName: '', dob: '', gender: '', bloodType: 'O+', phone: '', email: ''});
                 }}
               >
                 ➕ Register Another Patient
@@ -708,11 +693,32 @@ End of Generated Health Summary Report
             <div className="rd-form-row">
               <div className="rd-form-group">
                 <label>First Name <span style={{ color: 'red' }}>*</span></label>
-                <input type="text" required value={patientData.firstName} onChange={e => setPatientData({...patientData, firstName: e.target.value})} placeholder="e.g. Jane" />
+                <input 
+                  type="text" 
+                  required 
+                  value={patientData.firstName} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^A-Za-z\s'\-]/g, '');
+                    setPatientData({...patientData, firstName: val});
+                  }} 
+                  placeholder="e.g. Jane" 
+                  pattern="^[A-Za-z\s'\-]+$"
+                  title="Only letters are allowed"
+                />
               </div>
               <div className="rd-form-group">
                 <label>Last Name</label>
-                <input type="text" value={patientData.lastName} onChange={e => setPatientData({...patientData, lastName: e.target.value})} placeholder="e.g. Smith" />
+                <input 
+                  type="text" 
+                  value={patientData.lastName} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^A-Za-z\s'\-]/g, '');
+                    setPatientData({...patientData, lastName: val});
+                  }} 
+                  placeholder="e.g. Smith" 
+                  pattern="^[A-Za-z\s'\-]*$"
+                  title="Only letters are allowed"
+                />
               </div>
             </div>
 
@@ -786,86 +792,6 @@ End of Generated Health Summary Report
                 <label>Email Address <span style={{ color: 'red' }}>*</span></label>
                 <input type="email" required value={patientData.email} onChange={e => setPatientData({...patientData, email: e.target.value})} placeholder="jane.smith@example.com" />
               </div>
-            </div>
-
-            {/* Insurance Policy Registration Section */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', margin: '12px 0 20px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: patientData.hasInsurance ? '14px' : '0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input 
-                    type="checkbox" 
-                    id="hasInsuranceCheckbox"
-                    checked={patientData.hasInsurance} 
-                    onChange={e => setPatientData({ ...patientData, hasInsurance: e.target.checked })}
-                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="hasInsuranceCheckbox" style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: '#1e293b', cursor: 'pointer' }}>
-                    🛡️ Link Health Insurance Policy / TPA Coverage
-                  </label>
-                </div>
-                {patientData.hasInsurance && (
-                  <span style={{ background: '#dbeafe', color: '#1e40af', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px' }}>
-                    TPA Sync Active
-                  </span>
-                )}
-              </div>
-
-              {patientData.hasInsurance && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px' }}>
-                  <div className="rd-form-row">
-                    <div className="rd-form-group">
-                      <label>Insurance Provider <span style={{ color: 'red' }}>*</span></label>
-                      <select 
-                        value={patientData.insuranceProvider} 
-                        onChange={e => setPatientData({ ...patientData, insuranceProvider: e.target.value })}
-                        required={patientData.hasInsurance}
-                      >
-                        <option value="Max Life Insurance">Max Life Insurance</option>
-                        <option value="Star Health Insurance">Star Health Insurance</option>
-                        <option value="Care Health Insurance">Care Health Insurance</option>
-                        <option value="HDFC Ergo">HDFC Ergo</option>
-                        <option value="ICICI Lombard">ICICI Lombard</option>
-                        <option value="Bajaj Allianz">Bajaj Allianz</option>
-                      </select>
-                    </div>
-                    <div className="rd-form-group">
-                      <label>Policy Number / Card No <span style={{ color: 'red' }}>*</span></label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. POL-89234 or TPA-1094" 
-                        value={patientData.policyNo} 
-                        onChange={e => setPatientData({ ...patientData, policyNo: e.target.value })}
-                        required={patientData.hasInsurance}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rd-form-row">
-                    <div className="rd-form-group">
-                      <label>Patient Co-Pay (%)</label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="100" 
-                        placeholder="10" 
-                        value={patientData.coPay} 
-                        onChange={e => setPatientData({ ...patientData, coPay: e.target.value })}
-                      />
-                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Patient pays this % at Cash Counter; remaining is claimed via TPA.</span>
-                    </div>
-                    <div className="rd-form-group">
-                      <label>Total Coverage Limit (₹)</label>
-                      <input 
-                        type="number" 
-                        placeholder="500000" 
-                        value={patientData.maxCoverage} 
-                        onChange={e => setPatientData({ ...patientData, maxCoverage: e.target.value })}
-                      />
-                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Maximum cashless authorization cap.</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="rd-form-actions">
@@ -1363,7 +1289,7 @@ End of Generated Health Summary Report
                         >
                           <div style={{ fontSize: '11px', fontWeight: '700' }}>Consultation Fee</div>
                           <div style={{ fontSize: '15px', marginTop: '2px', color: '#15803d', fontWeight: '800' }}>₹{docFee.toFixed(2)}</div>
-                          <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px' }}>Fixed by Doctor</div>
+                          <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px' }}>Fixed by Admin</div>
                         </div>
 
                         {/* Standard Booking Fee Card */}
@@ -2080,6 +2006,34 @@ End of Generated Health Summary Report
       setBillingList(updatedBilling);
     }
 
+    // If insurance coverage was linked during admission, sync policy to dhms_insurance_policies
+    if (ipdForm.hasInsurance && (ipdForm.policyNo || ipdForm.insuranceProvider)) {
+      const pols = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+      const polIndex = pols.findIndex(p => p.patientId === updatedAdmission.patientId || (ipdForm.policyNo && p.policyNo === ipdForm.policyNo));
+      const polData = {
+        patientId: updatedAdmission.patientId,
+        patientName: updatedAdmission.patientName,
+        provider: ipdForm.insuranceProvider || 'Max Life Insurance',
+        policyNo: ipdForm.policyNo ? ipdForm.policyNo.trim() : `POL-${Math.floor(100000 + Math.random() * 900000)}`,
+        coPay: parseInt(ipdForm.coPay) || 10,
+        maxCoverage: parseFloat(ipdForm.maxCoverage) || 500000,
+        utilized: polIndex >= 0 ? (pols[polIndex].utilized || 0) : 0,
+        status: 'Active',
+        registeredDate: polIndex >= 0 ? pols[polIndex].registeredDate : todayStr
+      };
+
+      let updatedPols;
+      if (polIndex >= 0) {
+        updatedPols = [...pols];
+        updatedPols[polIndex] = polData;
+      } else {
+        updatedPols = [polData, ...pols];
+      }
+
+      localStorage.setItem('dhms_insurance_policies', JSON.stringify(updatedPols));
+      setInsurancePolicies(updatedPols);
+    }
+
     if (window.dispatchEvent) {
       window.dispatchEvent(new Event('storage'));
     }
@@ -2315,6 +2269,9 @@ End of Generated Health Summary Report
                               const wardVacantBeds = bedsInventory.filter(b => b.ward === initialWardKey && b.status === 'vacant');
                               const initialBedNo = wardVacantBeds.length > 0 ? wardVacantBeds[0].id : '';
 
+                              const existingPols = JSON.parse(localStorage.getItem('dhms_insurance_policies') || '[]');
+                              const patientPol = existingPols.find(p => p.patientId === adm.patientId || p.patientName?.toLowerCase() === adm.patientName?.toLowerCase());
+
                               setSelectedAdmForProcessing(adm);
                               setIpdForm({
                                 wardKey: currentTier.key,
@@ -2325,7 +2282,12 @@ End of Generated Health Summary Report
                                 attendantRelation: adm.attendant?.relation || 'Family Member',
                                 attendantPhone: adm.attendant?.phone && adm.attendant?.phone !== 'N/A' ? adm.attendant.phone : '',
                                 advanceDeposit: isEmergency ? '10000.00' : '5000.00',
-                                depositPaymentMode: 'Physical Cash Payment'
+                                depositPaymentMode: 'Physical Cash Payment',
+                                hasInsurance: !!patientPol,
+                                insuranceProvider: patientPol?.provider || 'Max Life Insurance',
+                                policyNo: patientPol?.policyNo || '',
+                                coPay: patientPol?.coPay ? String(patientPol.coPay) : '10',
+                                maxCoverage: patientPol?.maxCoverage ? String(patientPol.maxCoverage) : '500000'
                               });
                             }}
                             style={{
@@ -4604,6 +4566,92 @@ End of Generated Health Summary Report
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
                   />
                 </div>
+              </div>
+
+              {/* Health Insurance Policy / TPA Coverage Section during Admission */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: ipdForm.hasInsurance ? '10px' : '0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input 
+                      type="checkbox" 
+                      id="ipdInsuranceCheckbox"
+                      checked={!!ipdForm.hasInsurance} 
+                      onChange={e => setIpdForm({ ...ipdForm, hasInsurance: e.target.checked })}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="ipdInsuranceCheckbox" style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#1e293b', cursor: 'pointer' }}>
+                      🛡️ Link Health Insurance Policy / TPA Coverage
+                    </label>
+                  </div>
+                  {ipdForm.hasInsurance && (
+                    <span style={{ background: '#dbeafe', color: '#1e40af', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px' }}>
+                      TPA Sync Active
+                    </span>
+                  )}
+                </div>
+
+                {ipdForm.hasInsurance && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>
+                          Insurance Provider <span style={{ color: 'red' }}>*</span>
+                        </label>
+                        <select 
+                          value={ipdForm.insuranceProvider || 'Max Life Insurance'} 
+                          onChange={e => setIpdForm({ ...ipdForm, insuranceProvider: e.target.value })}
+                          required={ipdForm.hasInsurance}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                        >
+                          <option value="Max Life Insurance">Max Life Insurance</option>
+                          <option value="Star Health Insurance">Star Health Insurance</option>
+                          <option value="Care Health Insurance">Care Health Insurance</option>
+                          <option value="HDFC Ergo">HDFC Ergo</option>
+                          <option value="ICICI Lombard">ICICI Lombard</option>
+                          <option value="Bajaj Allianz">Bajaj Allianz</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>
+                          Policy Number / Card No <span style={{ color: 'red' }}>*</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. POL-89234 or TPA-1094" 
+                          value={ipdForm.policyNo || ''} 
+                          onChange={e => setIpdForm({ ...ipdForm, policyNo: e.target.value })}
+                          required={ipdForm.hasInsurance}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Patient Co-Pay (%)</label>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          max="100" 
+                          placeholder="10" 
+                          value={ipdForm.coPay || '10'} 
+                          onChange={e => setIpdForm({ ...ipdForm, coPay: e.target.value })}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11.5px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Total Coverage Limit (₹)</label>
+                        <input 
+                          type="number" 
+                          placeholder="500000" 
+                          value={ipdForm.maxCoverage || '500000'} 
+                          onChange={e => setIpdForm({ ...ipdForm, maxCoverage: e.target.value })}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Upfront Advance Deposit Section */}

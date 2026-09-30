@@ -287,6 +287,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [newDocPassword, setNewDocPassword] = useState('');
   const [newDocPhone, setNewDocPhone] = useState('');
 
+  // Admin Doctor Fee Edit Modal State
+  const [editingDocForFee, setEditingDocForFee] = useState(null);
+  const [adminDocFeeInput, setAdminDocFeeInput] = useState('300.00');
+
   // Universal Staff Registration Modal for Admin
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [newStaffRole, setNewStaffRole] = useState('receptionist');
@@ -418,7 +422,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       email: docProfileEmail.trim() || currentDoc.email,
       phone: docProfilePhone.trim(),
       status: docProfileStatus,
-      consultationFee: feeNum,
+      consultationFee: currentDoc.consultationFee !== undefined ? currentDoc.consultationFee : 500,
       bio: docProfileBio.trim(),
       room: docProfileRoom.trim() || 'Room 101',
       shift: docProfileShift.trim() || '09:00 AM - 05:00 PM'
@@ -2371,6 +2375,25 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem('dhms_doctors', JSON.stringify(updated));
   };
 
+  const handleSaveAdminDoctorFee = (e) => {
+    e.preventDefault();
+    if (!editingDocForFee) return;
+    const feeNum = parseFloat(adminDocFeeInput);
+    if (isNaN(feeNum) || feeNum < 0) {
+      alert("Please enter a valid consultation fee amount (₹).");
+      return;
+    }
+    const allDocs = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+    const updated = allDocs.map(d => d.id === editingDocForFee.id ? { ...d, consultationFee: feeNum } : d);
+    setDoctorsRoster(updated);
+    localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert(`✓ Consultation fee for ${editingDocForFee.name} successfully updated to ₹${feeNum.toFixed(2)}.`);
+    setEditingDocForFee(null);
+  };
+
   const handleToggleRecStaffStatus = (staffId, newStatus) => {
     const updated = receptionistStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
     setReceptionistStaff(updated);
@@ -2961,7 +2984,34 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       <td><strong>{d.name}</strong></td>
                       <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{d.department}</span></td>
                       <td>
-                        <strong style={{ color: '#166534', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-block' }}>₹{fee.toFixed(2)}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ color: '#166534', background: '#f0fdf4', padding: '4px 8px', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-block' }}>₹{fee.toFixed(2)}</strong>
+                          {role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingDocForFee(d);
+                                setAdminDocFeeInput(String(fee));
+                              }}
+                              title="Fix/Edit Doctor Consultation Fee"
+                              style={{
+                                padding: '3px 7px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                            >
+                              ✏️ Fix Fee
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td>{d.email}</td>
                       <td>
@@ -2971,6 +3021,16 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </td>
                       {role === 'admin' && (
                         <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDocForFee(d);
+                              setAdminDocFeeInput(String(fee));
+                            }}
+                            style={{ padding: '4px 8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                          >
+                            Set Fee
+                          </button>
                           <select 
                             value={d.status} 
                             onChange={(e) => handleToggleDoctorStatus(d.id, e.target.value)}
@@ -4734,18 +4794,19 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
                     <div>
                       <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                        Consultation Fee (₹)
+                        Consultation Fee (Fixed by Admin)
                       </label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        step="50"
-                        required 
-                        value={docProfileFee} 
-                        onChange={(e) => setDocProfileFee(e.target.value)} 
-                        placeholder="500"
-                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontWeight: '700', color: '#166534', boxSizing: 'border-box' }}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: '#166534' }}>₹</span>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={parseFloat(docProfileFee || 500).toFixed(2)} 
+                          title="Consultation fees are configured and fixed centrally by Hospital Administration"
+                          style={{ width: '100%', padding: '10px 12px 10px 28px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13.5px', fontWeight: '700', color: '#166534', background: '#f8fafc', cursor: 'not-allowed', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'block' }}>🔒 Configured by Hospital Admin</span>
                     </div>
 
                     <div>
@@ -4861,32 +4922,36 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   </button>
                 </form>
 
-                {/* Doctor's Consultation Fee Management */}
+                {/* Doctor's Consultation Fee (Display Only - Fixed by Admin) */}
                 <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '14px', fontWeight: 'bold' }}>Consultation Fee Settings</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 style={{ margin: 0, color: '#1e293b', fontSize: '14px', fontWeight: 'bold' }}>Consultation Fee</h4>
+                    <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                      Fixed by Admin
+                    </span>
+                  </div>
                   <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b' }}>
-                    Set your custom consultation rate (₹). This fee automatically applies during patient appointments and front-desk booking.
+                    Consultation rate is fixed centrally by Hospital Administration. This fee automatically applies during patient appointments and front-desk booking.
                   </p>
-                  <form onSubmit={handleUpdateDoctorFee} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: '#64748b' }}>₹</span>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        step="50" 
-                        required 
-                        value={docFeeSetting} 
-                        onChange={(e) => setDocFeeSetting(e.target.value)} 
-                        style={{ width: '100%', padding: '9px 10px 9px 26px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#166534', fontSize: '14px', boxSizing: 'border-box' }} 
-                      />
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px', 
+                    background: '#f0fdf4', 
+                    border: '1px solid #bbf7d0', 
+                    borderRadius: '8px' 
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#166534', fontWeight: '600' }}>Standard OPD Consultation Rate:</span>
+                      <div style={{ fontSize: '18px', fontWeight: '800', color: '#15803d', marginTop: '2px' }}>
+                        ₹{parseFloat(docFeeSetting || activeDocObj?.consultationFee || 500).toFixed(2)}
+                      </div>
                     </div>
-                    <button 
-                      type="submit" 
-                      style={{ padding: '9px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}
-                    >
-                      Update Fee
-                    </button>
-                  </form>
+                    <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'right' }}>
+                      <span>Status: <strong style={{ color: '#166534' }}>Active & Applied</strong></span>
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
@@ -6516,9 +6581,66 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
                 />
               </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Consultation Fee (₹)</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  step="50"
+                  required 
+                  value={newDocFee} 
+                  onChange={(e) => setNewDocFee(e.target.value)} 
+                  placeholder="300.00" 
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box', fontWeight: '700', color: '#166534' }} 
+                />
+              </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setShowAddDoctorModal(false)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                 <button type="submit" style={{ padding: '8px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Save Doctor</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Fix/Edit Doctor Consultation Fee Modal */}
+      {editingDocForFee && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '420px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '17px', fontWeight: 'bold' }}>Fix Consultation Fee</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Doctor: <strong>{editingDocForFee.name}</strong> ({editingDocForFee.department})</span>
+              </div>
+              <button onClick={() => setEditingDocForFee(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+            </div>
+            <form onSubmit={handleSaveAdminDoctorFee} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', fontSize: '12.5px', color: '#334155' }}>
+                <p style={{ margin: 0, lineHeight: '1.4' }}>
+                  🏥 <strong>Hospital Policy:</strong> Consultation fees are fixed by Administration and apply automatically across all Receptionist and Patient appointment bookings.
+                </p>
+              </div>
+              <div>
+                <label style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Standard Consultation Rate (₹) <span style={{ color: 'red' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: '#64748b' }}>₹</span>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="50" 
+                    required 
+                    value={adminDocFeeInput} 
+                    onChange={(e) => setAdminDocFeeInput(e.target.value)} 
+                    placeholder="300.00"
+                    style={{ width: '100%', padding: '10px 12px 10px 28px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#166534', fontSize: '15px', boxSizing: 'border-box' }} 
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button type="button" onClick={() => setEditingDocForFee(null)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}>Save Fixed Fee</button>
               </div>
             </form>
           </div>
