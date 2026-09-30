@@ -249,8 +249,18 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
       setMasterAttendance(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'));
     };
+
+    // Immediate initial sync
+    handleStorageChange();
+
+    // Fast polling interval (every 800ms) for real-time synchronization in single-tab & multi-tab
+    const intervalId = setInterval(handleStorageChange, 800);
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleMarkRecAttendance = (e) => {
@@ -2467,8 +2477,8 @@ End of Generated Health Summary Report
                   <h3 style={{ margin: 0, fontSize: '16px' }}>{doc.name}</h3>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>{doc.specialty}</span>
                 </div>
-                <span className={`rd-status-badge ${doc.status.toLowerCase().replace(' ', '-')}`}>
-                  {doc.status}
+                <span className={`rd-status-badge ${(doc.status || 'Available').toLowerCase().replace(/\s+/g, '-')}`}>
+                  {doc.status || 'Available'}
                 </span>
               </div>
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
