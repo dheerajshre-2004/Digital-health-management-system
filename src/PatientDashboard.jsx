@@ -708,10 +708,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   useEffect(() => {
     if (patientRemoteVideoRef.current && patientRemoteStream) {
-      patientRemoteVideoRef.current.srcObject = patientRemoteStream;
+      if (patientRemoteVideoRef.current.srcObject !== patientRemoteStream) {
+        patientRemoteVideoRef.current.srcObject = patientRemoteStream;
+      }
       patientRemoteVideoRef.current.play().catch(() => {});
     }
-  }, [patientRemoteStream]);
+  }, [patientRemoteStream, isVideoCallActive]);
 
   const handleAcceptIncomingCall = async () => {
     if (!incomingTeleCall) return;

@@ -99,6 +99,19 @@ export function initSupabaseSync() {
     }
   };
 
+  const dispatchStorageChange = (key, newValue) => {
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
+    } catch (e) {
+      try {
+        const ev = new Event('storage');
+        ev.key = key;
+        ev.newValue = newValue;
+        window.dispatchEvent(ev);
+      } catch (err) {}
+    }
+  };
+
   // Subscribe to real-time changes from Supabase
   if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
     supabase
@@ -114,7 +127,7 @@ export function initSupabaseSync() {
             // Avoid redundant sets to prevent infinite loops
             if (window.localStorage.getItem(key) !== valStr) {
               originalSetItem.call(window.localStorage, key, valStr);
-              window.dispatchEvent(new Event('storage'));
+              dispatchStorageChange(key, valStr);
             }
           }
         } else if (eventType === 'DELETE') {
@@ -122,7 +135,7 @@ export function initSupabaseSync() {
           if (key && key.startsWith('dhms_') && key !== 'dhms_active_session') {
             if (window.localStorage.getItem(key) !== null) {
               originalRemoveItem.call(window.localStorage, key);
-              window.dispatchEvent(new Event('storage'));
+              dispatchStorageChange(key, null);
             }
           }
         }

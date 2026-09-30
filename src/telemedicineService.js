@@ -1,4 +1,4 @@
-// Comprehensive WebRTC and Telemedicine Service for DHMS with Supabase Realtime
+// Comprehensive WebRTC and Telemedicine Service for DHMS with Supabase Realtime & Hybrid DB-Signaling
 import { supabase } from './supabaseClient';
 
 let audioCtx = null;
@@ -29,7 +29,7 @@ export function requestNotificationPermission() {
   if (typeof window !== 'undefined' && 'Notification' in window) {
     if (Notification.permission === 'default') {
       Notification.requestPermission().then((perm) => {
-        console.log('[Telemedicine] Notification permission granted:', perm);
+        console.log('[Telemedicine] Notification permission status:', perm);
       }).catch(() => {});
     }
   }
@@ -48,7 +48,7 @@ export function showIncomingCallNotification(callData) {
     } catch (e) {}
   }
 
-  // 2. Native OS / Browser Notification (displays even when app is minimized / backgrounded)
+  // 2. Native OS / Browser Notification
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       if (activeNotification) {
@@ -164,7 +164,7 @@ export function cleanDoctorName(name) {
   return `Dr. ${cleaned}`;
 }
 
-// WebRTC Configuration with comprehensive STUN servers for cross-network connectivity
+// WebRTC Configuration with comprehensive global STUN servers for cross-network connectivity
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -172,7 +172,9 @@ const rtcConfig = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' }
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.services.mozilla.com' }
   ],
   iceCandidatePoolSize: 10
 };
@@ -193,12 +195,22 @@ class TelemedicineSignaling {
     }
 
     if (typeof window !== 'undefined') {
+      // Listen to storage events (cross-tab and from Supabase Sync)
       window.addEventListener('storage', (e) => {
-        if (e.key === 'dhms_tele_signal_event' && e.newValue) {
+        if (e.key && e.key.startsWith('dhms_tele_')) {
           try {
-            const data = JSON.parse(e.newValue);
-            this.notifyListeners(data);
+            const data = e.newValue ? JSON.parse(e.newValue) : null;
+            if (data && data.type) {
+              this.notifyListeners(data);
+            }
           } catch (err) {}
+        }
+      });
+
+      // Custom window event for instant in-tab dispatch
+      window.addEventListener('dhms_tele_signal_local', (e) => {
+        if (e.detail) {
+          this.notifyListeners(e.detail);
         }
       });
     }
@@ -219,6 +231,9 @@ class TelemedicineSignaling {
           })
           .subscribe((status) => {
             console.log('[Telemedicine Supabase Channel status]:', status);
+            if (status === 'TIMED_OUT' || status === 'CLOSED') {
+              setTimeout(() => this.initSupabaseChannel(), 2000);
+            }
           });
       }
     } catch (err) {
@@ -240,14 +255,21 @@ class TelemedicineSignaling {
 
   broadcast(message) {
     const payload = { ...message, _ts: Date.now() };
+    const callIdStr = message.callId ? String(message.callId) : null;
+
+    // 1. BroadcastChannel (Same device, multi-tab)
     if (this.channel) {
       try { this.channel.postMessage(payload); } catch (e) {}
     }
-    if (typeof localStorage !== 'undefined') {
+
+    // 2. Custom local window event
+    if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('dhms_tele_signal_event', JSON.stringify(payload));
+        window.dispatchEvent(new CustomEvent('dhms_tele_signal_local', { detail: payload }));
       } catch (e) {}
     }
+
+    // 3. Supabase Realtime broadcast (Cross-device, lowest latency)
     if (this.supabaseChannel) {
       try {
         this.supabaseChannel.send({
@@ -259,8 +281,47 @@ class TelemedicineSignaling {
         console.warn("Supabase broadcast send error:", e);
       }
     }
-    // Direct store sync to guaranteed table for WebRTC signals
-    if (supabase && supabase.from && payload.type && payload.type !== 'CHAT_MESSAGE') {
+
+    // 4. Persistent key-value store in LocalStorage & Supabase table for guaranteed fallback
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('dhms_tele_signal_event', JSON.stringify(payload));
+      } catch (e) {}
+    }
+
+    // Write dedicated per-call signal keys so candidate bursts don't overwrite SDP Offer/Answer
+    if (callIdStr) {
+      if (payload.type === 'OFFER') {
+        try { localStorage.setItem(`dhms_tele_call_${callIdStr}_offer`, JSON.stringify(payload)); } catch (e) {}
+        if (supabase && supabase.from) {
+          supabase.from('dhms_store')
+            .upsert({ key: `dhms_tele_call_${callIdStr}_offer`, value: payload, updated_at: new Date().toISOString() })
+            .then(() => {});
+        }
+      } else if (payload.type === 'ANSWER') {
+        try { localStorage.setItem(`dhms_tele_call_${callIdStr}_answer`, JSON.stringify(payload)); } catch (e) {}
+        if (supabase && supabase.from) {
+          supabase.from('dhms_store')
+            .upsert({ key: `dhms_tele_call_${callIdStr}_answer`, value: payload, updated_at: new Date().toISOString() })
+            .then(() => {});
+        }
+      } else if (payload.type === 'ICE_CANDIDATE' && payload.candidate) {
+        const storeKey = `dhms_tele_call_${callIdStr}_candidates_${payload.isInitiator ? 'init' : 'resp'}`;
+        try {
+          const existing = JSON.parse(localStorage.getItem(storeKey) || '[]');
+          existing.push(payload.candidate);
+          localStorage.setItem(storeKey, JSON.stringify(existing));
+          if (supabase && supabase.from) {
+            supabase.from('dhms_store')
+              .upsert({ key: storeKey, value: existing, updated_at: new Date().toISOString() })
+              .then(() => {});
+          }
+        } catch (e) {}
+      }
+    }
+
+    // General sync to dhms_store for general event types
+    if (supabase && supabase.from && payload.type && payload.type !== 'CHAT_MESSAGE' && payload.type !== 'ICE_CANDIDATE') {
       try {
         supabase.from('dhms_store')
           .upsert({ key: 'dhms_tele_signal_event', value: payload, updated_at: new Date().toISOString() })
@@ -272,7 +333,7 @@ class TelemedicineSignaling {
   // Ringing Call Signaling
   initiateCall(callData) {
     const callObj = {
-      appointmentId: callData.appointmentId,
+      appointmentId: String(callData.appointmentId),
       patientId: callData.patientId,
       patientName: callData.patientName,
       doctorId: callData.doctorId,
@@ -298,9 +359,9 @@ class TelemedicineSignaling {
 
     // Broadcast immediately and send multiple pulses to ensure delivery across mobile network transitions
     this.broadcast(callObj);
-    setTimeout(() => this.broadcast(callObj), 800);
-    setTimeout(() => this.broadcast(callObj), 2000);
-    setTimeout(() => this.broadcast(callObj), 4000);
+    setTimeout(() => this.broadcast(callObj), 600);
+    setTimeout(() => this.broadcast(callObj), 1500);
+    setTimeout(() => this.broadcast(callObj), 3000);
 
     return callObj;
   }
@@ -308,6 +369,7 @@ class TelemedicineSignaling {
   acceptCall(callData) {
     const callObj = {
       ...callData,
+      appointmentId: String(callData.appointmentId),
       type: 'CALL_ACCEPTED',
       status: 'connected',
       timestamp: Date.now()
@@ -323,13 +385,14 @@ class TelemedicineSignaling {
       } catch (e) {}
     }
     this.broadcast(callObj);
-    setTimeout(() => this.broadcast(callObj), 600);
+    setTimeout(() => this.broadcast(callObj), 500);
     return callObj;
   }
 
   declineCall(callData) {
     const callObj = {
       ...callData,
+      appointmentId: String(callData.appointmentId),
       type: 'CALL_DECLINED',
       status: 'declined',
       timestamp: Date.now()
@@ -349,15 +412,21 @@ class TelemedicineSignaling {
     return callObj;
   }
 
-  endCall(appointmentId) {
+  endCall(rawAppointmentId) {
+    const appointmentId = String(rawAppointmentId);
     const endObj = {
       appointmentId,
+      callId: appointmentId,
       type: 'CALL_ENDED',
       status: 'ended',
       timestamp: Date.now()
     };
     try {
       localStorage.removeItem('dhms_active_tele_call');
+      localStorage.removeItem(`dhms_tele_call_${appointmentId}_offer`);
+      localStorage.removeItem(`dhms_tele_call_${appointmentId}_answer`);
+      localStorage.removeItem(`dhms_tele_call_${appointmentId}_candidates_init`);
+      localStorage.removeItem(`dhms_tele_call_${appointmentId}_candidates_resp`);
     } catch (e) {}
     if (supabase && supabase.from) {
       try {
@@ -365,21 +434,35 @@ class TelemedicineSignaling {
           .delete()
           .eq('key', 'dhms_active_tele_call')
           .then(() => {});
+        supabase.from('dhms_store')
+          .delete()
+          .in('key', [
+            `dhms_tele_call_${appointmentId}_offer`,
+            `dhms_tele_call_${appointmentId}_answer`,
+            `dhms_tele_call_${appointmentId}_candidates_init`,
+            `dhms_tele_call_${appointmentId}_candidates_resp`
+          ])
+          .then(() => {});
       } catch (e) {}
     }
     this.broadcast(endObj);
     return endObj;
   }
 
-  // WebRTC Peer Connection Helper with Pre-allocated Transceivers, Robust Candidate Queueing, and Seamless Track Upgrades
-  createPeerConnection(callId, localStream, onRemoteStream, isInitiator = false) {
+  // WebRTC Peer Connection Helper with Full Dual-Signaling & Automatic State Recovery
+  createPeerConnection(rawCallId, localStream, onRemoteStream, isInitiator = false) {
+    const callId = String(rawCallId);
+    console.log(`[WebRTC] Creating PeerConnection for call ${callId}, isInitiator: ${isInitiator}`);
+    
     const pc = new RTCPeerConnection(rtcConfig);
     this.peerConnections.set(callId, pc);
     const pendingCandidates = [];
+    const appliedCandidateKeys = new Set();
     let isRemoteDescSet = false;
+    let isCleanedUp = false;
     const remoteStream = new MediaStream();
 
-    // Pre-allocate sendrecv transceivers for both audio and video so SDP negotiation always reserves both media channels
+    // Pre-allocate sendrecv transceivers for audio and video
     try {
       pc.addTransceiver('audio', { direction: 'sendrecv' });
       pc.addTransceiver('video', { direction: 'sendrecv' });
@@ -387,6 +470,7 @@ class TelemedicineSignaling {
       console.warn("[WebRTC] addTransceiver note:", e);
     }
 
+    // Attach local stream tracks immediately
     if (localStream) {
       const senders = pc.getSenders();
       localStream.getTracks().forEach(track => {
@@ -403,8 +487,10 @@ class TelemedicineSignaling {
       });
     }
 
+    // Handle remote tracks and deliver composite remote stream
     pc.ontrack = (event) => {
-      console.log("[WebRTC] ontrack received track:", event.track.kind, event.track.id);
+      console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] ontrack event received:`, event.track.kind, event.track.id);
+      
       if (event.streams && event.streams[0]) {
         event.streams[0].getTracks().forEach(t => {
           if (!remoteStream.getTracks().some(existing => existing.id === t.id)) {
@@ -420,7 +506,7 @@ class TelemedicineSignaling {
       }
 
       event.track.onunmute = () => {
-        console.log("[WebRTC] Track unmuted:", event.track.kind);
+        console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Track unmuted:`, event.track.kind);
         if (event.streams && event.streams[0]) {
           onRemoteStream(event.streams[0]);
         } else {
@@ -440,9 +526,28 @@ class TelemedicineSignaling {
       }
     };
 
+    pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Connection state: ${pc.connectionState}`);
+      if (pc.connectionState === 'connected') {
+        console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Connected successfully! Total remote tracks: ${remoteStream.getTracks().length}`);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] ICE Connection state: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        try {
+          if (pc.restartIce) pc.restartIce();
+        } catch (e) {}
+      }
+    };
+
     const flushPendingCandidates = async () => {
       while (pendingCandidates.length > 0) {
         const candidate = pendingCandidates.shift();
+        const candKey = JSON.stringify(candidate);
+        if (appliedCandidateKeys.has(candKey)) continue;
+        appliedCandidateKeys.add(candKey);
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
@@ -451,14 +556,43 @@ class TelemedicineSignaling {
       }
     };
 
+    const applyCandidateSafely = async (candidate) => {
+      if (!candidate) return;
+      const candKey = JSON.stringify(candidate);
+      if (appliedCandidateKeys.has(candKey)) return;
+
+      if (isRemoteDescSet && pc.remoteDescription) {
+        appliedCandidateKeys.add(candKey);
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn("[WebRTC] Add ICE candidate error:", e);
+        }
+      } else {
+        pendingCandidates.push(candidate);
+      }
+    };
+
     const sendOffer = async () => {
+      if (isCleanedUp || pc.signalingState === 'closed') return;
       try {
-        if (pc.signalingState === 'closed') return;
-        if (pc.signalingState !== 'stable') {
-          console.log("[WebRTC] Signaling state not stable (" + pc.signalingState + "), delaying offer...");
+        if (pc.signalingState === 'have-local-offer' && pc.localDescription) {
+          console.log("[WebRTC] Re-broadcasting existing local offer for call:", callId);
+          this.broadcast({
+            type: 'OFFER',
+            callId,
+            offer: pc.localDescription,
+            isInitiator: true
+          });
           return;
         }
-        console.log("[WebRTC] Sending offer for call:", callId);
+
+        if (pc.signalingState !== 'stable') {
+          console.log("[WebRTC] Signaling state not stable (" + pc.signalingState + "), delaying new offer...");
+          return;
+        }
+
+        console.log("[WebRTC] Creating fresh offer for call:", callId);
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
           offerToReceiveVideo: true
@@ -476,12 +610,20 @@ class TelemedicineSignaling {
     };
 
     const handleSignal = async (msg) => {
-      if (msg.callId !== callId) return;
+      if (isCleanedUp || !msg || String(msg.callId) !== callId) return;
 
       try {
         if (msg.type === 'OFFER' && !isInitiator) {
-          console.log("[WebRTC] Received OFFER, creating ANSWER...");
+          console.log("[WebRTC - Patient] Received OFFER, creating ANSWER...");
           if (pc.signalingState === 'closed') return;
+          
+          if (pc.signalingState !== 'stable') {
+            console.log("[WebRTC - Patient] State is " + pc.signalingState + ", rolling back description...");
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+            ]);
+          }
+
           await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
           isRemoteDescSet = true;
           await flushPendingCandidates();
@@ -495,25 +637,17 @@ class TelemedicineSignaling {
             isInitiator: false
           });
         } else if (msg.type === 'ANSWER' && isInitiator) {
-          console.log("[WebRTC] Received ANSWER, setting remote description...");
+          console.log("[WebRTC - Doctor] Received ANSWER, setting remote description...");
           if (pc.signalingState === 'have-local-offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
             isRemoteDescSet = true;
             await flushPendingCandidates();
           }
         } else if (msg.type === 'ICE_CANDIDATE' && msg.candidate) {
-          if (isRemoteDescSet && pc.remoteDescription) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-            } catch (e) {
-              console.warn("[WebRTC] Add ICE candidate error:", e);
-            }
-          } else {
-            pendingCandidates.push(msg.candidate);
-          }
+          await applyCandidateSafely(msg.candidate);
         } else if ((msg.type === 'CALL_ACCEPTED' || msg.type === 'PATIENT_READY_FOR_CALL' || msg.type === 'REQUEST_OFFER') && isInitiator) {
-          console.log("[WebRTC] Peer is ready, sending fresh OFFER...");
-          setTimeout(sendOffer, 300);
+          console.log("[WebRTC - Doctor] Peer requested offer, dispatching...");
+          sendOffer();
         }
       } catch (err) {
         console.warn("[WebRTC] Signaling Error:", err);
@@ -521,6 +655,72 @@ class TelemedicineSignaling {
     };
 
     const unsubscribe = this.subscribe(handleSignal);
+
+    // Active DB Sync Poller: In case WebSockets dropped packets or joined with delay
+    const syncDbSignals = async () => {
+      if (isCleanedUp || pc.signalingState === 'closed' || pc.connectionState === 'connected') return;
+
+      try {
+        // Patient checks for stored offer
+        if (!isInitiator && !isRemoteDescSet) {
+          let offerMsg = null;
+          const localStr = localStorage.getItem(`dhms_tele_call_${callId}_offer`);
+          if (localStr) {
+            try { offerMsg = JSON.parse(localStr); } catch (e) {}
+          }
+          if (!offerMsg && supabase && supabase.from) {
+            const { data } = await supabase.from('dhms_store').select('value').eq('key', `dhms_tele_call_${callId}_offer`).maybeSingle();
+            if (data && data.value) {
+              offerMsg = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            }
+          }
+          if (offerMsg && offerMsg.offer && pc.signalingState === 'stable') {
+            console.log("[WebRTC - Patient] Found stored offer via DB Sync, answering...");
+            handleSignal(offerMsg);
+          }
+        }
+
+        // Doctor checks for stored answer
+        if (isInitiator && !isRemoteDescSet && pc.signalingState === 'have-local-offer') {
+          let answerMsg = null;
+          const localStr = localStorage.getItem(`dhms_tele_call_${callId}_answer`);
+          if (localStr) {
+            try { answerMsg = JSON.parse(localStr); } catch (e) {}
+          }
+          if (!answerMsg && supabase && supabase.from) {
+            const { data } = await supabase.from('dhms_store').select('value').eq('key', `dhms_tele_call_${callId}_answer`).maybeSingle();
+            if (data && data.value) {
+              answerMsg = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            }
+          }
+          if (answerMsg && answerMsg.answer) {
+            console.log("[WebRTC - Doctor] Found stored answer via DB Sync, applying...");
+            handleSignal(answerMsg);
+          }
+        }
+
+        // Sync candidate list
+        const remoteCandidateKey = `dhms_tele_call_${callId}_candidates_${isInitiator ? 'resp' : 'init'}`;
+        let candList = [];
+        const localCandStr = localStorage.getItem(remoteCandidateKey);
+        if (localCandStr) {
+          try { candList = JSON.parse(localCandStr) || []; } catch (e) {}
+        }
+        if (candList.length === 0 && supabase && supabase.from) {
+          const { data } = await supabase.from('dhms_store').select('value').eq('key', remoteCandidateKey).maybeSingle();
+          if (data && data.value) {
+            candList = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          }
+        }
+        if (Array.isArray(candList)) {
+          for (const cand of candList) {
+            await applyCandidateSafely(cand);
+          }
+        }
+      } catch (err) {}
+    };
+
+    const pollerInterval = setInterval(syncDbSignals, 800);
 
     // If patient joins, notify doctor immediately to trigger fresh offer
     if (!isInitiator) {
@@ -532,29 +732,29 @@ class TelemedicineSignaling {
         if (!isRemoteDescSet && pc.connectionState !== 'connected') {
           this.broadcast({ type: 'REQUEST_OFFER', callId });
         }
-      }, 1500);
+      }, 800);
+      setTimeout(syncDbSignals, 200);
     }
 
     // If initiator (Doctor), send initial offer and retry on intervals until connected
     if (isInitiator) {
-      setTimeout(sendOffer, 400);
+      setTimeout(sendOffer, 300);
       const heartbeat = setInterval(() => {
-        if (pc.connectionState === 'connected' || pc.signalingState === 'closed') {
+        if (isCleanedUp || pc.connectionState === 'connected' || pc.signalingState === 'closed') {
           clearInterval(heartbeat);
-        } else if (pc.signalingState === 'stable') {
+        } else {
           sendOffer();
         }
-      }, 3500);
+      }, 2500);
 
-      // Clean up heartbeat after 35s
-      setTimeout(() => clearInterval(heartbeat), 35000);
+      setTimeout(() => clearInterval(heartbeat), 40000);
     }
 
     return {
       pc,
       updateLocalStream: async (newStream) => {
-        if (!newStream || pc.signalingState === 'closed') return;
-        console.log("[WebRTC] Updating local stream tracks on active PeerConnection, total tracks:", newStream.getTracks().length);
+        if (isCleanedUp || !newStream || pc.signalingState === 'closed') return;
+        console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Updating local stream tracks:`, newStream.getTracks().length);
         const senders = pc.getSenders();
         let addedNewTrack = false;
 
@@ -579,14 +779,17 @@ class TelemedicineSignaling {
           }
         }
 
-        if (addedNewTrack || (isInitiator && pc.signalingState === 'stable')) {
-          sendOffer();
-        } else if (!isInitiator && addedNewTrack) {
-          // Tell initiator we added tracks so they send a renegotiation offer
-          this.broadcast({ type: 'REQUEST_OFFER', callId });
+        if (addedNewTrack) {
+          if (isInitiator && pc.signalingState === 'stable') {
+            sendOffer();
+          } else {
+            this.broadcast({ type: 'REQUEST_OFFER', callId });
+          }
         }
       },
       cleanup: () => {
+        isCleanedUp = true;
+        clearInterval(pollerInterval);
         unsubscribe();
         try {
           pc.close();

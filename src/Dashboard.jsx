@@ -977,10 +977,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   useEffect(() => {
     if (doctorRemoteVideoRef.current && doctorRemotePatientStream) {
-      doctorRemoteVideoRef.current.srcObject = doctorRemotePatientStream;
+      if (doctorRemoteVideoRef.current.srcObject !== doctorRemotePatientStream) {
+        doctorRemoteVideoRef.current.srcObject = doctorRemotePatientStream;
+      }
       doctorRemoteVideoRef.current.play().catch(() => {});
     }
-  }, [doctorRemotePatientStream]);
+  }, [doctorRemotePatientStream, isVideoCallActive]);
 
   useEffect(() => {
     if (role !== 'doctor' || !isVideoCallActive || !activeCallAppt) return;
