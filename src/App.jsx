@@ -61,8 +61,7 @@ function App() {
     window.location.pathname.startsWith('/patient') ||
     window.location.hostname.toLowerCase().includes('patient') ||
     window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true ||
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    window.navigator.standalone === true
   );
 
   // Load initial tab session if present (per-tab isolation)
