@@ -574,82 +574,42 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }
   };
 
-  // Request actual camera/microphone stream when video call starts with robust fallbacks
+  // Ensure patient camera/mic stream is active whenever video call is open
   useEffect(() => {
-    let isSubscribed = true;
-    let acquiredStream = null;
+    let isCancelled = false;
 
-    async function initPatientMedia() {
+    async function ensurePatientMedia() {
       if (isVideoCallActive) {
-        const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          try {
-            acquiredStream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-              audio: true
-            });
-          } catch (err1) {
-            console.warn("[Patient] Standard getUserMedia failed, trying basic video constraints:", err1);
+        const isStreamAlive = localMediaStream && localMediaStream.active && localMediaStream.getTracks().some(t => t.readyState === 'live');
+        if (!isStreamAlive) {
+          const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-              acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            } catch (err2) {
-              console.warn("[Patient] Basic video+audio failed, trying video only:", err2);
-              try {
-                acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-              } catch (err3) {
-                console.warn("[Patient] Video only failed, trying audio only:", err3);
-                try {
-                  acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                } catch (err4) {
-                  console.warn("[Patient] Hardware media unavailable, using live digital tele-feed:", err4);
-                  const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
-                  if (fallback) acquiredStream = fallback;
-                }
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+              });
+              if (!isCancelled) {
+                stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+                stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+                setLocalMediaStream(stream);
               }
-            }
-          }
-
-          if (isSubscribed && acquiredStream) {
-            // If acquired stream only has audio (webcam locked by doctor tab on same PC), attach digital tele-feed
-            if (acquiredStream.getVideoTracks().length === 0) {
+            } catch (err) {
+              console.warn("[Patient] getUserMedia error:", err);
               const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
-              if (fallback) {
-                const vTrack = fallback.getVideoTracks()[0];
-                if (vTrack) acquiredStream.addTrack(vTrack);
+              if (fallback && !isCancelled) {
+                setLocalMediaStream(fallback);
               }
             }
-
-            setLocalMediaStream(acquiredStream);
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = acquiredStream;
-              localVideoRef.current.play().catch(() => {});
-            }
           }
-        } else {
-          const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
-          if (fallback && isSubscribed) {
-            setLocalMediaStream(fallback);
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = fallback;
-              localVideoRef.current.play().catch(() => {});
-            }
-          }
-        }
-      } else {
-        if (localMediaStream) {
-          localMediaStream.getTracks().forEach(track => track.stop());
-          setLocalMediaStream(null);
         }
       }
     }
 
-    initPatientMedia();
+    ensurePatientMedia();
 
     return () => {
-      isSubscribed = false;
-      if (acquiredStream) {
-        acquiredStream.getTracks().forEach(track => track.stop());
-      }
+      isCancelled = true;
     };
   }, [isVideoCallActive]);
 
@@ -677,7 +637,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             console.log("[Patient] Received remote doctor stream with tracks:", remoteStream.getTracks().length);
             setPatientRemoteStream(remoteStream);
             if (patientRemoteVideoRef.current) {
-              patientRemoteVideoRef.current.srcObject = remoteStream;
+              if (patientRemoteVideoRef.current.srcObject !== remoteStream) {
+                patientRemoteVideoRef.current.srcObject = remoteStream;
+              }
+              patientRemoteVideoRef.current.muted = false;
+              patientRemoteVideoRef.current.volume = 1.0;
               patientRemoteVideoRef.current.play().catch(() => {});
             }
           },
@@ -711,6 +675,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       if (patientRemoteVideoRef.current.srcObject !== patientRemoteStream) {
         patientRemoteVideoRef.current.srcObject = patientRemoteStream;
       }
+      patientRemoteVideoRef.current.muted = false;
+      patientRemoteVideoRef.current.volume = 1.0;
       patientRemoteVideoRef.current.play().catch(() => {});
     }
   }, [patientRemoteStream, isVideoCallActive]);
@@ -722,30 +688,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
 
-    // Prompt user directly on button click so browser permission modal pops up immediately
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (stream && stream.getVideoTracks().length === 0) {
+    let stream = localMediaStream;
+    if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          });
+          stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+          stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+          setLocalMediaStream(stream);
+        } catch (e) {
+          console.warn("[Patient] Direct click camera request error:", e);
           const fallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
           if (fallback) {
-            const vTrack = fallback.getVideoTracks()[0];
-            if (vTrack) stream.addTrack(vTrack);
-          }
-        }
-        setLocalMediaStream(stream);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(() => {});
-        }
-      } catch (e) {
-        console.warn("[Patient] Direct click camera request error:", e);
-        const fallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
-        if (fallback) {
-          setLocalMediaStream(fallback);
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = fallback;
-            localVideoRef.current.play().catch(() => {});
+            stream = fallback;
+            setLocalMediaStream(fallback);
           }
         }
       }
@@ -4486,9 +4445,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       </button>
                     )}
                     {tele.status === "Ready" || tele.status === "Scheduled" ? (
-                      <button className="pd-btn-teal" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={() => {
+                      <button className="pd-btn-teal" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={async () => {
                         setActiveCallId(tele.id);
                         setIsVideoCallActive(true);
+                        setTeleMobileTab('video');
+                        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                          try {
+                            const stream = await navigator.mediaDevices.getUserMedia({
+                              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+                              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                            });
+                            stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+                            stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+                            setLocalMediaStream(stream);
+                          } catch (e) {
+                            console.warn("Direct media capture error:", e);
+                          }
+                        }
                       }}>
                         📹 Join Consultation
                       </button>

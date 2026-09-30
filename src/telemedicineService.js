@@ -462,37 +462,36 @@ class TelemedicineSignaling {
     let isCleanedUp = false;
     const remoteStream = new MediaStream();
 
-    // Pre-allocate sendrecv transceivers for audio and video
-    try {
-      pc.addTransceiver('audio', { direction: 'sendrecv' });
-      pc.addTransceiver('video', { direction: 'sendrecv' });
-    } catch (e) {
-      console.warn("[WebRTC] addTransceiver note:", e);
-    }
-
-    // Attach local stream tracks immediately
-    if (localStream) {
-      const senders = pc.getSenders();
+    // Pre-allocate transceivers only if localStream is not immediately provided
+    if (localStream && localStream.getTracks().length > 0) {
       localStream.getTracks().forEach(track => {
         try {
-          const matchingSender = senders.find(s => (s.track && s.track.kind === track.kind) || (!s.track && s.kind === track.kind));
-          if (matchingSender) {
-            matchingSender.replaceTrack(track).catch(() => {});
-          } else {
-            pc.addTrack(track, localStream);
-          }
+          pc.addTrack(track, localStream);
+          console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Added local track:`, track.kind, track.id, "enabled:", track.enabled);
         } catch (err) {
           console.warn("[WebRTC] addTrack error:", err);
         }
       });
+    } else {
+      try {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+      } catch (e) {
+        console.warn("[WebRTC] addTransceiver note:", e);
+      }
     }
 
     // Handle remote tracks and deliver composite remote stream
     pc.ontrack = (event) => {
       console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] ontrack event received:`, event.track.kind, event.track.id);
       
+      try {
+        event.track.enabled = true;
+      } catch (e) {}
+
       if (event.streams && event.streams[0]) {
         event.streams[0].getTracks().forEach(t => {
+          t.enabled = true;
           if (!remoteStream.getTracks().some(existing => existing.id === t.id)) {
             remoteStream.addTrack(t);
           }
@@ -507,6 +506,7 @@ class TelemedicineSignaling {
 
       event.track.onunmute = () => {
         console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Track unmuted:`, event.track.kind);
+        event.track.enabled = true;
         if (event.streams && event.streams[0]) {
           onRemoteStream(event.streams[0]);
         } else {

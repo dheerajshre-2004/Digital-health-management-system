@@ -820,17 +820,25 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
     const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || doctorsRoster[0] || { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' };
 
-    // Prompt user directly on button click so browser permission modal pops up immediately
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setDoctorMediaStream(stream);
-        if (doctorVideoRef.current) {
-          doctorVideoRef.current.srcObject = stream;
-          doctorVideoRef.current.play().catch(() => {});
+    let stream = doctorMediaStream;
+    if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          });
+          stream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
+          stream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
+          setDoctorMediaStream(stream);
+        } catch (e) {
+          console.warn("[Doctor] Camera/Mic request note, checking fallback:", e);
+          const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+          if (fallback) {
+            stream = fallback;
+            setDoctorMediaStream(fallback);
+          }
         }
-      } catch (e) {
-        console.warn("[Doctor] Direct click camera request note, falling back to media init:", e);
       }
     }
 
@@ -844,81 +852,42 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     });
   };
 
-  // Request doctor camera stream when video call starts with robust constraints & fallbacks
+  // Ensure doctor camera/mic stream is active whenever video call is open
   useEffect(() => {
-    let isSubscribed = true;
-    let acquiredStream = null;
+    let isCancelled = false;
 
-    async function initDoctorMedia() {
+    async function ensureDoctorMedia() {
       if (role === 'doctor' && isVideoCallActive) {
-        if (!doctorMediaStream) {
+        const isStreamAlive = doctorMediaStream && doctorMediaStream.active && doctorMediaStream.getTracks().some(t => t.readyState === 'live');
+        if (!isStreamAlive) {
           const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || doctorsRoster[0] || { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' };
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-              acquiredStream = await navigator.mediaDevices.getUserMedia({
+              const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-                audio: true
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
               });
-            } catch (err1) {
-              try {
-                acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-              } catch (err2) {
-                try {
-                  acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                } catch (err3) {
-                  try {
-                    acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                  } catch (err4) {
-                    console.warn("[Doctor] Hardware camera unavailable, generating digital live stream:", err4);
-                    const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
-                    if (fallback) acquiredStream = fallback;
-                  }
-                }
+              if (!isCancelled) {
+                stream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
+                stream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
+                setDoctorMediaStream(stream);
               }
-            }
-
-            // If acquired stream only has audio (hardware webcam busy in another tab), attach digital video track
-            if (acquiredStream && acquiredStream.getVideoTracks().length === 0) {
+            } catch (err) {
+              console.warn("[Doctor] getUserMedia error:", err);
               const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
-              if (fallback) {
-                const vTrack = fallback.getVideoTracks()[0];
-                if (vTrack) acquiredStream.addTrack(vTrack);
-              }
-            }
-
-            if (isSubscribed && acquiredStream) {
-              setDoctorMediaStream(acquiredStream);
-              if (doctorVideoRef.current) {
-                doctorVideoRef.current.srcObject = acquiredStream;
-                doctorVideoRef.current.play().catch(() => {});
-              }
-            }
-          } else {
-            const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
-            if (fallback && isSubscribed) {
-              setDoctorMediaStream(fallback);
-              if (doctorVideoRef.current) {
-                doctorVideoRef.current.srcObject = fallback;
-                doctorVideoRef.current.play().catch(() => {});
+              if (fallback && !isCancelled) {
+                setDoctorMediaStream(fallback);
               }
             }
           }
         }
-      } else {
-        if (doctorMediaStream) {
-          doctorMediaStream.getTracks().forEach(track => track.stop());
-          setDoctorMediaStream(null);
-        }
       }
     }
 
-    initDoctorMedia();
+    ensureDoctorMedia();
 
     return () => {
-      isSubscribed = false;
-      if (acquiredStream) {
-        acquiredStream.getTracks().forEach(track => track.stop());
-      }
+      isCancelled = true;
     };
   }, [role, isVideoCallActive]);
 
