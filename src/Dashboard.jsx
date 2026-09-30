@@ -364,7 +364,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     followUpDate: 'In 7 Days (OPD Room 101)'
   });
 
-  // Doctor state
   const [activeDoctorId, setActiveDoctorId] = useState(() => {
     if (role === 'doctor' && loggedInDoctor) {
       return loggedInDoctor.id;
@@ -372,6 +371,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const saved = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
     return saved.length > 0 ? saved[0].id : '';
   });
+
+  const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : null);
 
   // Doctor Slot & Fee Management state
   const [slotManageDate, setSlotManageDate] = useState(new Date().toISOString().split('T')[0]);
@@ -682,7 +683,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     }
   }, []);
 
-  const activeDocObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || (doctorsRoster.length > 0 ? doctorsRoster[0] : { id: '', name: 'Unknown Doctor', department: 'Primary Care' });
   const [selectedApptForCheckup, setSelectedApptForCheckup] = useState(null);
   const [selectedEhrPatient, setSelectedEhrPatient] = useState(null);
   const [patientSearch, setPatientSearch] = useState('');

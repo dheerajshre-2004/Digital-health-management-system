@@ -843,29 +843,35 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     return false;
   };
 
-  const getSlotAvailability = (doctorName, date) => {
-    if (!doctorName || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false } };
-    const docId = doctorName.toLowerCase().replace('.', '').replace(' ', '_');
+  const getSlotAvailability = (doctorIdentifier, date) => {
+    if (!doctorIdentifier || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false, isAlmostFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false, isAlmostFull: false } };
+    const docId = doctorIdentifier.toLowerCase().replace('.', '').replace(/\s+/g, '_');
     const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
-    const config = slotConfigs.find(c => c.doctorId === docId && c.date === date) || {
+    const config = slotConfigs.find(c => (c.doctorId === doctorIdentifier || c.doctorId === docId) && c.date === date) || {
       slot1Capacity: 5,
       slot2Capacity: 5
     };
     const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    const slot1Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled').length;
-    const slot2Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled').length;
+    const slot1Bookings = allAppts.filter(a => (a.doctorId === doctorIdentifier || a.doctorId === docId) && a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled').length;
+    const slot2Bookings = allAppts.filter(a => (a.doctorId === doctorIdentifier || a.doctorId === docId) && a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled').length;
+    const s1Avail = Math.max(0, config.slot1Capacity - slot1Bookings);
+    const s2Avail = Math.max(0, config.slot2Capacity - slot2Bookings);
+    const s1Full = slot1Bookings >= config.slot1Capacity;
+    const s2Full = slot2Bookings >= config.slot2Capacity;
     return {
       slot1: {
         capacity: config.slot1Capacity,
         booked: slot1Bookings,
-        available: Math.max(0, config.slot1Capacity - slot1Bookings),
-        isFull: slot1Bookings >= config.slot1Capacity
+        available: s1Avail,
+        isFull: s1Full,
+        isAlmostFull: !s1Full && s1Avail <= 2
       },
       slot2: {
         capacity: config.slot2Capacity,
         booked: slot2Bookings,
-        available: Math.max(0, config.slot2Capacity - slot2Bookings),
-        isFull: slot2Bookings >= config.slot2Capacity
+        available: s2Avail,
+        isFull: s2Full,
+        isAlmostFull: !s2Full && s2Avail <= 2
       }
     };
   };
@@ -889,8 +895,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
-  const [patientSelectedWardChoice, setPatientSelectedWardChoice] = useState('');
-  const [printedPatientReleaseCert, setPrintedPatientReleaseCert] = useState(null);
   const [printedPatientAdmissionPass, setPrintedPatientAdmissionPass] = useState(null);
 
   const handleRequestApptSubmit = (e) => {
@@ -912,6 +916,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }
 
     const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
+    if (selDoc && selDoc.status && selDoc.status !== 'Available' && selDoc.status !== 'On Duty') {
+      alert(`Doctor Unavailable: ${selDoc.name} is currently "${selDoc.status}". Booking is disabled until the doctor returns to active duty.`);
+      return;
+    }
+
+    // Validate Slot Capacity (Hard limit cap)
+    const avail = getSlotAvailability(newApptDoctor, newApptDate);
+    const chosenSlotInfo = chosenSlot === 'Slot 1' ? avail.slot1 : avail.slot2;
+    if (chosenSlotInfo.isFull) {
+      alert(`Slot Booking Rejected: Doctor ${selDoc ? selDoc.name : ''} has reached the maximum capacity of ${chosenSlotInfo.capacity} patients for ${chosenSlot} on ${newApptDate}. Please select another slot or date.`);
+      return;
+    }
+
     const docName = selDoc?.name || newApptDoctor;
     const docDept = selDoc?.specialty || selDoc?.department || newApptDept || 'General Medicine';
     const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
@@ -989,13 +1006,18 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       return;
     }
 
+    const selDoc = doctorsList.find(d => d.id === newTeleDoctor || d.name === newTeleDoctor);
+    if (selDoc && selDoc.status && selDoc.status !== 'Available' && selDoc.status !== 'On Duty') {
+      alert(`Doctor Unavailable: ${selDoc.name} is currently "${selDoc.status}". Teleconsultation is disabled until the doctor returns to active duty.`);
+      return;
+    }
+
     const chosenTime = newTeleTime || '11:00 AM';
     if (isTeleSlotPassedForDate(newTeleDate, chosenTime)) {
       alert(`Invalid Time: The time slot ${chosenTime} has already passed for today. Please select an upcoming time slot.`);
       return;
     }
 
-    const selDoc = doctorsList.find(d => d.id === newTeleDoctor || d.name === newTeleDoctor);
     const docName = selDoc?.name || newTeleDoctor;
     const docDept = selDoc?.specialty || selDoc?.department || newTeleDept || 'General Medicine';
     const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
@@ -6052,11 +6074,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       {doctorsList.map(doc => {
                         const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
                         const fee = doc.consultationFee ? parseFloat(doc.consultationFee) : (doc.specialty === 'Cardiology' || doc.specialty === 'Neurology' ? 500 : 300);
+                        const isDocUnavailable = doc.status && doc.status !== 'Available' && doc.status !== 'On Duty';
                         return (
-                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department}) - ₹{fee.toFixed(2)}</option>
+                          <option key={doc.id} value={doc.id} disabled={isDocUnavailable}>
+                            {cleanDocName} ({doc.specialty || doc.department}) - [{doc.status || 'Available'}] - ₹{fee.toFixed(2)}{isDocUnavailable ? ' (UNAVAILABLE)' : ''}
+                          </option>
                         );
                       })}
                     </select>
+                    {(() => {
+                      const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
+                      if (selDoc && selDoc.status && selDoc.status !== 'Available' && selDoc.status !== 'On Duty') {
+                        return (
+                          <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#b91c1c', background: '#fee2e2', padding: '5px 8px', borderRadius: '4px', border: '1px solid #fca5a5' }}>
+                            ⚠️ <strong>Doctor Unavailable:</strong> {selDoc.name} is currently {selDoc.status}. Please choose another doctor.
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                   <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Specialty Department</label>
@@ -6116,16 +6152,24 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       {(() => {
                         const dateToUse = newApptDate || getTodayDateString();
                         const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
-                        const avail = getSlotAvailability(selDoc?.name || newApptDoctor, dateToUse);
+                        const avail = getSlotAvailability(selDoc?.id || newApptDoctor, dateToUse);
                         const s1Passed = isSlotPassedForDate(dateToUse, 'Slot 1');
                         const s2Passed = isSlotPassedForDate(dateToUse, 'Slot 2');
+
+                        const getSlotText = (slotTitle, timeText, slotInfo, isPassed) => {
+                          if (isPassed) return `${slotTitle} (${timeText}) - EXPIRED / PASSED`;
+                          if (slotInfo.isFull) return `${slotTitle} (${timeText}) - FULL (${slotInfo.capacity}/${slotInfo.capacity} Booked)`;
+                          if (slotInfo.isAlmostFull) return `${slotTitle} (${timeText}) - ABOUT TO FULL (${slotInfo.available} left)`;
+                          return `${slotTitle} (${timeText}) - ${slotInfo.available} / ${slotInfo.capacity} left`;
+                        };
+
                         return (
                           <>
                             <option value="Slot 1" disabled={avail.slot1.isFull || s1Passed}>
-                              Slot 1 (Morning: 9 AM - 1 PM) - {s1Passed ? "EXPIRED / PASSED" : (avail.slot1.isFull ? "FULL" : `${avail.slot1.available}/${avail.slot1.capacity} left`)}
+                              {getSlotText('Slot 1', 'Morning: 9 AM - 1 PM', avail.slot1, s1Passed)}
                             </option>
                             <option value="Slot 2" disabled={avail.slot2.isFull || s2Passed}>
-                              Slot 2 (Afternoon: 2 PM - 6 PM) - {s2Passed ? "EXPIRED / PASSED" : (avail.slot2.isFull ? "FULL" : `${avail.slot2.available}/${avail.slot2.capacity} left`)}
+                              {getSlotText('Slot 2', 'Afternoon: 2 PM - 6 PM', avail.slot2, s2Passed)}
                             </option>
                           </>
                         );
@@ -6182,11 +6226,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       <option value="" disabled hidden>Select Doctor</option>
                       {doctorsList.map(doc => {
                         const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
+                        const isDocUnavailable = doc.status && doc.status !== 'Available' && doc.status !== 'On Duty';
                         return (
-                          <option key={doc.id} value={doc.id}>{cleanDocName} ({doc.specialty || doc.department})</option>
+                          <option key={doc.id} value={doc.id} disabled={isDocUnavailable}>
+                            {cleanDocName} ({doc.specialty || doc.department}) - [{doc.status || 'Available'}]{isDocUnavailable ? ' (UNAVAILABLE)' : ''}
+                          </option>
                         );
                       })}
                     </select>
+                    {(() => {
+                      const selDoc = doctorsList.find(d => d.id === newTeleDoctor || d.name === newTeleDoctor);
+                      if (selDoc && selDoc.status && selDoc.status !== 'Available' && selDoc.status !== 'On Duty') {
+                        return (
+                          <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#b91c1c', background: '#fee2e2', padding: '5px 8px', borderRadius: '4px', border: '1px solid #fca5a5' }}>
+                            ⚠️ <strong>Doctor Unavailable:</strong> {selDoc.name} is currently {selDoc.status}.
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                   <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Specialty Department</label>

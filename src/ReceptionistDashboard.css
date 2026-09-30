@@ -571,6 +571,7 @@
   color: #b91c1c;
 }
 
+.rd-status-badge.available,
 .rd-status-badge.on-duty {
   background-color: #dcfce7;
   color: #15803d;
@@ -582,13 +583,15 @@
 }
 
 .rd-status-badge.in-surgery {
-  background-color: #fce7f3;
-  color: #be185d;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
 }
 
 .rd-status-badge.on-leave {
   background-color: #f1f5f9;
-  color: #475569;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
 }
 
 /* Patient File Modal Styles */
