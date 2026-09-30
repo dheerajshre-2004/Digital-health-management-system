@@ -52,36 +52,37 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  // Detection for Patient Portal vs Staff Portal
+  // Detection for Patient Portal vs Staff Portal (Strictly isolated by Vercel deployment URL / Env)
   const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   const urlParams = new URLSearchParams(window.location.search);
   const portalParam = urlParams.get('portal');
   const roleParam = urlParams.get('role');
+  const hostname = window.location.hostname.toLowerCase();
   
-  // If explicitly opened as staff in URL, allow staff; otherwise standalone PWA is ALWAYS Patient Portal
-  const isExplicitStaff = portalParam === 'staff' || (roleParam && roleParam !== 'patient');
-  
-  const isPatientPortal = (!isExplicitStaff && isPWA) || (
-    !isExplicitStaff && (
-      import.meta.env.VITE_APP_MODE === 'patient' ||
-      portalParam === 'patient' ||
-      window.location.pathname.startsWith('/patient') ||
-      window.location.hostname.toLowerCase().includes('patient') ||
-      isPWA
-    )
-  );
+  // Patient Portal is strictly determined by Vercel deployment mode (VITE_APP_MODE=patient), patient domain, or PWA
+  const isPatientPortal = 
+    import.meta.env.VITE_APP_MODE === 'patient' ||
+    hostname.includes('patient') ||
+    hostname.includes('myhealth') ||
+    portalParam === 'patient' ||
+    window.location.pathname.startsWith('/patient') ||
+    (isPWA && portalParam !== 'staff');
 
-  // Load initial session with persistent login memory (sessionStorage OR localStorage)
+  // Key isolation: Patient portal uses dhms_patient_session, Staff portal uses dhms_staff_session
+  const sessionKey = isPatientPortal ? 'dhms_patient_session' : 'dhms_staff_session';
+
+  // Load initial session strictly from isolated portal session
   const getInitialTabSession = () => {
     try {
-      const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_user_session');
+      const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey);
       if (tabSessionStr) {
         const parsed = JSON.parse(tabSessionStr);
-        // If app is opened as Patient PWA and saved session was staff, do NOT auto-load staff session in patient PWA
-        if (isPatientPortal && parsed.role && parsed.role !== 'patient' && !isExplicitStaff) {
-          return null;
+        if (isPatientPortal && parsed.role === 'patient') {
+          return parsed;
         }
-        return parsed;
+        if (!isPatientPortal && parsed.role && parsed.role !== 'patient') {
+          return parsed;
+        }
       }
     } catch (e) {}
     return null;
@@ -122,29 +123,35 @@ function App() {
   };
 
   const saveTabSession = (sessionData) => {
+    sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+    localStorage.setItem(sessionKey, JSON.stringify(sessionData));
+    // Backwards compatibility for legacy readers
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
-    sessionStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
-    localStorage.setItem('dhms_user_session', JSON.stringify(sessionData));
   };
 
   const clearTabSession = () => {
+    sessionStorage.removeItem(sessionKey);
+    localStorage.removeItem(sessionKey);
     sessionStorage.removeItem('dhms_tab_session');
     sessionStorage.removeItem('dhms_active_session');
     localStorage.removeItem('dhms_user_session');
   };
 
   useEffect(() => {
-    // Prioritize stored session
-    const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_user_session');
+    const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey);
     
     if (tabSessionStr) {
       try {
         const session = JSON.parse(tabSessionStr);
         if (session.role) {
-          if (isPatientPortal && session.role !== 'patient' && !isExplicitStaff) {
-            // Do not resume staff in Patient PWA
+          if (isPatientPortal && session.role !== 'patient') {
             setIsAuthenticated(false);
             setUserRole('patient');
+            return;
+          }
+          if (!isPatientPortal && session.role === 'patient') {
+            setIsAuthenticated(false);
+            setUserRole('doctor');
             return;
           }
           setUserRole(session.role);
@@ -158,15 +165,12 @@ function App() {
           setIsAuthenticated(true);
         }
       } catch (err) {
-        console.error("Failed to restore tab session:", err);
+        console.error("Failed to restore session:", err);
       }
-    } else if (roleParam || window.location.hash.replace('#', '')) {
-      const targetRole = roleParam || window.location.hash.replace('#', '');
-      if (targetRole) {
-        setUserRole(targetRole);
-      }
+    } else {
+      setUserRole(isPatientPortal ? 'patient' : (roleParam || 'doctor'));
     }
-  }, []);
+  }, [isPatientPortal, sessionKey]);
 
   // Helper to get fresh data from localStorage or fallback to Supabase table
   const getFreshList = async (key) => {
@@ -1180,33 +1184,6 @@ function App() {
           </form>
         )}
 
-      </div>
-
-      {/* Portal Switch Footer */}
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        {isPatientPortal ? (
-          <a
-            href="/?portal=staff"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = window.location.origin + '/?portal=staff';
-            }}
-            style={{ fontSize: '13px', color: '#64748b', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}
-          >
-            🔒 Hospital Staff & Doctor Sign In
-          </a>
-        ) : (
-          <a
-            href="/?portal=patient"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = window.location.origin + '/?portal=patient';
-            }}
-            style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontWeight: '600' }}
-          >
-            📱 Switch to Patient Portal & Telemedicine
-          </a>
-        )}
       </div>
     </div>
   );
