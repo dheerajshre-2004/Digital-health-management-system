@@ -53,18 +53,22 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   // Detection for Patient Portal vs Staff Portal
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   const urlParams = new URLSearchParams(window.location.search);
   const portalParam = urlParams.get('portal');
   const roleParam = urlParams.get('role');
+  
+  // If explicitly opened as staff in URL, allow staff; otherwise standalone PWA is ALWAYS Patient Portal
   const isExplicitStaff = portalParam === 'staff' || (roleParam && roleParam !== 'patient');
   
-  const isPatientPortal = !isExplicitStaff && (
-    import.meta.env.VITE_APP_MODE === 'patient' ||
-    portalParam === 'patient' ||
-    window.location.pathname.startsWith('/patient') ||
-    window.location.hostname.toLowerCase().includes('patient') ||
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
+  const isPatientPortal = (!isExplicitStaff && isPWA) || (
+    !isExplicitStaff && (
+      import.meta.env.VITE_APP_MODE === 'patient' ||
+      portalParam === 'patient' ||
+      window.location.pathname.startsWith('/patient') ||
+      window.location.hostname.toLowerCase().includes('patient') ||
+      isPWA
+    )
   );
 
   // Load initial session with persistent login memory (sessionStorage OR localStorage)
@@ -72,7 +76,12 @@ function App() {
     try {
       const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_user_session');
       if (tabSessionStr) {
-        return JSON.parse(tabSessionStr);
+        const parsed = JSON.parse(tabSessionStr);
+        // If app is opened as Patient PWA and saved session was staff, do NOT auto-load staff session in patient PWA
+        if (isPatientPortal && parsed.role && parsed.role !== 'patient' && !isExplicitStaff) {
+          return null;
+        }
+        return parsed;
       }
     } catch (e) {}
     return null;
@@ -113,7 +122,6 @@ function App() {
   };
 
   const saveTabSession = (sessionData) => {
-    // Save to tab session and persist to localStorage so user stays logged in across visits
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
     sessionStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
     localStorage.setItem('dhms_user_session', JSON.stringify(sessionData));
@@ -133,6 +141,12 @@ function App() {
       try {
         const session = JSON.parse(tabSessionStr);
         if (session.role) {
+          if (isPatientPortal && session.role !== 'patient' && !isExplicitStaff) {
+            // Do not resume staff in Patient PWA
+            setIsAuthenticated(false);
+            setUserRole('patient');
+            return;
+          }
           setUserRole(session.role);
           if (session.role === 'patient') {
             setLoggedInPatient(session.user);
@@ -1166,6 +1180,33 @@ function App() {
           </form>
         )}
 
+      </div>
+
+      {/* Portal Switch Footer */}
+      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        {isPatientPortal ? (
+          <a
+            href="/?portal=staff"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = window.location.origin + '/?portal=staff';
+            }}
+            style={{ fontSize: '13px', color: '#64748b', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}
+          >
+            🔒 Hospital Staff & Doctor Sign In
+          </a>
+        ) : (
+          <a
+            href="/?portal=patient"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = window.location.origin + '/?portal=patient';
+            }}
+            style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontWeight: '600' }}
+          >
+            📱 Switch to Patient Portal & Telemedicine
+          </a>
+        )}
       </div>
     </div>
   );
