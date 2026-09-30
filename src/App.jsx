@@ -10,6 +10,8 @@ import InsuranceDashboard from './InsuranceDashboard';
 import TriageDashboard from './TriageDashboard';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 import { t } from './i18nService';
+import { supabase } from './supabaseClient';
+import { pushToSupabase } from './supabaseSync';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -34,6 +36,7 @@ class ErrorBoundary extends React.Component {
             <button 
               onClick={() => {
                 sessionStorage.clear();
+                localStorage.removeItem('dhms_user_session');
                 window.location.reload();
               }}
               style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -64,10 +67,10 @@ function App() {
     window.navigator.standalone === true
   );
 
-  // Load initial tab session if present (per-tab isolation)
+  // Load initial session with persistent login memory (sessionStorage OR localStorage)
   const getInitialTabSession = () => {
     try {
-      const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+      const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_user_session');
       if (tabSessionStr) {
         return JSON.parse(tabSessionStr);
       }
@@ -110,19 +113,21 @@ function App() {
   };
 
   const saveTabSession = (sessionData) => {
-    // Save strictly to tab-specific sessionStorage so each tab preserves its own module & user
+    // Save to tab session and persist to localStorage so user stays logged in across visits
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
     sessionStorage.setItem('dhms_active_session', JSON.stringify(sessionData));
+    localStorage.setItem('dhms_user_session', JSON.stringify(sessionData));
   };
 
   const clearTabSession = () => {
     sessionStorage.removeItem('dhms_tab_session');
     sessionStorage.removeItem('dhms_active_session');
+    localStorage.removeItem('dhms_user_session');
   };
 
   useEffect(() => {
-    // Prioritize tab-specific session to keep each tab strictly isolated
-    const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session');
+    // Prioritize stored session
+    const tabSessionStr = sessionStorage.getItem('dhms_tab_session') || sessionStorage.getItem('dhms_active_session') || localStorage.getItem('dhms_user_session');
     
     if (tabSessionStr) {
       try {
@@ -147,143 +152,47 @@ function App() {
         setUserRole(targetRole);
       }
     }
-
-    // Clean up dummy staff accounts from user's existing localStorage session
-    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
-
-    const recSaved = localStorage.getItem('dhms_receptionist_staff');
-    if (recSaved) {
-      const filtered = JSON.parse(recSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-      localStorage.setItem('dhms_receptionist_staff', JSON.stringify(filtered));
-    }
-
-    const labSaved = localStorage.getItem('dhms_laboratory_staff');
-    if (labSaved) {
-      const filtered = JSON.parse(labSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-      localStorage.setItem('dhms_laboratory_staff', JSON.stringify(filtered));
-    }
-
-    const phrSaved = localStorage.getItem('dhms_pharmacy_staff');
-    if (phrSaved) {
-      const filtered = JSON.parse(phrSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(filtered));
-    }
-
-    const cashSaved = localStorage.getItem('dhms_cashier_staff');
-    if (cashSaved) {
-      const filtered = JSON.parse(cashSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-      localStorage.setItem('dhms_cashier_staff', JSON.stringify(filtered));
-    }
-
-    const triageSaved = localStorage.getItem('dhms_triage_staff');
-    if (triageSaved) {
-      const filtered = JSON.parse(triageSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-      localStorage.setItem('dhms_triage_staff', JSON.stringify(filtered));
-    }
-
-    // Seed initial empty state if not present
-    if (!localStorage.getItem('dhms_patients')) {
-      localStorage.setItem('dhms_patients', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_appointments')) {
-      localStorage.setItem('dhms_appointments', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_prescriptions')) {
-      localStorage.setItem('dhms_prescriptions', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_lab_requests')) {
-      localStorage.setItem('dhms_lab_requests', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_medications')) {
-      const defaultMeds = [
-        { id: "MED-101", name: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", category: "Antibiotics", stock: 150, price: 18.00, isEmergency: false, lowStockThreshold: 20 },
-        { id: "MED-102", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 120, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
-        { id: "MED-103", name: "Metoprolol 25mg", genericName: "Metoprolol Succinate", category: "Cardiovascular", stock: 95, price: 20.00, isEmergency: false, lowStockThreshold: 15 },
-        { id: "MED-104", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 6.50, isEmergency: false, lowStockThreshold: 25 },
-        { id: "MED-105", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 3.00, isEmergency: true, lowStockThreshold: 50 },
-        { id: "MED-106", name: "Epinephrine 1mg/mL", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 60, price: 40.00, isEmergency: true, lowStockThreshold: 15 },
-        { id: "MED-107", name: "Adenosine 6mg/2mL", genericName: "Adenosine", category: "Antiarrhythmic", stock: 40, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
-        { id: "MED-108", name: "Naloxone 0.4mg/mL", genericName: "Naloxone", category: "Opioid Antagonist", stock: 50, price: 35.00, isEmergency: true, lowStockThreshold: 15 }
-      ];
-      localStorage.setItem('dhms_medications', JSON.stringify(defaultMeds));
-    }
-
-    if (!localStorage.getItem('dhms_receptionist_staff')) {
-      localStorage.setItem('dhms_receptionist_staff', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_laboratory_staff')) {
-      localStorage.setItem('dhms_laboratory_staff', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_pharmacy_staff')) {
-      localStorage.setItem('dhms_pharmacy_staff', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_cashier_staff')) {
-      localStorage.setItem('dhms_cashier_staff', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_pharmacy_attendance')) {
-      localStorage.setItem('dhms_pharmacy_attendance', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_master_attendance')) {
-      localStorage.setItem('dhms_master_attendance', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_admissions')) {
-      localStorage.setItem('dhms_admissions', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_insurance_policies')) {
-      localStorage.setItem('dhms_insurance_policies', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_insurance_claims')) {
-      localStorage.setItem('dhms_insurance_claims', JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem('dhms_doctors')) {
-      const defaultDoctors = [
-        { id: 'dr_sarah_connor', name: 'Dr. Sarah Connor', department: 'Cardiology & Intensive Cardiac Care', status: 'Available', email: 'sarah.connor@dhms.org', phone: '+91 98765 43211', consultationFee: 500, password: 'password123' },
-        { id: 'dr_gregory_house', name: 'Dr. Gregory House', department: 'Neurology & Neurosurgery', status: 'Available', email: 'gregory.house@dhms.org', phone: '+91 98765 43212', consultationFee: 500, password: 'password123' },
-        { id: 'dr_meredith_grey', name: 'Dr. Meredith Grey', department: 'General & Internal Medicine', status: 'Available', email: 'meredith.grey@dhms.org', phone: '+91 98765 43213', consultationFee: 300, password: 'password123' },
-        { id: 'dr_john_watson', name: 'Dr. John Watson', department: 'Orthopedics & Joint Care', status: 'Available', email: 'john.watson@dhms.org', phone: '+91 98765 43214', consultationFee: 400, password: 'password123' }
-      ];
-      localStorage.setItem('dhms_doctors', JSON.stringify(defaultDoctors));
-    }
-
-    if (!localStorage.getItem('dhms_departments')) {
-      const defaultDepartments = [
-        { id: 1, name: 'Cardiology & Intensive Cardiac Care', code: 'CARD', head: 'Dr. Sarah Connor' },
-        { id: 2, name: 'Neurology & Neurosurgery', code: 'NEUR', head: 'Dr. Gregory House' },
-        { id: 3, name: 'Orthopedics & Joint Care', code: 'ORTH', head: 'Dr. John Watson' },
-        { id: 4, name: 'General & Internal Medicine', code: 'GENM', head: 'Dr. Meredith Grey' },
-        { id: 5, name: 'Pediatrics & Neonatology', code: 'PEDI', head: 'Dr. Leonard McCoy' },
-        { id: 6, name: 'Oncology & Chemotherapy Wing', code: 'ONCO', head: 'Dr. Beverly Crusher' },
-        { id: 7, name: 'Emergency & Trauma Care (24x7)', code: 'EMER', head: 'Dr. Michaela Quinn' }
-      ];
-      localStorage.setItem('dhms_departments', JSON.stringify(defaultDepartments));
-    }
   }, []);
 
-  const handleAuthSubmit = (e) => {
+  // Helper to get fresh data from localStorage or fallback to Supabase table
+  const getFreshList = async (key) => {
+    let list = [];
+    try {
+      list = JSON.parse(localStorage.getItem(key) || '[]');
+    } catch (e) {
+      list = [];
+    }
+
+    if ((!list || list.length === 0) && supabase && supabase.from) {
+      try {
+        const { data } = await supabase.from('dhms_store').select('value').eq('key', key).maybeSingle();
+        if (data && data.value) {
+          const remoteList = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            list = remoteList;
+            localStorage.setItem(key, JSON.stringify(remoteList));
+          }
+        }
+      } catch (err) {
+        console.warn(`[App] Error fetching fresh list for ${key}:`, err);
+      }
+    }
+    return list;
+  };
+
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     const emailVal = signInIdentifier.trim();
     const passwordVal = signInPassword;
     
     if (userRole === 'patient' || isPatientPortal) {
-      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
       const inputClean = emailVal.trim();
       const inputLower = inputClean.toLowerCase();
       const inputDigits = inputClean.replace(/\D/g, '').replace(/^91|^0/, ''); // Normalize Indian mobile digits
       
-      const matched = patientsList.find(p => {
+      let patientsList = await getFreshList('dhms_patients');
+      
+      const findMatch = (list) => list.find(p => {
         // 1. Match by Patient ID (case-insensitive: PT-12345 or PAT-1001)
         if (p.id && p.id.toLowerCase() === inputLower) return true;
         
@@ -302,6 +211,23 @@ function App() {
         
         return false;
       });
+
+      let matched = findMatch(patientsList);
+
+      // If still not matched, force query latest Supabase record directly
+      if (!matched && supabase && supabase.from) {
+        try {
+          const { data } = await supabase.from('dhms_store').select('value').eq('key', 'dhms_patients').maybeSingle();
+          if (data && data.value) {
+            const remoteList = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            if (Array.isArray(remoteList)) {
+              localStorage.setItem('dhms_patients', JSON.stringify(remoteList));
+              matched = findMatch(remoteList);
+            }
+          }
+        } catch (err) {}
+      }
+
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
@@ -318,12 +244,27 @@ function App() {
         setSignInPassword('');
       }
     } else if (userRole === 'doctor') {
-      const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
-      const matched = doctorsList.find(d => 
+      let doctorsList = await getFreshList('dhms_doctors');
+      const findDoc = (list) => list.find(d => 
         (d.email && d.email.toLowerCase() === emailVal.toLowerCase()) ||
         (d.name && d.name.toLowerCase() === emailVal.toLowerCase()) ||
         (d.id && d.id.toLowerCase() === emailVal.toLowerCase())
       );
+      let matched = findDoc(doctorsList);
+
+      if (!matched && supabase && supabase.from) {
+        try {
+          const { data } = await supabase.from('dhms_store').select('value').eq('key', 'dhms_doctors').maybeSingle();
+          if (data && data.value) {
+            const remoteList = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            if (Array.isArray(remoteList)) {
+              localStorage.setItem('dhms_doctors', JSON.stringify(remoteList));
+              matched = findDoc(remoteList);
+            }
+          }
+        } catch (err) {}
+      }
+
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
@@ -338,34 +279,36 @@ function App() {
         alert('Doctor account not found. Please register first.');
         setSignInPassword('');
       }
-    } else if (userRole === 'receptionist') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
-      const matched = staffList.find(s => 
+    } else if (['receptionist', 'laboratory', 'pharmacist', 'cash_counter', 'triage'].includes(userRole)) {
+      const storeKeyMap = {
+        receptionist: 'dhms_receptionist_staff',
+        laboratory: 'dhms_laboratory_staff',
+        pharmacist: 'dhms_pharmacy_staff',
+        cash_counter: 'dhms_cashier_staff',
+        triage: 'dhms_triage_staff'
+      };
+      const storeKey = storeKeyMap[userRole];
+      let staffList = await getFreshList(storeKey);
+      const findStaff = (list) => list.find(s => 
         (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
         (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
         (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
       );
-      if (matched) {
-        if (matched.password && matched.password !== passwordVal) {
-          alert('Incorrect password. Please try again.');
-          setSignInPassword('');
-          return;
-        }
-        clearAuthFields();
-        setLoggedInStaff(matched);
-        setIsAuthenticated(true);
-        saveTabSession({ role: 'receptionist', user: matched });
-      } else {
-        alert('Receptionist account not found. Please register first.');
-        setSignInPassword('');
+      let matched = findStaff(staffList);
+
+      if (!matched && supabase && supabase.from) {
+        try {
+          const { data } = await supabase.from('dhms_store').select('value').eq('key', storeKey).maybeSingle();
+          if (data && data.value) {
+            const remoteList = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            if (Array.isArray(remoteList)) {
+              localStorage.setItem(storeKey, JSON.stringify(remoteList));
+              matched = findStaff(remoteList);
+            }
+          }
+        } catch (err) {}
       }
-    } else if (userRole === 'laboratory') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
-      const matched = staffList.find(s => 
-        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
-      );
+
       if (matched) {
         if (matched.password && matched.password !== passwordVal) {
           alert('Incorrect password. Please try again.');
@@ -375,79 +318,26 @@ function App() {
         clearAuthFields();
         setLoggedInStaff(matched);
         setIsAuthenticated(true);
-        saveTabSession({ role: 'laboratory', user: matched });
+        saveTabSession({ role: userRole, user: matched });
       } else {
-        alert('Laboratory staff account not found. Please register first.');
-        setSignInPassword('');
-      }
-    } else if (userRole === 'pharmacist') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
-      const matched = staffList.find(s => 
-        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
-      );
-      if (matched) {
-        if (matched.password && matched.password !== passwordVal) {
-          alert('Incorrect password. Please try again.');
-          setSignInPassword('');
-          return;
-        }
-        clearAuthFields();
-        setLoggedInStaff(matched);
-        setIsAuthenticated(true);
-        saveTabSession({ role: 'pharmacist', user: matched });
-      } else {
-        alert('Pharmacy staff account not found. Please register first.');
-        setSignInPassword('');
-      }
-    } else if (userRole === 'cash_counter') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
-      const matched = staffList.find(s => 
-        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
-      );
-      if (matched) {
-        if (matched.password && matched.password !== passwordVal) {
-          alert('Incorrect password. Please try again.');
-          setSignInPassword('');
-          return;
-        }
-        clearAuthFields();
-        setLoggedInStaff(matched);
-        setIsAuthenticated(true);
-        saveTabSession({ role: 'cash_counter', user: matched });
-      } else {
-        alert('Cash counter staff account not found. Please register first.');
-        setSignInPassword('');
-      }
-    } else if (userRole === 'triage') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_triage_staff') || '[]');
-      const matched = staffList.find(s => 
-        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
-        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
-      );
-      if (matched) {
-        if (matched.password && matched.password !== passwordVal) {
-          alert('Incorrect password. Please try again.');
-          setSignInPassword('');
-          return;
-        }
-        clearAuthFields();
-        setLoggedInStaff(matched);
-        setIsAuthenticated(true);
-        saveTabSession({ role: 'triage', user: matched });
-      } else {
-        alert('OPD Triage / Nursing staff account not found. Please register first.');
+        alert(`${userRole.charAt(0).toUpperCase() + userRole.slice(1).replace('_', ' ')} account not found. Please register first.`);
         setSignInPassword('');
       }
     } else if (userRole === 'admin') {
-      const savedAdmin = localStorage.getItem('dhms_admin');
+      let savedAdmin = localStorage.getItem('dhms_admin');
+      if (!savedAdmin && supabase && supabase.from) {
+        try {
+          const { data } = await supabase.from('dhms_store').select('value').eq('key', 'dhms_admin').maybeSingle();
+          if (data && data.value) {
+            savedAdmin = typeof data.value === 'string' ? data.value : JSON.stringify(data.value);
+            localStorage.setItem('dhms_admin', savedAdmin);
+          }
+        } catch (err) {}
+      }
+
       if (savedAdmin) {
         const adminObj = JSON.parse(savedAdmin);
-        if (adminObj.email.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
+        if (adminObj.email?.toLowerCase() === emailVal.toLowerCase() && adminObj.password === passwordVal) {
           clearAuthFields();
           setIsAuthenticated(true);
           saveTabSession({ role: 'admin', user: { name: 'System Administrator', email: emailVal } });
@@ -464,6 +354,7 @@ function App() {
           password: passwordVal
         };
         localStorage.setItem('dhms_admin', JSON.stringify(newAdmin));
+        await pushToSupabase('dhms_admin', newAdmin);
         clearAuthFields();
         setIsAuthenticated(true);
         saveTabSession({ role: 'admin', user: newAdmin });
@@ -487,7 +378,7 @@ function App() {
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
     if (userRole === 'patient' || isPatientPortal) {
-      const patientsList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+      const patientsList = await getFreshList('dhms_patients');
       if (patientsList.some(p => p.email && p.email.toLowerCase() === emailVal.toLowerCase())) {
         alert('A patient account already exists with this email address.');
         return;
@@ -496,18 +387,24 @@ function App() {
       const newPatient = {
         id: newId,
         name: nameVal,
+        firstName: firstName,
+        lastName: lastName,
         email: emailVal,
         phone: regPhone || '9876543210',
         dob: regDob || '1995-01-01',
         gender: regGender || 'Male',
+        bloodType: regBloodGroup || 'O+',
         bloodGroup: regBloodGroup || 'O+',
         allergies: 'None reported',
         chronicConditions: 'None',
         password: passwordVal,
+        clinicalHistory: [],
+        reports: [],
         createdAt: new Date().toISOString()
       };
       const updated = [newPatient, ...patientsList];
       localStorage.setItem('dhms_patients', JSON.stringify(updated));
+      await pushToSupabase('dhms_patients', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,
@@ -526,7 +423,7 @@ function App() {
       });
       clearAuthFields();
     } else if (userRole === 'doctor') {
-      const doctorsList = JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
+      const doctorsList = await getFreshList('dhms_doctors');
       if (doctorsList.some(d => d.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -545,6 +442,7 @@ function App() {
       };
       const updated = [newDoc, ...doctorsList];
       localStorage.setItem('dhms_doctors', JSON.stringify(updated));
+      await pushToSupabase('dhms_doctors', updated);
 
       // Also ensure this department exists in dhms_departments so admin/portals recognize it
       const savedDepts = JSON.parse(localStorage.getItem('dhms_departments') || '[]');
@@ -555,11 +453,9 @@ function App() {
           code: regDoctorDept.substring(0, 4).toUpperCase(),
           head: newDoc.name
         };
-        localStorage.setItem('dhms_departments', JSON.stringify([...savedDepts, newDeptObj]));
-      }
-
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new Event('storage'));
+        const updatedDepts = [...savedDepts, newDeptObj];
+        localStorage.setItem('dhms_departments', JSON.stringify(updatedDepts));
+        await pushToSupabase('dhms_departments', updatedDepts);
       }
 
       await sendPatientWelcomeEmail({
@@ -579,7 +475,7 @@ function App() {
       });
       clearAuthFields();
     } else if (userRole === 'receptionist') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_receptionist_staff') || '[]');
+      const staffList = await getFreshList('dhms_receptionist_staff');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -595,6 +491,7 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_receptionist_staff', JSON.stringify(updated));
+      await pushToSupabase('dhms_receptionist_staff', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,
@@ -613,7 +510,7 @@ function App() {
       });
       clearAuthFields();
     } else if (userRole === 'laboratory') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]');
+      const staffList = await getFreshList('dhms_laboratory_staff');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -629,6 +526,7 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_laboratory_staff', JSON.stringify(updated));
+      await pushToSupabase('dhms_laboratory_staff', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,
@@ -647,7 +545,7 @@ function App() {
       });
       clearAuthFields();
     } else if (userRole === 'pharmacist') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]');
+      const staffList = await getFreshList('dhms_pharmacy_staff');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -663,6 +561,7 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_pharmacy_staff', JSON.stringify(updated));
+      await pushToSupabase('dhms_pharmacy_staff', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,
@@ -681,7 +580,7 @@ function App() {
       });
       clearAuthFields();
     } else if (userRole === 'cash_counter') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]');
+      const staffList = await getFreshList('dhms_cashier_staff');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -697,6 +596,7 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
+      await pushToSupabase('dhms_cashier_staff', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,
@@ -713,8 +613,9 @@ function App() {
         id: newId,
         password: passwordVal
       });
+      clearAuthFields();
     } else if (userRole === 'triage') {
-      const staffList = JSON.parse(localStorage.getItem('dhms_triage_staff') || '[]');
+      const staffList = await getFreshList('dhms_triage_staff');
       if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
         alert('An account already exists with this email.');
         return;
@@ -730,6 +631,7 @@ function App() {
       };
       const updated = [newStaff, ...staffList];
       localStorage.setItem('dhms_triage_staff', JSON.stringify(updated));
+      await pushToSupabase('dhms_triage_staff', updated);
 
       await sendPatientWelcomeEmail({
         patientName: nameVal,

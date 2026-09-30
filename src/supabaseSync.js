@@ -4,17 +4,19 @@ import { supabase } from './supabaseClient';
 const updateDebounceTimers = {};
 
 /**
- * Pushes a key-value pair to the Supabase store
+ * Pushes a key-value pair to the Supabase store immediately
  * @param {string} key 
- * @param {string} value 
+ * @param {string|object} value 
  */
-async function pushToSupabase(key, value) {
+export async function pushToSupabase(key, value) {
   try {
     let parsedValue = value;
-    try {
-      parsedValue = JSON.parse(value);
-    } catch (e) {
-      // Keep as string if not JSON
+    if (typeof value === 'string') {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch (e) {
+        // Keep as string if not JSON
+      }
     }
 
     const { error } = await supabase
@@ -33,7 +35,7 @@ async function pushToSupabase(key, value) {
  * Deletes a key from the Supabase store
  * @param {string} key 
  */
-async function deleteFromSupabase(key) {
+export async function deleteFromSupabase(key) {
   try {
     const { error } = await supabase
       .from('dhms_store')
