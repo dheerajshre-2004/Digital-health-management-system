@@ -203,6 +203,28 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     onLogout();
   };
 
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isSlotPassedForDate = (dateStr, slotName) => {
+    if (!dateStr || !slotName) return false;
+    const todayStr = getTodayDateString();
+    if (dateStr < todayStr) return true;
+    if (dateStr === todayStr) {
+      const currentHour = new Date().getHours();
+      // Slot 1 (Morning: 9 AM - 1 PM) - closed after 13:00 (1 PM)
+      if (slotName === 'Slot 1' && currentHour >= 13) return true;
+      // Slot 2 (Afternoon: 2 PM - 6 PM) - closed after 18:00 (6 PM)
+      if (slotName === 'Slot 2' && currentHour >= 18) return true;
+    }
+    return false;
+  };
+
   const [departmentsList, setDepartmentsList] = useState(() => {
     const saved = localStorage.getItem('dhms_departments');
     if (saved) {

@@ -798,6 +798,51 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     return () => clearInterval(interval);
   }, [isVideoCallActive, activeCallId]);
 
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isSlotPassedForDate = (dateStr, slotName) => {
+    if (!dateStr || !slotName) return false;
+    const todayStr = getTodayDateString();
+    if (dateStr < todayStr) return true;
+    if (dateStr === todayStr) {
+      const currentHour = new Date().getHours();
+      // Slot 1 (Morning: 9 AM - 1 PM) - closed after 13:00 (1 PM)
+      if (slotName === 'Slot 1' && currentHour >= 13) return true;
+      // Slot 2 (Afternoon: 2 PM - 6 PM) - closed after 18:00 (6 PM)
+      if (slotName === 'Slot 2' && currentHour >= 18) return true;
+    }
+    return false;
+  };
+
+  const isTeleSlotPassedForDate = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return false;
+    const todayStr = getTodayDateString();
+    if (dateStr < todayStr) return true;
+    if (dateStr === todayStr) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // Parse e.g. "09:30 AM", "11:00 AM", "02:30 PM", "04:00 PM", "05:30 PM"
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const meridiem = match[3].toUpperCase();
+        if (meridiem === 'PM' && h < 12) h += 12;
+        if (meridiem === 'AM' && h === 12) h = 0;
+        const slotMinutes = h * 60 + m;
+        if (currentMinutes >= slotMinutes) return true;
+      }
+    }
+    return false;
+  };
+
   const getSlotAvailability = (doctorName, date) => {
     if (!doctorName || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false } };
     const docId = doctorName.toLowerCase().replace('.', '').replace(' ', '_');
@@ -838,7 +883,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [showRequestApptModal, setShowRequestApptModal] = useState(false);
   const [newApptDoctor, setNewApptDoctor] = useState('');
   const [newApptDept, setNewApptDept] = useState('');
-  const [newApptDate, setNewApptDate] = useState('');
+  const [newApptDate, setNewApptDate] = useState(getTodayDateString());
   const [newApptTime, setNewApptTime] = useState('');
   const [newApptReason, setNewApptReason] = useState('');
   const [admissions, setAdmissions] = useState(() => {
@@ -847,6 +892,127 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [patientSelectedWardChoice, setPatientSelectedWardChoice] = useState('');
   const [printedPatientReleaseCert, setPrintedPatientReleaseCert] = useState(null);
   const [printedPatientAdmissionPass, setPrintedPatientAdmissionPass] = useState(null);
+
+  const handleRequestApptSubmit = (e) => {
+    e.preventDefault();
+    if (!newApptDoctor) {
+      alert("Please select an attending doctor.");
+      return;
+    }
+    const todayStr = getTodayDateString();
+    if (!newApptDate || newApptDate < todayStr) {
+      alert("Invalid Appointment Date: You cannot book an appointment for a past date. Please select today or a future date.");
+      return;
+    }
+
+    const chosenSlot = newApptTime || 'Slot 1';
+    if (isSlotPassedForDate(newApptDate, chosenSlot)) {
+      alert(`Invalid Time Slot: The selected slot (${chosenSlot === 'Slot 1' ? 'Slot 1 Morning: 9 AM - 1 PM' : 'Slot 2 Afternoon: 2 PM - 6 PM'}) has already concluded for today. Please select another slot or choose an upcoming date.`);
+      return;
+    }
+
+    const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
+    const docName = selDoc?.name || newApptDoctor;
+    const docDept = selDoc?.specialty || selDoc?.department || newApptDept || 'General Medicine';
+    const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
+    const pId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+
+    const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
+    const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newAppt = {
+      id: apptId,
+      patientId: pId,
+      patientName: pName,
+      doctorId: newApptDoctor,
+      doctorName: docName,
+      department: docDept,
+      date: newApptDate,
+      time: chosenSlot,
+      reason: newApptReason || 'General Consultation Request',
+      status: "Upcoming",
+      type: "Physical",
+      source: "Online",
+      feeType: "Doctor Consultation Fee",
+      consultationFee: `₹${docFee.toFixed(2)}`,
+      doctorConsultationRate: `₹${docFee.toFixed(2)}`,
+      feeStatus: "Unpaid",
+      paymentMethod: "Pay at Cash Counter",
+      invoiceId: invoiceId
+    };
+
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const updatedAppts = [newAppt, ...allAppts];
+    localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+    setAppointments(updatedAppts.filter(a => a.patientId === pId));
+
+    // Create central invoice
+    const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const newInvoice = {
+      id: invoiceId,
+      patientId: pId,
+      patientName: pName,
+      date: newApptDate,
+      amount: `₹${docFee.toFixed(2)}`,
+      status: 'Unpaid',
+      type: `Doctor Consultation Fee (${docName} - ${docDept})`,
+      appointmentId: apptId,
+      paymentRemarks: 'Requested via Patient Portal - Pending Reception / Counter Settle'
+    };
+    const updatedBilling = [newInvoice, ...allBilling];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    alert(`✓ Appointment Request Submitted!\n\nAppointment ID: ${apptId}\nDoctor: ${docName}\nDate: ${newApptDate}\nSlot: ${chosenSlot === 'Slot 1' ? 'Slot 1 (Morning: 9 AM - 1 PM)' : 'Slot 2 (Afternoon: 2 PM - 6 PM)'}`);
+    setShowRequestApptModal(false);
+    setNewApptDoctor('');
+    setNewApptDept('');
+    setNewApptDate(getTodayDateString());
+    setNewApptTime('');
+    setNewApptReason('');
+  };
+
+  const handleScheduleTeleSubmit = (e) => {
+    e.preventDefault();
+    if (!newTeleDoctor) {
+      alert("Please select a doctor for video consultation.");
+      return;
+    }
+    const todayStr = getTodayDateString();
+    if (!newTeleDate || newTeleDate < todayStr) {
+      alert("Invalid Date: You cannot schedule a video consultation for a past date. Please select today or a future date.");
+      return;
+    }
+
+    const chosenTime = newTeleTime || '11:00 AM';
+    if (isTeleSlotPassedForDate(newTeleDate, chosenTime)) {
+      alert(`Invalid Time: The time slot ${chosenTime} has already passed for today. Please select an upcoming time slot.`);
+      return;
+    }
+
+    const selDoc = doctorsList.find(d => d.id === newTeleDoctor || d.name === newTeleDoctor);
+    const docName = selDoc?.name || newTeleDoctor;
+    const docDept = selDoc?.specialty || selDoc?.department || newTeleDept || 'General Medicine';
+    const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
+
+    setPendingTeleAppt({
+      doctorId: newTeleDoctor,
+      doctorName: docName,
+      department: docDept,
+      date: newTeleDate,
+      time: chosenTime,
+      reason: newTeleReason || 'Video Teleconsultation',
+      fee: docFee
+    });
+
+    setShowScheduleTeleModal(false);
+    setShowTelePaymentModal(true);
+  };
 
   const handleSaveWardPreference = (admissionId, preferredWard) => {
     if (!preferredWard) {
@@ -2546,59 +2712,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     }, 150);
   };
 
-  const handleRequestApptSubmit = (e) => {
-    e.preventDefault();
-    const matchedDoc = doctorsList.find(d => d.id === newApptDoctor);
-    const doctorName = matchedDoc ? matchedDoc.name : newApptDoctor;
-    const doctorId = matchedDoc ? matchedDoc.id : newApptDoctor.toLowerCase().replace('.', '').replace(' ', '_');
-
-    const newAppt = {
-      id: `APT-${Math.floor(10000 + Math.random() * 90000)}`,
-      patientId: currentPatient?.id || "PT-80234",
-      patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe",
-      doctorId: doctorId,
-      doctorName: doctorName,
-      department: newApptDept,
-      date: newApptDate,
-      time: newApptTime,
-      reason: newApptReason,
-      status: "Pending Confirmation",
-      type: "Physical",
-      source: "Online"
-    };
-
-    const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-    const updated = [newAppt, ...currentAppts];
-    localStorage.setItem('dhms_appointments', JSON.stringify(updated));
-    setAppointments(updated);
-
-    setShowRequestApptModal(false);
-    setNewApptReason('');
-    alert("Appointment request submitted successfully!");
-  };
-
-  const handleScheduleTeleSubmit = (e) => {
-    e.preventDefault();
-    const matchedDoc = doctorsList.find(d => d.id === newTeleDoctor);
-    const doctorName = matchedDoc ? matchedDoc.name : newTeleDoctor;
-    const doctorId = matchedDoc ? matchedDoc.id : newTeleDoctor.toLowerCase().replace('.', '').replace(' ', '_');
-    const fee = matchedDoc && matchedDoc.consultationFee ? matchedDoc.consultationFee : '500.00';
-
-    const prepAppt = {
-      id: `TELE-${Math.floor(100 + Math.random() * 900)}`,
-      doctorName: doctorName,
-      doctorId: doctorId,
-      department: newTeleDept || "General Medicine",
-      date: newTeleDate || new Date().toISOString().split('T')[0],
-      time: newTeleTime || "11:00 AM",
-      reason: newTeleReason || "General health consultation.",
-      fee: fee.toString().replace('₹', '')
-    };
-
-    setPendingTeleAppt(prepAppt);
-    setShowScheduleTeleModal(false);
-    setShowTelePaymentModal(true);
-  };
 
   const handleCompleteTelePayment = (e) => {
     e.preventDefault();
@@ -5979,8 +6092,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <input 
                       type="date" 
                       required 
-                      value={newApptDate || new Date().toISOString().split('T')[0]} 
-                      onChange={(e) => setNewApptDate(e.target.value)} 
+                      min={getTodayDateString()} 
+                      value={newApptDate || getTodayDateString()} 
+                      onChange={(e) => {
+                        const nextDate = e.target.value;
+                        setNewApptDate(nextDate);
+                        if (isSlotPassedForDate(nextDate, newApptTime)) {
+                          setNewApptTime('');
+                        }
+                      }} 
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                     />
                   </div>
@@ -5988,12 +6108,28 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Time Slot</label>
                     <select 
                       required 
-                      value={newApptTime || 'Slot 1'} 
+                      value={newApptTime || ''} 
                       onChange={(e) => setNewApptTime(e.target.value)}
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
                     >
-                      <option value="Slot 1">Slot 1 (Morning: 9 AM - 1 PM)</option>
-                      <option value="Slot 2">Slot 2 (Afternoon: 2 PM - 6 PM)</option>
+                      <option value="" disabled>Select Time Slot</option>
+                      {(() => {
+                        const dateToUse = newApptDate || getTodayDateString();
+                        const selDoc = doctorsList.find(d => d.id === newApptDoctor || d.name === newApptDoctor);
+                        const avail = getSlotAvailability(selDoc?.name || newApptDoctor, dateToUse);
+                        const s1Passed = isSlotPassedForDate(dateToUse, 'Slot 1');
+                        const s2Passed = isSlotPassedForDate(dateToUse, 'Slot 2');
+                        return (
+                          <>
+                            <option value="Slot 1" disabled={avail.slot1.isFull || s1Passed}>
+                              Slot 1 (Morning: 9 AM - 1 PM) - {s1Passed ? "EXPIRED / PASSED" : (avail.slot1.isFull ? "FULL" : `${avail.slot1.available}/${avail.slot1.capacity} left`)}
+                            </option>
+                            <option value="Slot 2" disabled={avail.slot2.isFull || s2Passed}>
+                              Slot 2 (Afternoon: 2 PM - 6 PM) - {s2Passed ? "EXPIRED / PASSED" : (avail.slot2.isFull ? "FULL" : `${avail.slot2.available}/${avail.slot2.capacity} left`)}
+                            </option>
+                          </>
+                        );
+                      })()}
                     </select>
                   </div>
                 </div>
@@ -6069,8 +6205,15 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <input 
                       type="date" 
                       required 
-                      value={newTeleDate || new Date().toISOString().split('T')[0]} 
-                      onChange={(e) => setNewTeleDate(e.target.value)} 
+                      min={getTodayDateString()} 
+                      value={newTeleDate || getTodayDateString()} 
+                      onChange={(e) => {
+                        const nextDate = e.target.value;
+                        setNewTeleDate(nextDate);
+                        if (isTeleSlotPassedForDate(nextDate, newTeleTime)) {
+                          setNewTeleTime('');
+                        }
+                      }} 
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                     />
                   </div>
@@ -6078,15 +6221,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Preferred Time Slot</label>
                     <select 
                       required 
-                      value={newTeleTime || '11:00 AM'} 
+                      value={newTeleTime || ''} 
                       onChange={(e) => setNewTeleTime(e.target.value)}
                       style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
                     >
-                      <option value="09:30 AM">09:30 AM</option>
-                      <option value="11:00 AM">11:00 AM</option>
-                      <option value="02:30 PM">02:30 PM</option>
-                      <option value="04:00 PM">04:00 PM</option>
-                      <option value="05:30 PM">05:30 PM</option>
+                      <option value="" disabled>Select Time Slot</option>
+                      {['09:30 AM', '11:00 AM', '02:30 PM', '04:00 PM', '05:30 PM'].map(tSlot => {
+                        const isPassed = isTeleSlotPassedForDate(newTeleDate || getTodayDateString(), tSlot);
+                        return (
+                          <option key={tSlot} value={tSlot} disabled={isPassed}>
+                            {tSlot} {isPassed ? '(Passed)' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>

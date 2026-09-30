@@ -378,11 +378,33 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     return 300.00;
   };
 
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isSlotPassedForDate = (dateStr, slotName) => {
+    if (!dateStr || !slotName) return false;
+    const todayStr = getTodayDateString();
+    if (dateStr < todayStr) return true;
+    if (dateStr === todayStr) {
+      const currentHour = new Date().getHours();
+      // Slot 1 (Morning: 9 AM - 1 PM) - closed after 13:00 (1 PM)
+      if (slotName === 'Slot 1' && currentHour >= 13) return true;
+      // Slot 2 (Afternoon: 2 PM - 6 PM) - closed after 18:00 (6 PM)
+      if (slotName === 'Slot 2' && currentHour >= 18) return true;
+    }
+    return false;
+  };
+
   // State for Appointment Booking & Upfront Consultation Billing
   const [appointmentData, setAppointmentData] = useState({
     patientId: '',
     doctorId: '',
-    date: '',
+    date: getTodayDateString(),
     time: '',
     reason: ''
   });
@@ -406,6 +428,22 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
 
   const handleAppointmentSubmit = (e) => {
     e.preventDefault();
+
+    const todayStr = getTodayDateString();
+    if (!appointmentData.date || appointmentData.date < todayStr) {
+      alert("Invalid Appointment Date: You cannot schedule an appointment for a past date. Please select today or a future date.");
+      return;
+    }
+
+    if (!appointmentData.time) {
+      alert("Please select a valid time slot for the appointment.");
+      return;
+    }
+
+    if (isSlotPassedForDate(appointmentData.date, appointmentData.time)) {
+      alert(`Invalid Time Slot: The selected slot (${appointmentData.time === 'Slot 1' ? 'Slot 1 Morning: 9 AM - 1 PM' : 'Slot 2 Afternoon: 2 PM - 6 PM'}) has already concluded for today. Please select an active slot or book for an upcoming date.`);
+      return;
+    }
     
     // Find patient from ID, Name, Phone or explicit Selection
     const query = (appointmentData.patientId || '').toLowerCase().trim();
@@ -500,7 +538,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     setAppointmentData({
       patientId: '',
       doctorId: '',
-      date: '',
+      date: getTodayDateString(),
       time: '',
       reason: ''
     });
@@ -1192,7 +1230,20 @@ End of Generated Health Summary Report
               <div className="rd-form-row">
                 <div className="rd-form-group">
                   <label>Date</label>
-                  <input type="date" required value={appointmentData.date} onChange={e => setAppointmentData({...appointmentData, date: e.target.value})} />
+                  <input 
+                    type="date" 
+                    required 
+                    min={getTodayDateString()} 
+                    value={appointmentData.date} 
+                    onChange={e => {
+                      const newDate = e.target.value;
+                      setAppointmentData({
+                        ...appointmentData, 
+                        date: newDate,
+                        time: isSlotPassedForDate(newDate, appointmentData.time) ? '' : appointmentData.time
+                      });
+                    }} 
+                  />
                 </div>
                 <div className="rd-form-group">
                   <label>Time Slot</label>
@@ -1230,13 +1281,15 @@ End of Generated Health Summary Report
                         };
                       };
                       const avail = getSlotAvailability(appointmentData.doctorId, appointmentData.date);
+                      const s1Passed = isSlotPassedForDate(appointmentData.date, 'Slot 1');
+                      const s2Passed = isSlotPassedForDate(appointmentData.date, 'Slot 2');
                       return (
                         <>
-                          <option value="Slot 1" disabled={avail.slot1.isFull}>
-                            Slot 1 (Morning) - {avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`}
+                          <option value="Slot 1" disabled={avail.slot1.isFull || s1Passed}>
+                            Slot 1 (Morning: 9 AM - 1 PM) - {s1Passed ? "EXPIRED / PASSED" : (avail.slot1.isFull ? "FULL" : `${avail.slot1.available} / ${avail.slot1.capacity} slots left`)}
                           </option>
-                          <option value="Slot 2" disabled={avail.slot2.isFull}>
-                            Slot 2 (Afternoon) - {avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`}
+                          <option value="Slot 2" disabled={avail.slot2.isFull || s2Passed}>
+                            Slot 2 (Afternoon: 2 PM - 6 PM) - {s2Passed ? "EXPIRED / PASSED" : (avail.slot2.isFull ? "FULL" : `${avail.slot2.available} / ${avail.slot2.capacity} slots left`)}
                           </option>
                         </>
                       );
