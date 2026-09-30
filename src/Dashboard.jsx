@@ -267,6 +267,17 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return filtered;
   });
 
+  const [triageStaff, setTriageStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_triage_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_triage_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
   // Insurance Claims State
   const [insuranceClaims, setInsuranceClaims] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]');
@@ -2468,6 +2479,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const emailClean = newStaffEmail.trim().toLowerCase();
     const roleMap = {
       receptionist: { storageKey: 'dhms_receptionist_staff', idPrefix: 'REC', defaultRole: 'Front Desk Receptionist' },
+      triage: { storageKey: 'dhms_triage_staff', idPrefix: 'NUR', defaultRole: 'Triage / OPD Staff Nurse' },
       laboratory: { storageKey: 'dhms_laboratory_staff', idPrefix: 'LAB', defaultRole: 'Laboratory Pathologist' },
       pharmacist: { storageKey: 'dhms_pharmacy_staff', idPrefix: 'PHR', defaultRole: 'Dispensing Pharmacist' },
       cash_counter: { storageKey: 'dhms_cashier_staff', idPrefix: 'CSH', defaultRole: 'Billing Specialist' },
@@ -2498,6 +2510,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem(config.storageKey, JSON.stringify(updated));
 
     if (newStaffRole === 'receptionist') setReceptionistStaff(updated);
+    if (newStaffRole === 'triage') setTriageStaff(updated);
     if (newStaffRole === 'laboratory') setLaboratoryStaff(updated);
     if (newStaffRole === 'pharmacist') setPharmacyStaff(updated);
     if (newStaffRole === 'cash_counter') setCashierStaff(updated);
@@ -6285,6 +6298,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     onChange={(e) => {
                       setNewStaffRole(e.target.value);
                       if (e.target.value === 'receptionist') setNewStaffDept('Reception Desk');
+                      if (e.target.value === 'triage') setNewStaffDept('OPD Triage & Nursing Desk');
                       if (e.target.value === 'laboratory') setNewStaffDept('Diagnostic Pathology');
                       if (e.target.value === 'pharmacist') setNewStaffDept('Central Pharmacy');
                       if (e.target.value === 'cash_counter') setNewStaffDept('Billing & Cash Counter');
@@ -6293,6 +6307,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: 'white' }}
                   >
                     <option value="receptionist">Receptionist</option>
+                    <option value="triage">OPD Triage / Staff Nurse</option>
                     <option value="laboratory">Laboratory Pathologist</option>
                     <option value="pharmacist">Pharmacist</option>
                     <option value="cash_counter">Cash Counter / Billing</option>

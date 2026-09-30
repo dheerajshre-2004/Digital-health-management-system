@@ -7,6 +7,7 @@ import LaboratoryDashboard from './LaboratoryDashboard';
 import PharmacistDashboard from './PharmacistDashboard';
 import CashCounterDashboard from './CashCounterDashboard';
 import InsuranceDashboard from './InsuranceDashboard';
+import TriageDashboard from './TriageDashboard';
 import { sendPatientWelcomeEmail, openDefaultMailClient } from './emailService';
 import { t } from './i18nService';
 
@@ -173,6 +174,12 @@ function App() {
     if (cashSaved) {
       const filtered = JSON.parse(cashSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
       localStorage.setItem('dhms_cashier_staff', JSON.stringify(filtered));
+    }
+
+    const triageSaved = localStorage.getItem('dhms_triage_staff');
+    if (triageSaved) {
+      const filtered = JSON.parse(triageSaved).filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+      localStorage.setItem('dhms_triage_staff', JSON.stringify(filtered));
     }
 
     // Seed initial empty state if not present
@@ -414,6 +421,27 @@ function App() {
         saveTabSession({ role: 'cash_counter', user: matched });
       } else {
         alert('Cash counter staff account not found. Please register first.');
+        setSignInPassword('');
+      }
+    } else if (userRole === 'triage') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_triage_staff') || '[]');
+      const matched = staffList.find(s => 
+        (s.email && s.email.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.name && s.name.toLowerCase() === emailVal.toLowerCase()) ||
+        (s.id && s.id.toLowerCase() === emailVal.toLowerCase())
+      );
+      if (matched) {
+        if (matched.password && matched.password !== passwordVal) {
+          alert('Incorrect password. Please try again.');
+          setSignInPassword('');
+          return;
+        }
+        clearAuthFields();
+        setLoggedInStaff(matched);
+        setIsAuthenticated(true);
+        saveTabSession({ role: 'triage', user: matched });
+      } else {
+        alert('OPD Triage / Nursing staff account not found. Please register first.');
         setSignInPassword('');
       }
     } else if (userRole === 'admin') {
@@ -686,6 +714,39 @@ function App() {
         id: newId,
         password: passwordVal
       });
+    } else if (userRole === 'triage') {
+      const staffList = JSON.parse(localStorage.getItem('dhms_triage_staff') || '[]');
+      if (staffList.some(s => s.email?.toLowerCase() === emailVal.toLowerCase())) {
+        alert('An account already exists with this email.');
+        return;
+      }
+      const newId = `NUR-${Math.floor(100 + Math.random() * 900)}`;
+      const newStaff = {
+        id: newId,
+        name: nameVal,
+        role: 'Triage / OPD Staff Nurse',
+        email: emailVal,
+        password: passwordVal,
+        status: 'Available'
+      };
+      const updated = [newStaff, ...staffList];
+      localStorage.setItem('dhms_triage_staff', JSON.stringify(updated));
+
+      await sendPatientWelcomeEmail({
+        patientName: nameVal,
+        email: emailVal,
+        patientId: newId,
+        password: passwordVal,
+        phone: ''
+      });
+
+      setRegistrationSuccessData({
+        role: 'triage',
+        name: nameVal,
+        email: emailVal,
+        id: newId,
+        password: passwordVal
+      });
       clearAuthFields();
     } else {
       alert('Registration successful! Please sign in using your account credentials.');
@@ -718,10 +779,13 @@ function App() {
         {userRole === 'pharmacist' && (
           <PharmacistDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
         )}
+        {userRole === 'triage' && (
+          <TriageDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
+        )}
         {userRole === 'insurance_agent' && (
           <InsuranceDashboard onLogout={handleLogout} />
         )}
-        {(userRole === 'patient' || (isPatientPortal && userRole !== 'doctor' && userRole !== 'admin' && userRole !== 'cash_counter' && userRole !== 'receptionist' && userRole !== 'laboratory' && userRole !== 'pharmacist' && userRole !== 'insurance_agent')) && (
+        {(userRole === 'patient' || (isPatientPortal && userRole !== 'doctor' && userRole !== 'admin' && userRole !== 'cash_counter' && userRole !== 'receptionist' && userRole !== 'laboratory' && userRole !== 'pharmacist' && userRole !== 'triage' && userRole !== 'insurance_agent')) && (
           <PatientDashboard onLogout={handleLogout} loggedInPatient={loggedInPatient} />
         )}
         {(userRole === 'doctor' || userRole === 'admin') && (
@@ -898,6 +962,7 @@ function App() {
                   <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
                     <option value="" disabled hidden>Select a role</option>
                     <option value="doctor">Doctor</option>
+                    <option value="triage">OPD Triage / Nursing Station</option>
                     <option value="receptionist">Receptionist</option>
                     <option value="laboratory">Laboratory</option>
                     <option value="pharmacist">Pharmacist</option>
@@ -1124,6 +1189,7 @@ function App() {
                 <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
                   <option value="" disabled hidden>Select staff role</option>
                   <option value="doctor">Doctor</option>
+                  <option value="triage">OPD Triage / Nursing Station</option>
                   <option value="receptionist">Receptionist</option>
                   <option value="laboratory">Laboratory</option>
                   <option value="pharmacist">Pharmacist</option>

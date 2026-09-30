@@ -284,6 +284,9 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     alert(`Attendance logged successfully for ${recAttendanceForm.staffName} (${recAttendanceForm.status}).`);
   };
 
+  const handleRegisterSubmit = (e) => {
+    e.preventDefault();
+
     // Validate First Name and Last Name (alphabets only)
     const nameRegex = /^[A-Za-z\s'\-]+$/;
     if (!patientData.firstName || !nameRegex.test(patientData.firstName.trim())) {
