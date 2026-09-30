@@ -42,8 +42,18 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
       setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
       setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
     };
+
+    // Initial sync
+    handleStorageChange();
+
+    // 800ms polling for instant live synchronization
+    const intervalId = setInterval(handleStorageChange, 800);
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Direct lab appointments (Patient booked)
@@ -711,27 +721,50 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                         <th>Time Window</th>
                         <th>Requested Lab Service</th>
                         <th>Appointment Type</th>
+                        <th>Payment Status</th>
                         <th>Roster Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {currentAppts.map(appt => (
-                        <tr key={appt.id}>
-                          <td><strong>{appt.id}</strong></td>
-                          <td><strong>{appt.patientName}</strong><div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div></td>
-                          <td>{appt.date}</td>
-                          <td>{appt.time}</td>
-                          <td>{appt.reason || 'General Diagnostic Checkup'}</td>
-                          <td><span className={`priority-pill ${appt.type === 'Telemedicine' ? 'normal' : 'high'}`}>{appt.type}</span></td>
-                          <td>
-                            <span className={`status-pill ${appt.status.toLowerCase().includes('pending') ? 'pending' : 'completed'}`}>
-                              {appt.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {currentAppts.map(appt => {
+                        const isPaid = appt.feeStatus === 'Paid' || appt.paymentStatus === 'Paid';
+                        return (
+                          <tr key={appt.id}>
+                            <td><strong>{appt.id}</strong></td>
+                            <td><strong>{appt.patientName}</strong><div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div></td>
+                            <td>{appt.date}</td>
+                            <td>{appt.time}</td>
+                            <td>{appt.reason || 'General Diagnostic Checkup'}</td>
+                            <td><span className={`priority-pill ${appt.type === 'Telemedicine' ? 'normal' : 'high'}`}>{appt.type}</span></td>
+                            <td>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                background: isPaid ? '#dcfce7' : '#fef3c7',
+                                color: isPaid ? '#15803d' : '#b45309',
+                                border: isPaid ? '1px solid #bbf7d0' : '1px solid #fde68a'
+                              }}>
+                                {isPaid ? '✓ Paid' : '⏳ Pending at Cash Counter'}
+                              </span>
+                              <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                                {appt.consultationFee || appt.cost || '₹45.00'}
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`status-pill ${appt.status.toLowerCase().includes('pending') ? 'pending' : 'completed'}`}>
+                                {appt.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {labAppointments.length === 0 && (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', color: '#94a3b8', padding: '32px' }}>No direct laboratory appointments booked.</td></tr>
+                        <tr><td colSpan="8" style={{ textAlign: 'center', color: '#94a3b8', padding: '32px' }}>No direct laboratory appointments booked.</td></tr>
                       )}
                     </tbody>
                   </table>

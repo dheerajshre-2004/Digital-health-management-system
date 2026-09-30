@@ -195,8 +195,18 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
     };
+
+    // Immediate initial sync
+    handleStorageChange();
+
+    // Fast polling interval (every 800ms) for real-time synchronization
+    const intervalId = setInterval(handleStorageChange, 800);
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Mark cashier attendance
@@ -351,6 +361,29 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
       });
       localStorage.setItem('dhms_admissions', JSON.stringify(updatedAdms));
       setAdmissions(updatedAdms);
+    }
+
+    // If invoice is linked to a Laboratory Request or Diagnostic Order, mark lab request as Paid
+    if (paymentModalData.labOrderId || (paymentModalData.type && (paymentModalData.type.includes('Lab') || paymentModalData.type.includes('Diagnostic')))) {
+      const allLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+      const updatedLabs = allLabs.map(l => {
+        if (
+          l.id === paymentModalData.labOrderId || 
+          l.invoiceId === paymentModalData.id || 
+          (l.patientId === paymentModalData.patientId && l.paymentStatus !== 'Paid')
+        ) {
+          return {
+            ...l,
+            paymentStatus: 'Paid',
+            paymentMethod: paymentMethod,
+            paidAt: new Date().toISOString().split('T')[0],
+            timeline: Array.isArray(l.timeline) ? l.timeline.map((item, i) => i === 0 ? { ...item, done: true, title: "Order & Payment Verified (Cash Counter)" } : item) : l.timeline
+          };
+        }
+        return l;
+      });
+      localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLabs));
+      setLabRequests(updatedLabs);
     }
 
     if (window.dispatchEvent) {
