@@ -71,16 +71,22 @@ function App() {
   // Key isolation: Patient portal uses dhms_patient_session, Staff portal uses dhms_staff_session
   const sessionKey = isPatientPortal ? 'dhms_patient_session' : 'dhms_staff_session';
 
-  // Load initial session strictly from isolated portal session
+  // Load initial session strictly from isolated portal session, with robust fallback
   const getInitialTabSession = () => {
     try {
-      const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey);
+      const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey) || sessionStorage.getItem('dhms_tab_session') || localStorage.getItem('dhms_user_session');
       if (tabSessionStr) {
         const parsed = JSON.parse(tabSessionStr);
-        if (isPatientPortal && parsed.role === 'patient') {
-          return parsed;
-        }
-        if (!isPatientPortal && parsed.role && parsed.role !== 'patient') {
+        if (parsed && parsed.role) {
+          if (isPatientPortal && parsed.role === 'patient') {
+            return parsed;
+          }
+          if (!isPatientPortal && parsed.role !== 'patient') {
+            return parsed;
+          }
+          if (!isPatientPortal && parsed.role === 'patient') {
+            return null;
+          }
           return parsed;
         }
       }
@@ -127,6 +133,7 @@ function App() {
     localStorage.setItem(sessionKey, JSON.stringify(sessionData));
     // Backwards compatibility for legacy readers
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
+    localStorage.setItem('dhms_user_session', JSON.stringify(sessionData));
   };
 
   const clearTabSession = () => {
@@ -138,12 +145,12 @@ function App() {
   };
 
   useEffect(() => {
-    const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey);
+    const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey) || sessionStorage.getItem('dhms_tab_session') || localStorage.getItem('dhms_user_session');
     
     if (tabSessionStr) {
       try {
         const session = JSON.parse(tabSessionStr);
-        if (session.role) {
+        if (session && session.role) {
           if (isPatientPortal && session.role !== 'patient') {
             setIsAuthenticated(false);
             setUserRole('patient');
@@ -167,8 +174,6 @@ function App() {
       } catch (err) {
         console.error("Failed to restore session:", err);
       }
-    } else {
-      setUserRole(isPatientPortal ? 'patient' : (roleParam || 'doctor'));
     }
   }, [isPatientPortal, sessionKey]);
 
