@@ -68,25 +68,45 @@ function App() {
     window.location.pathname.startsWith('/patient') ||
     (isPWA && portalParam !== 'staff');
 
-  // Key isolation: Patient portal uses dhms_patient_session, Staff portal uses dhms_staff_session
-  const sessionKey = isPatientPortal ? 'dhms_patient_session' : 'dhms_staff_session';
+  // Clean up any legacy cross-tab localStorage sessions so new tabs don't accidentally load old logins
+  useEffect(() => {
+    localStorage.removeItem('dhms_user_session');
+    localStorage.removeItem('dhms_staff_session');
+    localStorage.removeItem('dhms_patient_session');
+  }, []);
 
-  // Load initial session strictly from isolated portal session, with robust fallback
+  // Strict Module & Role Session Isolation:
+  // Each role / module has its own independent session key in sessionStorage
+  const requestedRole = isPatientPortal ? 'patient' : (roleParam || 'doctor');
+  const sessionKey = `dhms_session_${requestedRole}`;
+
+  // Strict Tab & Module Isolation: sessions are strictly loaded from sessionStorage
   const getInitialTabSession = () => {
     try {
-      const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey) || sessionStorage.getItem('dhms_tab_session') || localStorage.getItem('dhms_user_session');
+      if (isPatientPortal) {
+        const patientStr = sessionStorage.getItem('dhms_session_patient') || sessionStorage.getItem('dhms_tab_session');
+        if (patientStr) {
+          const parsed = JSON.parse(patientStr);
+          if (parsed?.role === 'patient') return parsed;
+        }
+        return null;
+      }
+
+      // If a specific role is requested in the URL, strictly check that role's session
+      if (roleParam) {
+        const roleStr = sessionStorage.getItem(`dhms_session_${roleParam}`);
+        if (roleStr) {
+          const parsed = JSON.parse(roleStr);
+          if (parsed?.role === roleParam) return parsed;
+        }
+        return null;
+      }
+
+      // If no query param is in URL, check general tab session
+      const tabSessionStr = sessionStorage.getItem('dhms_tab_session');
       if (tabSessionStr) {
         const parsed = JSON.parse(tabSessionStr);
-        if (parsed && parsed.role) {
-          if (isPatientPortal && parsed.role === 'patient') {
-            return parsed;
-          }
-          if (!isPatientPortal && parsed.role !== 'patient') {
-            return parsed;
-          }
-          if (!isPatientPortal && parsed.role === 'patient') {
-            return null;
-          }
+        if (parsed && parsed.role && parsed.role !== 'patient') {
           return parsed;
         }
       }
@@ -98,7 +118,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('signin');
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!initialSession?.role);
-  const [userRole, setUserRole] = useState(() => initialSession?.role || (isPatientPortal ? 'patient' : (roleParam || 'doctor')));
+  const [userRole, setUserRole] = useState(() => initialSession?.role || requestedRole);
   const [loggedInDoctor, setLoggedInDoctor] = useState(() => initialSession?.role === 'doctor' ? initialSession.user : null);
   const [loggedInStaff, setLoggedInStaff] = useState(() => (initialSession && initialSession.role !== 'patient' && initialSession.role !== 'doctor') ? initialSession.user : null);
   const [loggedInPatient, setLoggedInPatient] = useState(() => initialSession?.role === 'patient' ? initialSession.user : null);
@@ -128,54 +148,55 @@ function App() {
     setRegDob('');
   };
 
+  const syncUrlRole = (role) => {
+    try {
+      const url = new URL(window.location.href);
+      if (role === 'patient') {
+        url.searchParams.set('portal', 'patient');
+        url.searchParams.delete('role');
+      } else if (role) {
+        url.searchParams.set('role', role);
+        url.searchParams.delete('portal');
+      }
+      window.history.replaceState({}, '', url.pathname + url.search);
+    } catch (e) {}
+  };
+
   const saveTabSession = (sessionData) => {
-    sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
-    localStorage.setItem(sessionKey, JSON.stringify(sessionData));
-    // Backwards compatibility for legacy readers
+    // Strictly isolate session per module per tab via sessionStorage
+    const currentRole = sessionData.role || userRole;
+    const currentKey = `dhms_session_${currentRole}`;
+    sessionStorage.setItem(currentKey, JSON.stringify(sessionData));
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
-    localStorage.setItem('dhms_user_session', JSON.stringify(sessionData));
+    syncUrlRole(currentRole);
   };
 
   const clearTabSession = () => {
     sessionStorage.removeItem(sessionKey);
-    localStorage.removeItem(sessionKey);
+    sessionStorage.removeItem(`dhms_session_${userRole}`);
     sessionStorage.removeItem('dhms_tab_session');
     sessionStorage.removeItem('dhms_active_session');
-    localStorage.removeItem('dhms_user_session');
+  };
+
+  const handleRoleChange = (newRole) => {
+    setUserRole(newRole);
+    syncUrlRole(newRole);
   };
 
   useEffect(() => {
-    const tabSessionStr = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey) || sessionStorage.getItem('dhms_tab_session') || localStorage.getItem('dhms_user_session');
-    
-    if (tabSessionStr) {
-      try {
-        const session = JSON.parse(tabSessionStr);
-        if (session && session.role) {
-          if (isPatientPortal && session.role !== 'patient') {
-            setIsAuthenticated(false);
-            setUserRole('patient');
-            return;
-          }
-          if (!isPatientPortal && session.role === 'patient') {
-            setIsAuthenticated(false);
-            setUserRole('doctor');
-            return;
-          }
-          setUserRole(session.role);
-          if (session.role === 'patient') {
-            setLoggedInPatient(session.user);
-          } else if (session.role === 'doctor') {
-            setLoggedInDoctor(session.user);
-          } else if (session.user) {
-            setLoggedInStaff(session.user);
-          }
-          setIsAuthenticated(true);
-        }
-      } catch (err) {
-        console.error("Failed to restore session:", err);
+    const session = getInitialTabSession();
+    if (session && session.role) {
+      setUserRole(session.role);
+      if (session.role === 'patient') {
+        setLoggedInPatient(session.user);
+      } else if (session.role === 'doctor') {
+        setLoggedInDoctor(session.user);
+      } else if (session.user) {
+        setLoggedInStaff(session.user);
       }
+      setIsAuthenticated(true);
     }
-  }, [isPatientPortal, sessionKey]);
+  }, [roleParam, portalParam]);
 
   // Helper to get fresh data from localStorage or fallback to Supabase table
   const getFreshList = async (key) => {
@@ -689,8 +710,76 @@ function App() {
   };
 
   if (isAuthenticated) {
+    const modules = [
+      { label: 'Patient Portal', param: '?portal=patient', role: 'patient', icon: '👤' },
+      { label: 'Doctor Hub', param: '?role=doctor', role: 'doctor', icon: '🩺' },
+      { label: 'Receptionist / Front Desk', param: '?role=receptionist', role: 'receptionist', icon: '📋' },
+      { label: 'OPD Triage', param: '?role=triage', role: 'triage', icon: '🩺' },
+      { label: 'Laboratory', param: '?role=laboratory', role: 'laboratory', icon: '🧪' },
+      { label: 'Pharmacy', param: '?role=pharmacist', role: 'pharmacist', icon: '💊' },
+      { label: 'Cash Counter', param: '?role=cash_counter', role: 'cash_counter', icon: '💳' },
+      { label: 'Insurance / TPA', param: '?role=insurance_agent', role: 'insurance_agent', icon: '🛡️' },
+      { label: 'Admin', param: '?role=admin', role: 'admin', icon: '⚙️' },
+    ];
+
     return (
       <ErrorBoundary>
+        <div style={{
+          background: '#0f172a',
+          color: '#f8fafc',
+          padding: '5px 16px',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
+          borderBottom: '1px solid #1e293b',
+          zIndex: 9999,
+          position: 'sticky',
+          top: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }}></span>
+            <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>Active Tab Module:</span>
+            <strong style={{ color: '#38bdf8', textTransform: 'uppercase', fontSize: '11.5px', letterSpacing: '0.04em' }}>
+              {isPatientPortal ? 'Patient Portal' : (userRole?.replace('_', ' ') || 'Staff')}
+            </strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600' }}>⚡ Open Other Module in New Tab:</span>
+            {modules.filter(m => (isPatientPortal ? m.role !== 'patient' : m.role !== userRole)).map(m => (
+              <a
+                key={m.label}
+                href={m.param}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  textDecoration: 'none',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  border: '1px solid #334155',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#38bdf8'; e.currentTarget.style.color = '#38bdf8'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#e2e8f0'; }}
+                title={`Open ${m.label} in a completely isolated tab`}
+              >
+                <span>{m.icon} {m.label}</span>
+                <span style={{ fontSize: '9px', opacity: 0.6 }}>↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
         {userRole === 'cash_counter' && (
           <CashCounterDashboard onLogout={handleLogout} loggedInStaff={loggedInStaff} />
         )}
@@ -787,13 +876,37 @@ function App() {
                 onClick={() => {
                   setSignInIdentifier(registrationSuccessData.email || registrationSuccessData.id);
                   setSignInPassword(registrationSuccessData.password);
-                  setUserRole(registrationSuccessData.role || (isPatientPortal ? 'patient' : 'doctor'));
+                  handleRoleChange(registrationSuccessData.role || (isPatientPortal ? 'patient' : 'doctor'));
                   setRegistrationSuccessData(null);
                   setActiveTab('signin');
                 }}
               >
-                🚀 Auto-Fill & Proceed to Sign In
+                🚀 Auto-Fill & Sign In in This Tab
               </button>
+
+              <a
+                href={registrationSuccessData.role === 'patient' ? '?portal=patient' : `?role=${registrationSuccessData.role}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '10px 16px',
+                  background: '#f8fafc',
+                  border: '1px solid #93c5fd',
+                  borderRadius: '8px',
+                  color: '#1d4ed8',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>⚡ Open {registrationSuccessData.role?.toUpperCase()} Portal in New Tab</span>
+                <span>↗</span>
+              </a>
 
               <button
                 type="button"
@@ -806,17 +919,17 @@ function App() {
                   });
                 }}
                 style={{
-                  padding: '10px 16px',
+                  padding: '8px 16px',
                   background: 'white',
                   border: '1px solid #cbd5e1',
                   borderRadius: '8px',
                   color: '#334155',
                   fontWeight: '600',
-                  fontSize: '13px',
+                  fontSize: '12.5px',
                   cursor: 'pointer'
                 }}
               >
-                ✉️ Open in Mail Client
+                ✉️ Open Credentials in Mail Client
               </button>
             </div>
           </div>
@@ -871,7 +984,7 @@ function App() {
                     </svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
                       <circle cx="12" cy="12" r="3"></circle>
                     </svg>
                   )}
@@ -883,7 +996,7 @@ function App() {
               <div className="form-group">
                 <label>Login As</label>
                 <div className="select-wrapper">
-                  <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                  <select required value={userRole} onChange={(e) => handleRoleChange(e.target.value)}>
                     <option value="" disabled hidden>Select a role</option>
                     <option value="doctor">Doctor</option>
                     <option value="triage">OPD Triage / Nursing Station</option>
@@ -1110,7 +1223,7 @@ function App() {
             <div className="form-group">
               <label>Staff Role</label>
               <div className="select-wrapper">
-                <select required value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                <select required value={userRole} onChange={(e) => handleRoleChange(e.target.value)}>
                   <option value="" disabled hidden>Select staff role</option>
                   <option value="doctor">Doctor</option>
                   <option value="triage">OPD Triage / Nursing Station</option>
@@ -1188,6 +1301,51 @@ function App() {
             </button>
           </form>
         )}
+
+        {/* Multi-Module Quick Launch / Open in New Tab Grid */}
+        <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+          <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+            ⚡ Open Module in Separate Tab
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
+            {[
+              { label: 'Patient Portal', param: '?portal=patient', role: 'patient' },
+              { label: 'Doctor', param: '?role=doctor', role: 'doctor' },
+              { label: 'Receptionist', param: '?role=receptionist', role: 'receptionist' },
+              { label: 'Triage / OPD', param: '?role=triage', role: 'triage' },
+              { label: 'Laboratory', param: '?role=laboratory', role: 'laboratory' },
+              { label: 'Pharmacy', param: '?role=pharmacist', role: 'pharmacist' },
+              { label: 'Cash Counter', param: '?role=cash_counter', role: 'cash_counter' },
+              { label: 'Insurance / TPA', param: '?role=insurance_agent', role: 'insurance_agent' },
+              { label: 'Admin', param: '?role=admin', role: 'admin' },
+            ].map((m) => (
+              <a
+                key={m.label}
+                href={m.param}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: '11.5px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: (userRole === m.role && !isPatientPortal) || (isPatientPortal && m.role === 'patient') ? '#eff6ff' : '#f8fafc',
+                  border: (userRole === m.role && !isPatientPortal) || (isPatientPortal && m.role === 'patient') ? '1px solid #93c5fd' : '1px solid #e2e8f0',
+                  color: (userRole === m.role && !isPatientPortal) || (isPatientPortal && m.role === 'patient') ? '#1d4ed8' : '#475569',
+                  textDecoration: 'none',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Open separate tab for ${m.label}`}
+              >
+                <span>{m.label}</span>
+                <span style={{ fontSize: '10px', opacity: 0.6 }}>↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
 
       </div>
     </div>
