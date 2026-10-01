@@ -913,6 +913,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
   const [printedPatientAdmissionPass, setPrintedPatientAdmissionPass] = useState(null);
+  const [printedPatientReleaseCert, setPrintedPatientReleaseCert] = useState(null);
 
   const handleRequestApptSubmit = (e) => {
     e.preventDefault();
