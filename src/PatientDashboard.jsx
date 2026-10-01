@@ -961,6 +961,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [newApptDate, setNewApptDate] = useState(getTodayDateString());
   const [newApptTime, setNewApptTime] = useState('');
   const [newApptReason, setNewApptReason] = useState('');
+  const [newApptPayMode, setNewApptPayMode] = useState('online'); // 'online' | 'counter'
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
   });
@@ -1007,6 +1008,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
     const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const isOnline = newApptPayMode === 'online';
+    const txnId = isOnline ? `TXN-OPD-${Math.floor(100000 + Math.random() * 900000)}` : null;
 
     const newAppt = {
       id: apptId,
@@ -1024,8 +1027,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       feeType: "Doctor Consultation Fee",
       consultationFee: `₹${docFee.toFixed(2)}`,
       doctorConsultationRate: `₹${docFee.toFixed(2)}`,
-      feeStatus: "Unpaid",
-      paymentMethod: "Pay at Cash Counter",
+      feeStatus: isOnline ? "Paid" : "Unpaid",
+      paymentStatus: isOnline ? "Paid" : "Unpaid",
+      paymentMethod: isOnline ? "UPI / Online Portal Gateway" : "Pay at Cash Counter",
+      transactionId: txnId,
       invoiceId: invoiceId
     };
 
@@ -1041,11 +1046,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       patientId: pId,
       patientName: pName,
       date: newApptDate,
+      paymentDate: isOnline ? todayStr : null,
       amount: `₹${docFee.toFixed(2)}`,
-      status: 'Unpaid',
+      status: isOnline ? 'Paid' : 'Unpaid',
       type: `Doctor Consultation Fee (${docName} - ${docDept})`,
       appointmentId: apptId,
-      paymentRemarks: 'Requested via Patient Portal - Pending Reception / Counter Settle'
+      paymentMethod: isOnline ? 'UPI / Online Portal Gateway' : 'Pay at Cash Counter',
+      paymentRemarks: isOnline ? `Paid Online via Portal. Txn ID: ${txnId}` : 'Requested via Patient Portal - Pending Reception / Counter Settle',
+      transactionId: txnId
     };
     const updatedBilling = [newInvoice, ...allBilling];
     localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
@@ -1055,7 +1063,17 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       window.dispatchEvent(new Event('storage'));
     }
 
-    alert(`✓ Appointment Request Submitted!\n\nAppointment ID: ${apptId}\nDoctor: ${docName}\nDate: ${newApptDate}\nSlot: ${chosenSlot === 'Slot 1' ? 'Slot 1 (Morning: 9 AM - 1 PM)' : 'Slot 2 (Afternoon: 2 PM - 6 PM)'}`);
+    if (window.Swal) {
+      window.Swal.fire({
+        title: isOnline ? 'Booking & Payment Successful! 🎉' : 'Appointment Confirmed! 📅',
+        html: `<p>Consultation with <b>${docName}</b> is confirmed.</p><p style="font-size:13px;color:#475569;">Date: <b>${newApptDate}</b> (${chosenSlot})<br/>Appointment ID: <b>${apptId}</b><br/>${isOnline ? `Fee: <b style="color:#15803d;">₹${docFee.toFixed(2)} (Paid Online)</b>` : `Fee: <b>₹${docFee.toFixed(2)} (Pay at Hospital Counter)</b>`}</p>`,
+        icon: 'success',
+        confirmButtonColor: '#3b82f6'
+      });
+    } else {
+      alert(`✓ Appointment Booked!\n\nAppointment ID: ${apptId}\nDoctor: ${docName}\nDate: ${newApptDate}\nFee: ₹${docFee.toFixed(2)} (${isOnline ? 'Paid Online' : 'Pay at Counter'})`);
+    }
+
     setShowRequestApptModal(false);
     setNewApptDoctor('');
     setNewApptDept('');
@@ -1090,6 +1108,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     const docName = selDoc?.name || newTeleDoctor;
     const docDept = selDoc?.specialty || selDoc?.department || newTeleDept || 'General Medicine';
+    const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
     const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
 
     setPendingTeleAppt({
@@ -1452,9 +1471,17 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   const handlePayInvoiceOnline = (inv) => {
     const todayStr = new Date().toISOString().split('T')[0];
+    const txnId = `TXN-PORTAL-${Math.floor(100000 + Math.random() * 900000)}`;
     const updatedBilling = billingList.map(b => {
       if (b.id === inv.id || (inv.appointmentId && b.appointmentId === inv.appointmentId)) {
-        return { ...b, status: 'Paid', paymentDate: todayStr, paymentMethod: 'UPI / Online Portal Payment', paymentRemarks: 'Settled via Patient Portal Online Gateway' };
+        return { 
+          ...b, 
+          status: 'Paid', 
+          paymentDate: todayStr, 
+          paymentMethod: 'UPI / Online Portal Payment', 
+          paymentRemarks: `Settled via Patient Portal Online Gateway (Txn: ${txnId})`,
+          transactionId: txnId
+        };
       }
       return b;
     });
@@ -1466,7 +1493,8 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         status: 'Paid',
         paymentDate: todayStr,
         paymentMethod: 'UPI / Online Portal Payment',
-        paymentRemarks: 'Settled via Patient Portal Online Gateway'
+        paymentRemarks: `Settled via Patient Portal Online Gateway (Txn: ${txnId})`,
+        transactionId: txnId
       });
     }
 
@@ -1478,7 +1506,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
       const updatedAppts = allAppts.map(a => {
         if (a.id === inv.appointmentId) {
-          return { ...a, feeStatus: 'Paid', paymentMethod: 'UPI / Online Portal Payment' };
+          return { ...a, feeStatus: 'Paid', paymentStatus: 'Paid', paymentMethod: 'UPI / Online Portal Payment', transactionId: txnId };
         }
         return a;
       });
@@ -1490,7 +1518,98 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       window.dispatchEvent(new Event('storage'));
     }
 
-    alert(`✓ Payment of ${inv.amount} for ${inv.type} completed successfully! Official paid receipt is now ready.`);
+    if (window.Swal) {
+      window.Swal.fire({
+        title: 'Payment Completed! 💳',
+        html: `<p>Payment of <b>${inv.amount}</b> for <b>${inv.type}</b> has been settled successfully.</p><p style="font-size:12px;color:#64748b;">Transaction ID: <b>${txnId}</b><br/>Invoice ID: <b>${inv.id}</b></p>`,
+        icon: 'success',
+        confirmButtonColor: '#10b981'
+      });
+    } else {
+      alert(`✓ Payment of ${inv.amount} completed successfully!\n\nInvoice ID: ${inv.id}\nTransaction ID: ${txnId}`);
+    }
+  };
+
+  const handlePayApptOnline = (appt) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const txnId = `TXN-OPD-${Math.floor(100000 + Math.random() * 900000)}`;
+    const feeStr = appt.consultationFee || appt.doctorConsultationRate || '₹300.00';
+    const invoiceId = appt.invoiceId || `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const pId = appt.patientId || currentPatient?.id || loggedInPatient?.id || "PT-80234";
+    const pName = appt.patientName || (currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "Patient");
+
+    // 1. Update dhms_appointments
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const updatedAppts = allAppts.map(a => {
+      if (a.id === appt.id) {
+        return {
+          ...a,
+          feeStatus: 'Paid',
+          paymentStatus: 'Paid',
+          paymentMethod: 'UPI / Online Portal Gateway',
+          transactionId: txnId,
+          invoiceId: invoiceId
+        };
+      }
+      return a;
+    });
+    localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
+    setAppointments(updatedAppts.filter(a => a.patientId === pId));
+
+    // 2. Update / Create in dhms_billing
+    const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    let found = false;
+    const updatedBilling = allBilling.map(b => {
+      if (b.id === invoiceId || b.appointmentId === appt.id) {
+        found = true;
+        return {
+          ...b,
+          status: 'Paid',
+          paymentDate: todayStr,
+          paymentMethod: 'UPI / Online Portal Gateway',
+          paymentRemarks: `Online Paid via Patient Portal. Txn ID: ${txnId}`,
+          transactionId: txnId
+        };
+      }
+      return b;
+    });
+
+    if (!found) {
+      updatedBilling.unshift({
+        id: invoiceId,
+        patientId: pId,
+        patientName: pName,
+        doctorId: appt.doctorId,
+        doctorName: appt.doctorName,
+        date: appt.date || todayStr,
+        paymentDate: todayStr,
+        amount: feeStr,
+        status: 'Paid',
+        type: `Doctor Consultation Fee (${appt.doctorName || 'Doctor'} - ${appt.department || 'General OPD'})`,
+        appointmentId: appt.id,
+        paymentMethod: 'UPI / Online Portal Gateway',
+        paymentRemarks: `Online Paid via Patient Portal. Txn ID: ${txnId}`,
+        transactionId: txnId
+      });
+    }
+
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    if (window.Swal) {
+      window.Swal.fire({
+        title: 'Fee Paid Successfully! 🎉',
+        html: `<p>Online payment of <b>${feeStr}</b> for consultation with <b>${appt.doctorName}</b> is confirmed.</p><p style="font-size:12px;color:#64748b;">Appointment ID: <b>${appt.id}</b><br/>Transaction ID: <b>${txnId}</b><br/>Invoice ID: <b>${invoiceId}</b></p>`,
+        icon: 'success',
+        confirmButtonColor: '#10b981'
+      });
+    } else {
+      alert(`✓ Fee Paid Successfully!\n\nConsultation: ${appt.doctorName}\nFee: ${feeStr}\nTransaction ID: ${txnId}`);
+    }
   };
 
   const visitHistoryData = [
@@ -1945,41 +2064,84 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {myAppts.map(appt => (
-                    <div key={appt.id} className="pd-consultation-item" style={{ margin: 0 }}>
-                      <div className="pd-consult-info">
-                        <h4>{appt.doctorName}</h4>
-                        <p>{appt.reason || `${appt.department} Consultation`}</p>
-                      </div>
-                      <div className="pd-consult-meta">
-                        <div className="pd-date">{appt.date} at {appt.time}</div>
-                        <div className="pd-badge in-session" style={{ backgroundColor: appt.status === 'Pending Confirmation' ? '#fef3c7' : '#dcfce7', color: appt.status === 'Pending Confirmation' ? '#d97706' : '#15803d' }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                          {appt.status}
+                  {myAppts.map(appt => {
+                    const isPaid = appt.feeStatus === 'Paid' || appt.paymentStatus === 'Paid';
+                    const feeAmt = appt.consultationFee || appt.doctorConsultationRate || '₹300.00';
+
+                    return (
+                      <div key={appt.id} className="pd-consultation-item" style={{ margin: 0 }}>
+                        <div className="pd-consult-info">
+                          <h4>{appt.doctorName}</h4>
+                          <p>{appt.reason || `${appt.department} Consultation`}</p>
+                          <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#64748b' }}>
+                            Fee: <strong style={{ color: isPaid ? '#15803d' : '#b91c1c' }}>{feeAmt} ({isPaid ? 'Paid' : 'Unpaid'})</strong>
+                          </div>
+                        </div>
+                        <div className="pd-consult-meta">
+                          <div className="pd-date">{appt.date} at {appt.time}</div>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <div className="pd-badge in-session" style={{ backgroundColor: appt.status === 'Pending Confirmation' ? '#fef3c7' : '#dcfce7', color: appt.status === 'Pending Confirmation' ? '#d97706' : '#15803d' }}>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                              {appt.status}
+                            </div>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              background: isPaid ? '#dcfce7' : '#fee2e2',
+                              color: isPaid ? '#15803d' : '#b91c1c',
+                              border: isPaid ? '1px solid #bbf7d0' : '1px solid #fecaca'
+                            }}>
+                              {isPaid ? '✓ Fee Paid' : '💳 Fee Unpaid'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pd-consult-actions">
+                          {!isPaid && (
+                            <button
+                              type="button"
+                              className="pd-btn-primary"
+                              onClick={() => handlePayApptOnline(appt)}
+                              style={{
+                                background: '#10b981',
+                                border: 'none',
+                                color: 'white',
+                                padding: '6px 12px',
+                                fontSize: '12.5px',
+                                fontWeight: '700',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              💳 Pay Fee Online
+                            </button>
+                          )}
+                          <button 
+                            className="pd-btn-outline" 
+                            onClick={() => {
+                              setReschedulingAppt(appt);
+                              setRescheduleDate(appt.date);
+                              setRescheduleTime(appt.time);
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> 
+                            Reschedule
+                          </button>
+                          <button 
+                            className="pd-btn-outline danger"
+                            onClick={() => handleCancelConsultation(appt.id)}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> 
+                            Cancel Consultation
+                          </button>
                         </div>
                       </div>
-                      <div className="pd-consult-actions">
-                        <button 
-                          className="pd-btn-outline" 
-                          onClick={() => {
-                            setReschedulingAppt(appt);
-                            setRescheduleDate(appt.date);
-                            setRescheduleTime(appt.time);
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> 
-                          Reschedule
-                        </button>
-                        <button 
-                          className="pd-btn-outline danger"
-                          onClick={() => handleCancelConsultation(appt.id)}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> 
-                          Cancel Consultation
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
@@ -6167,10 +6329,53 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                     style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'vertical', fontSize: '13px' }}
                   />
                 </div>
+
+                {/* Consultation Payment Method */}
+                <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Payment Mode Preference</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setNewApptPayMode('online')}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: newApptPayMode === 'online' ? '2px solid #10b981' : '1px solid #cbd5e1',
+                        background: newApptPayMode === 'online' ? '#ecfdf5' : '#ffffff',
+                        color: newApptPayMode === 'online' ? '#065f46' : '#475569',
+                        fontWeight: '700',
+                        fontSize: '12.5px',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      ⚡ Pay Online Now (UPI/Card)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewApptPayMode('counter')}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: newApptPayMode === 'counter' ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                        background: newApptPayMode === 'counter' ? '#eff6ff' : '#ffffff',
+                        color: newApptPayMode === 'counter' ? '#1e40af' : '#475569',
+                        fontWeight: '700',
+                        fontSize: '12.5px',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      🏥 Pay at Hospital Counter
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="pd-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#f8fafc' }}>
                 <button className="pd-btn-outline" type="button" onClick={() => setShowRequestApptModal(false)}>Cancel</button>
-                <button className="pd-btn-primary" type="submit">Submit Request</button>
+                <button className="pd-btn-primary" type="submit">
+                  {newApptPayMode === 'online' ? 'Confirm & Pay Online →' : 'Submit Request'}
+                </button>
               </div>
             </form>
           </div>
