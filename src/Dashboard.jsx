@@ -5437,8 +5437,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   type="text" 
                   required 
                   value={transferName} 
-                  onChange={(e) => setTransferName(e.target.value)} 
-                  placeholder="e.g. Dr. Helen Cho" 
+                  onChange={(e) => setTransferName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} 
+                  placeholder="e.g. Dr. Helen Cho (letters only)" 
                   style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
                 />
               </div>
@@ -6277,8 +6277,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   type="text" 
                   required 
                   value={newStaffName} 
-                  onChange={(e) => setNewStaffName(e.target.value)} 
-                  placeholder="e.g. Clara Oswald" 
+                  onChange={(e) => setNewStaffName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} 
+                  placeholder="e.g. Clara Oswald (letters only)" 
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
                 />
               </div>
@@ -6347,11 +6347,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155' }}>Contact Phone</label>
                   <input 
-                    type="text" 
+                    type="tel" 
+                    maxLength="10"
                     autoComplete="off"
                     value={newStaffPhone} 
-                    onChange={(e) => setNewStaffPhone(e.target.value)} 
-                    placeholder="+91 98765 43210" 
+                    onChange={(e) => setNewStaffPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    placeholder="10-digit phone number" 
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
                   />
                 </div>
@@ -6528,10 +6529,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <input 
                   type="text" 
                   required 
-                  autoComplete="off"
+                  autoComplete="off" 
                   value={newDocName} 
-                  onChange={(e) => setNewDocName(e.target.value)} 
-                  placeholder="e.g. Dr. Alice Vance" 
+                  onChange={(e) => setNewDocName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} 
+                  placeholder="e.g. Dr. Alice Vance (letters only)" 
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
                 />
               </div>
@@ -6567,11 +6568,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Phone Number</label>
                   <input 
-                    type="text" 
+                    type="tel" 
+                    maxLength="10"
                     autoComplete="off"
                     value={newDocPhone} 
-                    onChange={(e) => setNewDocPhone(e.target.value)} 
-                    placeholder="+91 98765 43210" 
+                    onChange={(e) => setNewDocPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    placeholder="10-digit phone number" 
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
                   />
                 </div>

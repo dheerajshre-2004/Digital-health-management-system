@@ -376,6 +376,16 @@ function App() {
     const emailVal = regEmail.trim();
     const passwordVal = regPassword;
     
+    if (!/^[a-zA-Z\s.-]+$/.test(nameVal)) {
+      alert('Full Name must contain only letters and spaces (no numbers).');
+      return;
+    }
+
+    if (regPhone && regPhone.replace(/\D/g, '').length < 10) {
+      alert('Contact Number must contain 10 numeric digits (no letters).');
+      return;
+    }
+
     const nameParts = nameVal.split(/\s+/);
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || 'User';
@@ -897,10 +907,10 @@ function App() {
                 <input 
                   type="text" 
                   autoComplete="off"
-                  placeholder="Enter patient full name" 
+                  placeholder="Enter patient full name (letters only)" 
                   required 
                   value={regFullName}
-                  onChange={(e) => setRegFullName(e.target.value)}
+                  onChange={(e) => setRegFullName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))}
                 />
               </div>
             </div>
@@ -932,10 +942,11 @@ function App() {
                 </svg>
                 <input 
                   type="tel" 
-                  placeholder="Enter mobile number" 
+                  maxLength="10"
+                  placeholder="Enter 10-digit mobile number" 
                   required 
                   value={regPhone}
-                  onChange={(e) => setRegPhone(e.target.value)}
+                  onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 />
               </div>
             </div>
@@ -1023,10 +1034,10 @@ function App() {
                 <input 
                   type="text" 
                   autoComplete="off"
-                  placeholder="Enter staff full name" 
+                  placeholder="Enter staff full name (letters only)" 
                   required 
                   value={regFullName}
-                  onChange={(e) => setRegFullName(e.target.value)}
+                  onChange={(e) => setRegFullName(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))}
                 />
               </div>
             </div>
@@ -1143,9 +1154,10 @@ function App() {
                     <label>Mobile Contact</label>
                     <input 
                       type="tel" 
-                      placeholder="+91 98765 43210" 
+                      maxLength="10"
+                      placeholder="Enter 10-digit mobile number" 
                       value={regPhone} 
-                      onChange={(e) => setRegPhone(e.target.value)} 
+                      onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
                     />
                   </div>
                   <div className="form-group">
