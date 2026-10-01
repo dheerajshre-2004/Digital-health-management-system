@@ -388,26 +388,6 @@ export default function TriageDashboard({ onLogout, loggedInStaff }) {
         </div>
 
         <div className="triage-topbar-right">
-          <button
-            onClick={() => setShowEmergencyModal(true)}
-            style={{
-              padding: '7px 14px',
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '700',
-              fontSize: '12.5px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.3)'
-            }}
-          >
-            <span>🚨 Emergency Crash Alert</span>
-          </button>
-
           <div className="triage-profile-info">
             <span className="triage-profile-name">{nurseName}</span>
             <span className="triage-profile-role">Staff Nurse (ID: {nurseId})</span>
