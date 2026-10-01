@@ -1158,6 +1158,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       };
       setPrescribedMeds([...prescribedMeds, newMed]);
       setRxDrugName('');
+      setRxDose('');
       setRxCost('25.00');
     };
 
@@ -1383,10 +1384,23 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 placeholder="Search or enter drug name" 
                 value={rxDrugName} 
                 onChange={(e) => {
-                  setRxDrugName(e.target.value);
-                  const matched = pharmacyMeds.find(m => m.name.toLowerCase() === e.target.value.toLowerCase());
+                  const val = e.target.value;
+                  setRxDrugName(val);
+                  const matched = pharmacyMeds.find(m => m.name.toLowerCase() === val.toLowerCase() || m.genericName.toLowerCase() === val.toLowerCase());
                   if (matched) {
                     setRxCost(matched.price.toString());
+                    // Extract dose from medicine name if available (e.g. "500mg", "10mg", "1mg/mL") or fallback
+                    const doseMatch = matched.name.match(/\b\d+(\.\d+)?\s*(mg|g|mcg|ml|iu|mg\/ml|%)\b/i);
+                    if (doseMatch) {
+                      setRxDose(doseMatch[0]);
+                    } else if (matched.dose) {
+                      setRxDose(matched.dose);
+                    }
+                  } else {
+                    const inlineDoseMatch = val.match(/\b\d+(\.\d+)?\s*(mg|g|mcg|ml|iu|mg\/ml|%)\b/i);
+                    if (inlineDoseMatch) {
+                      setRxDose(inlineDoseMatch[0]);
+                    }
                   }
                 }}
               />
@@ -1988,7 +2002,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   // Detailed Rx builder temporary item states
   const [rxDrugName, setRxDrugName] = useState('');
-  const [rxDose, setRxDose] = useState('500mg');
+  const [rxDose, setRxDose] = useState('');
   const [rxFrequency, setRxFrequency] = useState('Once Daily (QD)');
   const [rxDuration, setRxDuration] = useState('7 Days');
   const [rxCost, setRxCost] = useState('25.00');
@@ -2105,7 +2119,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     setVitalTemp('98.6');
     setVitalSpO2('98');
     setRxDrugName('');
-    setRxDose('500mg');
+    setRxDose('');
     setRxFrequency('Once Daily (QD)');
     setRxDuration('7 Days');
     setRxCost('25.00');
