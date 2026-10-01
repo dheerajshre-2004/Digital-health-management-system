@@ -164,6 +164,104 @@ export function cleanDoctorName(name) {
   return `Dr. ${cleaned}`;
 }
 
+// Universal Fallback Media Stream Generator (Canvas Video + Synthetic Audio)
+export function createUniversalFallbackStream(name = 'Participant', bgColor = '#2563eb') {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    let step = 0;
+    const initials = (name || 'P')
+      .split(' ')
+      .map(n => n[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'P';
+
+    const draw = () => {
+      step = (step + 1) % 360;
+      // Background gradient
+      const grad = ctx.createLinearGradient(0, 0, 640, 480);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, bgColor);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 640, 480);
+
+      // Rotating animated outer ring
+      ctx.save();
+      ctx.translate(320, 210);
+      ctx.beginPath();
+      ctx.arc(0, 0, 85, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 85, (step * Math.PI) / 180, (step * Math.PI) / 180 + 1.2);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+
+      // Center Avatar Circle
+      ctx.beginPath();
+      ctx.arc(320, 210, 75, 0, Math.PI * 2);
+      ctx.fillStyle = '#1e293b';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Avatar Text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 44px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initials, 320, 210);
+
+      // Name label
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(name, 320, 330);
+
+      // Live status
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('● Digital Tele-Consult Feed Active', 320, 365);
+    };
+
+    setInterval(draw, 100);
+    draw();
+
+    const canvasStream = canvas.captureStream ? canvas.captureStream(20) : null;
+    if (canvasStream) {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          const ctxAudio = new AudioContextClass();
+          const osc = ctxAudio.createOscillator();
+          const dst = osc.connect(ctxAudio.createMediaStreamDestination());
+          osc.start();
+          const audioTrack = dst.stream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = false;
+            canvasStream.addTrack(audioTrack);
+          }
+        }
+      } catch (err) {}
+    }
+    return canvasStream;
+  } catch (e) {
+    return null;
+  }
+}
+
 // WebRTC Configuration with comprehensive global STUN servers for cross-network connectivity
 const rtcConfig = {
   iceServers: [

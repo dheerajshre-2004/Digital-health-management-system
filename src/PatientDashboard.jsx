@@ -692,22 +692,25 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     let stream = localMediaStream;
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
+      // First generate instantaneous reliable animated video stream
+      const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
+      if (initialFallback) {
+        stream = initialFallback;
+        setLocalMediaStream(initialFallback);
+      }
+
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
+          const realStream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
-          stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
-          stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
-          setLocalMediaStream(stream);
+          realStream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+          realStream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+          stream = realStream;
+          setLocalMediaStream(realStream);
         } catch (e) {
           console.warn("[Patient] Direct click camera request error:", e);
-          const fallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
-          if (fallback) {
-            stream = fallback;
-            setLocalMediaStream(fallback);
-          }
         }
       }
     }

@@ -893,22 +893,25 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
     let stream = doctorMediaStream;
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
+      // First provide an immediate reliable stream so WebRTC peer connection initializes without delay
+      const initialFallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+      if (initialFallback) {
+        stream = initialFallback;
+        setDoctorMediaStream(initialFallback);
+      }
+
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
+          const realStream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
-          stream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
-          stream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
-          setDoctorMediaStream(stream);
+          realStream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
+          realStream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
+          stream = realStream;
+          setDoctorMediaStream(realStream);
         } catch (e) {
-          console.warn("[Doctor] Camera/Mic request note, checking fallback:", e);
-          const fallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
-          if (fallback) {
-            stream = fallback;
-            setDoctorMediaStream(fallback);
-          }
+          console.warn("[Doctor] Camera/Mic request note, using animated avatar stream:", e);
         }
       }
     }
