@@ -123,36 +123,63 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     cost: '₹',
     time: '',
     fast: 'No fasting required',
-    description: ''
+    description: '',
+    parameters: [
+      { name: '', unit: 'mg/dL', min: '', max: '', category: 'Biochemistry' }
+    ]
   });
 
   const handleFacilitySubmit = (e) => {
     e.preventDefault();
     let updated;
     const formattedCost = facilityForm.cost.startsWith('₹') ? facilityForm.cost : `₹${facilityForm.cost}`;
-    const newFac = { ...facilityForm, cost: formattedCost };
+    
+    // Filter valid parameters
+    const validParams = (facilityForm.parameters || [])
+      .filter(p => p.name && p.name.trim())
+      .map(p => ({
+        name: p.name.trim(),
+        unit: p.unit || 'mg/dL',
+        min: p.min !== '' ? parseFloat(p.min) : null,
+        max: p.max !== '' ? parseFloat(p.max) : null,
+        category: p.category || facilityForm.dept || 'Assay Measurement',
+        textRange: p.min !== '' && p.max !== '' ? `${p.min} - ${p.max}` : 'Standard Range'
+      }));
+
+    const newFac = { 
+      ...facilityForm, 
+      cost: formattedCost,
+      parameters: validParams.length > 0 ? validParams : [
+        { name: `${facilityForm.name} Result`, unit: 'mg/dL', min: 10, max: 100, category: facilityForm.dept || 'Diagnostics', textRange: '10 - 100' }
+      ]
+    };
 
     if (editingFacility) {
       updated = labFacilities.map(f => f.code === editingFacility.code ? newFac : f);
-      alert("Lab facility updated successfully.");
+      alert("Lab facility and pathology parameter definitions updated successfully.");
     } else {
       if (labFacilities.some(f => f.code === facilityForm.code)) {
         alert("A lab facility with this code already exists.");
         return;
       }
       updated = [newFac, ...labFacilities];
-      alert("Lab facility added successfully.");
+      alert("New lab service with custom biomarkers and reference ranges added successfully.");
     }
     setLabFacilities(updated);
     localStorage.setItem('dhms_lab_facilities', JSON.stringify(updated));
     setShowFacilityModal(false);
     setEditingFacility(null);
-    setFacilityForm({ code: '', name: '', dept: '', cost: '₹', time: '', fast: 'No fasting required', description: '' });
+    setFacilityForm({ code: '', name: '', dept: '', cost: '₹', time: '', fast: 'No fasting required', description: '', parameters: [{ name: '', unit: 'mg/dL', min: '', max: '', category: 'Biochemistry' }] });
   };
 
   const handleEditFacility = (fac) => {
     setEditingFacility(fac);
-    setFacilityForm(fac);
+    setFacilityForm({
+      ...fac,
+      parameters: fac.parameters && fac.parameters.length > 0 ? fac.parameters : [
+        { name: '', unit: 'mg/dL', min: '', max: '', category: fac.dept || 'Biochemistry' }
+      ]
+    });
     setShowFacilityModal(true);
   };
 
@@ -1278,6 +1305,105 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                   </select>
                 </div>
 
+                {/* Dynamic Biomarkers & Reference Interval Builder */}
+                <div className="form-group" style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
+                      Diagnostic Biomarkers & Fixed Reference Ranges ({facilityForm.parameters?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cur = facilityForm.parameters || [];
+                        setFacilityForm({
+                          ...facilityForm,
+                          parameters: [...cur, { name: '', unit: 'mg/dL', min: '', max: '', category: facilityForm.dept || 'Biochemistry' }]
+                        });
+                      }}
+                      style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        background: '#6366f1',
+                        color: 'white',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
+                    >
+                      + Add Parameter
+                    </button>
+                  </div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#64748b' }}>
+                    Configure standard units (mg/dL, g/dL, %, etc.) and biological reference limits for automatic High/Low flagging.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                    {(facilityForm.parameters || []).map((param, pIdx) => (
+                      <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '6px', alignItems: 'center', background: 'white', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                        <input
+                          type="text"
+                          placeholder="Biomarker Name (e.g. Total Bilirubin)"
+                          value={param.name}
+                          onChange={(e) => {
+                            const updated = [...facilityForm.parameters];
+                            updated[pIdx].name = e.target.value;
+                            setFacilityForm({ ...facilityForm, parameters: updated });
+                          }}
+                          style={{ fontSize: '11.5px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                          required
+                        />
+                        <input
+                          type="text"
+                          placeholder="Unit (mg/dL, %, g/dL)"
+                          value={param.unit}
+                          onChange={(e) => {
+                            const updated = [...facilityForm.parameters];
+                            updated[pIdx].unit = e.target.value;
+                            setFacilityForm({ ...facilityForm, parameters: updated });
+                          }}
+                          style={{ fontSize: '11.5px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="Min Val"
+                          value={param.min}
+                          onChange={(e) => {
+                            const updated = [...facilityForm.parameters];
+                            updated[pIdx].min = e.target.value;
+                            setFacilityForm({ ...facilityForm, parameters: updated });
+                          }}
+                          style={{ fontSize: '11.5px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="Max Val"
+                          value={param.max}
+                          onChange={(e) => {
+                            const updated = [...facilityForm.parameters];
+                            updated[pIdx].max = e.target.value;
+                            setFacilityForm({ ...facilityForm, parameters: updated });
+                          }}
+                          style={{ fontSize: '11.5px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = facilityForm.parameters.filter((_, idx) => idx !== pIdx);
+                            setFacilityForm({ ...facilityForm, parameters: updated });
+                          }}
+                          style={{ background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px' }}
+                          title="Remove biomarker"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label>Description</label>
                   <textarea 
@@ -1285,14 +1411,14 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                     value={facilityForm.description} 
                     onChange={(e) => setFacilityForm({ ...facilityForm, description: e.target.value })} 
                     required
-                    rows="3"
+                    rows="2"
                   />
                 </div>
               </div>
 
               <div className="lab-modal-footer">
                 <button type="button" onClick={() => setShowFacilityModal(false)} className="lab-btn-cancel">Cancel</button>
-                <button type="submit" className="lab-btn-submit bg-purple">{editingFacility ? 'Update Service' : 'Add Service'}</button>
+                <button type="submit" className="lab-btn-submit bg-purple">{editingFacility ? 'Update Service & Biomarkers' : 'Add Service & Biomarkers'}</button>
               </div>
             </form>
           </div>

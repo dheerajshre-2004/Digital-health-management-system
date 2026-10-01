@@ -197,10 +197,41 @@ export const LAB_TEMPLATES = {
   }
 };
 
-// Helper: Match test name to closest clinical template
+// Helper: Match test name to closest clinical template (or user-configured custom facility template)
 export function getTemplateForTest(testName = '') {
   if (!testName) return LAB_TEMPLATES["Complete Blood Count (CBC)"];
   
+  // 1. Check if user configured this test with custom parameters in dhms_lab_facilities
+  try {
+    const facilities = JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+    const matchedFac = facilities.find(f => 
+      (f.name && f.name.toLowerCase() === testName.toLowerCase()) ||
+      (f.code && f.code.toLowerCase() === testName.toLowerCase())
+    );
+    if (matchedFac && Array.isArray(matchedFac.parameters) && matchedFac.parameters.length > 0) {
+      return {
+        department: matchedFac.dept || "SPECIALIZED DIAGNOSTICS",
+        title: matchedFac.name.toUpperCase(),
+        clinicalNotes: matchedFac.clinicalNotes || matchedFac.description || `Diagnostic evaluation for ${matchedFac.name}.`,
+        disclaimer: "NOT VALID FOR MEDICO LEGAL PURPOSE. Please correlate findings clinically.",
+        parameters: matchedFac.parameters.map(p => ({
+          name: p.name || 'Biomarker Parameter',
+          defaultVal: p.defaultVal || '',
+          unit: p.unit || 'mg/dL',
+          min: p.min !== '' && p.min !== null && p.min !== undefined ? parseFloat(p.min) : null,
+          max: p.max !== '' && p.max !== null && p.max !== undefined ? parseFloat(p.max) : null,
+          textRange: p.textRange || (p.min && p.max ? `${p.min} - ${p.max}` : 'Standard Normal'),
+          category: p.category || matchedFac.dept || 'Assay Measurement'
+        })),
+        abnormalGuidance: matchedFac.abnormalGuidance || [
+          { param: matchedFac.name, high: "Higher than physiological reference interval", low: "Lower than physiological reference interval" }
+        ]
+      };
+    }
+  } catch (e) {
+    console.error("Error loading custom facility template", e);
+  }
+
   const clean = testName.toLowerCase();
   if (clean.includes('cbc') || clean.includes('blood count') || clean.includes('hemogram') || clean.includes('haematology')) {
     return LAB_TEMPLATES["Complete Blood Count (CBC)"];
@@ -237,8 +268,7 @@ export function getTemplateForTest(testName = '') {
     clinicalNotes: `Diagnostic investigation performed according to standardized hospital laboratory protocols for ${testName}.`,
     disclaimer: "NOT VALID FOR MEDICO LEGAL PURPOSE. Please correlate findings clinically.",
     parameters: [
-      { name: `${testName} Primary Assay`, defaultVal: "Normal / Reactive Negative", unit: "Assay Result", min: null, max: null, textRange: "Normal Reference", category: "Diagnostic Assay" },
-      { name: "Secondary Diagnostic Marker", defaultVal: "Verified", unit: "Index", min: null, max: null, textRange: "Non-Reactive", category: "Diagnostic Assay" }
+      { name: `${testName} Concentration / Assay`, defaultVal: "", unit: "mg/dL", min: 10, max: 100, textRange: "10 - 100", category: "Diagnostic Assay" }
     ],
     abnormalGuidance: [
       { param: testName, high: "Abnormal elevation requiring clinical review", low: "Sub-therapeutic or reduced level" }
