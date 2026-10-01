@@ -492,6 +492,40 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         setIncomingTeleCall(null);
         stopIncomingRingtone();
         clearIncomingCallNotification();
+
+        // If currently in active video call, close session immediately on doctor disconnect
+        if (isVideoCallActive || activeCallId) {
+          if (localMediaStream) {
+            try {
+              localMediaStream.getTracks().forEach(t => t.stop());
+            } catch (err) {}
+          }
+          setIsVideoCallActive(false);
+          setActiveCallId('');
+          setPatientRemoteStream(null);
+          if (peerConnRef.current) {
+            try {
+              peerConnRef.current.cleanup();
+            } catch (err) {}
+            peerConnRef.current = null;
+          }
+
+          if (data.appointmentId || data.callId) {
+            const endedId = String(data.appointmentId || data.callId);
+            setTeleconsultations(prev => prev.map(t => String(t.id) === endedId ? { ...t, status: 'Completed' } : t));
+          }
+
+          if (window.Swal) {
+            window.Swal.fire({
+              title: 'Consultation Ended',
+              text: 'The telemedicine session has been ended by the doctor.',
+              icon: 'info',
+              confirmButtonColor: '#3b82f6'
+            });
+          } else {
+            alert('The telemedicine session has been ended by the doctor.');
+          }
+        }
       }
     });
 

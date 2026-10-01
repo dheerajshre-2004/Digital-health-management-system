@@ -6496,7 +6496,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   ref={doctorRemoteVideoRef}
                   autoPlay 
                   playsInline 
-                  onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
+                  onLoadedMetadata={(e) => { 
+                    try { e.target.play().catch(() => {}); } catch(err) {} 
+                  }}
+                  onPlay={() => console.log("[Doctor] Remote patient video playing")}
                   style={{ 
                     width: '100%', 
                     height: '100%', 
@@ -6504,7 +6507,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    zIndex: 2,
+                    zIndex: doctorRemotePatientStream ? 5 : 2,
                     background: 'transparent'
                   }} 
                 />
@@ -6528,7 +6531,10 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   autoPlay 
                   playsInline 
                   muted 
-                  onLoadedMetadata={(e) => { e.target.play().catch(() => {}); }}
+                  onLoadedMetadata={(e) => { 
+                    try { e.target.play().catch(() => {}); } catch(err) {} 
+                  }}
+                  onPlay={() => console.log("[Doctor] Local doctor video playing")}
                   style={{ 
                     width: '100%', 
                     height: '100%', 
@@ -6537,7 +6543,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    zIndex: isDoctorCamOn ? 2 : 0,
+                    zIndex: isDoctorCamOn ? 5 : 0,
                     opacity: isDoctorCamOn ? 1 : 0,
                     background: 'transparent'
                   }} 
