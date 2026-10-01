@@ -571,7 +571,7 @@
   border-radius: 12px;
   width: 100%;
   max-width: 500px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
   overflow: hidden;
   max-height: 90vh;
   display: flex;
@@ -579,12 +579,13 @@
 }
 
 .lab-modal-header {
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: white;
+  flex-shrink: 0;
 }
 
 .lab-modal-header.bg-purple { background-color: #6366f1; }
@@ -606,12 +607,13 @@
 }
 
 .lab-modal-body {
-  padding: 24px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .lab-patient-summary {
@@ -642,7 +644,7 @@
   padding: 10px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  min-height: 80px;
+  min-height: 70px;
   font-family: inherit;
   font-size: 13px;
   outline: none;
@@ -653,12 +655,13 @@
 }
 
 .lab-modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #f1f5f9;
+  padding: 14px 24px;
+  border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   background-color: #f8fafc;
+  flex-shrink: 0;
 }
 
 .lab-btn-cancel {

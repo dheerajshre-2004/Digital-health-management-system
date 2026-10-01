@@ -1062,8 +1062,8 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
               <button onClick={() => setSelectedLabForResults(null)} className="lab-modal-close">&times;</button>
             </div>
             
-            <form onSubmit={handleCompleteLabWithResults}>
-              <div className="lab-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <form onSubmit={handleCompleteLabWithResults} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="lab-modal-body" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', maxHeight: 'calc(85vh - 140px)' }}>
                 <div className="lab-patient-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                   <div><strong>Patient:</strong> {selectedLabForResults.patientName} <span style={{ color: '#64748b' }}>({selectedLabForResults.patientId})</span></div>
                   <div><strong>Prescribing Doctor:</strong> {selectedLabForResults.doctorName || 'Self / Direct OPD'}</div>
@@ -1154,9 +1154,9 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                 </div>
               </div>
 
-              <div className="lab-modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <div className="lab-modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '14px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px', background: '#f8fafc', flexShrink: 0 }}>
                 <button type="button" onClick={() => setSelectedLabForResults(null)} className="lab-btn-cancel">Cancel</button>
-                <button type="submit" className="lab-btn-submit bg-purple" style={{ padding: '8px 18px', fontWeight: '700' }}>
+                <button type="submit" className="lab-btn-submit bg-purple" style={{ padding: '10px 22px', fontWeight: '700', fontSize: '13.5px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   ✓ Complete & Publish Official Report
                 </button>
               </div>
