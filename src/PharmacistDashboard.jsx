@@ -7,16 +7,43 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   // Local storage states
   const [medications, setMedications] = useState(() => {
     const list = JSON.parse(localStorage.getItem('dhms_medications') || '[]');
-    if (list.length > 0) return list;
+    if (list.length > 0) {
+      // Ensure existing meds have a shelf location assigned if missing
+      let modified = false;
+      const shelfMap = {
+        'MED-101': 'Shelf A-1 (Antibiotics Bay)',
+        'MED-102': 'Shelf B-2 (Cardio Rack)',
+        'MED-103': 'Shelf B-3 (Cardio Rack)',
+        'MED-104': 'Shelf C-1 (Pain & Anti-Inflammatory)',
+        'MED-105': 'Shelf C-2 (Analgesics Bay)',
+        'MED-106': 'Emergency Tray #1 (Cold / Quick Access)',
+        'MED-107': 'Emergency Tray #2 (Cardiac Tray)',
+        'MED-108': 'Emergency Tray #3 (Tox / Antidote Cabinet)'
+      };
+      const enriched = list.map((m, idx) => {
+        if (!m.shelfLocation) {
+          modified = true;
+          return {
+            ...m,
+            shelfLocation: shelfMap[m.id] || `Shelf ${String.fromCharCode(65 + (idx % 6))}-${(idx % 4) + 1}`
+          };
+        }
+        return m;
+      });
+      if (modified) {
+        localStorage.setItem('dhms_medications', JSON.stringify(enriched));
+      }
+      return enriched;
+    }
     const defaultMeds = [
-      { id: "MED-101", name: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", category: "Antibiotics", stock: 150, price: 18.00, isEmergency: false, lowStockThreshold: 20 },
-      { id: "MED-102", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 120, price: 15.00, isEmergency: false, lowStockThreshold: 20 },
-      { id: "MED-103", name: "Metoprolol 25mg", genericName: "Metoprolol Succinate", category: "Cardiovascular", stock: 95, price: 20.00, isEmergency: false, lowStockThreshold: 15 },
-      { id: "MED-104", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 6.50, isEmergency: false, lowStockThreshold: 25 },
-      { id: "MED-105", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 3.00, isEmergency: true, lowStockThreshold: 50 },
-      { id: "MED-106", name: "Epinephrine 1mg/mL", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 60, price: 40.00, isEmergency: true, lowStockThreshold: 15 },
-      { id: "MED-107", name: "Adenosine 6mg/2mL", genericName: "Adenosine", category: "Antiarrhythmic", stock: 40, price: 65.00, isEmergency: true, lowStockThreshold: 10 },
-      { id: "MED-108", name: "Naloxone 0.4mg/mL", genericName: "Naloxone", category: "Opioid Antagonist", stock: 50, price: 35.00, isEmergency: true, lowStockThreshold: 15 }
+      { id: "MED-101", name: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", category: "Antibiotics", stock: 150, price: 18.00, shelfLocation: "Shelf A-1 (Antibiotics Bay)", isEmergency: false, lowStockThreshold: 20 },
+      { id: "MED-102", name: "Lisinopril 10mg", genericName: "Lisinopril", category: "Cardiovascular", stock: 120, price: 15.00, shelfLocation: "Shelf B-2 (Cardio Rack)", isEmergency: false, lowStockThreshold: 20 },
+      { id: "MED-103", name: "Metoprolol 25mg", genericName: "Metoprolol Succinate", category: "Cardiovascular", stock: 95, price: 20.00, shelfLocation: "Shelf B-3 (Cardio Rack)", isEmergency: false, lowStockThreshold: 15 },
+      { id: "MED-104", name: "Ibuprofen 400mg", genericName: "Ibuprofen", category: "NSAIDs", stock: 180, price: 6.50, shelfLocation: "Shelf C-1 (Pain & Anti-Inflammatory)", isEmergency: false, lowStockThreshold: 25 },
+      { id: "MED-105", name: "Paracetamol 500mg", genericName: "Acetaminophen", category: "Analgesics", stock: 300, price: 3.00, shelfLocation: "Shelf C-2 (Analgesics Bay)", isEmergency: true, lowStockThreshold: 50 },
+      { id: "MED-106", name: "Epinephrine 1mg/mL", genericName: "Epinephrine", category: "Anaphylaxis / Cardiac", stock: 60, price: 40.00, shelfLocation: "Emergency Tray #1 (Cold / Quick Access)", isEmergency: true, lowStockThreshold: 15 },
+      { id: "MED-107", name: "Adenosine 6mg/2mL", genericName: "Adenosine", category: "Antiarrhythmic", stock: 40, price: 65.00, shelfLocation: "Emergency Tray #2 (Cardiac Tray)", isEmergency: true, lowStockThreshold: 10 },
+      { id: "MED-108", name: "Naloxone 0.4mg/mL", genericName: "Naloxone", category: "Opioid Antagonist", stock: 50, price: 35.00, shelfLocation: "Emergency Tray #3 (Tox / Antidote Cabinet)", isEmergency: true, lowStockThreshold: 15 }
     ];
     localStorage.setItem('dhms_medications', JSON.stringify(defaultMeds));
     return defaultMeds;
@@ -33,9 +60,20 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
     category: 'Antibiotics',
     stock: 50,
     price: 10.00,
+    shelfLocation: 'Shelf A-1',
     isEmergency: false,
     lowStockThreshold: 15
   });
+
+  // Outsider / Walk-in Sale States
+  const [outsiderSearch, setOutsiderSearch] = useState('');
+  const [outsiderCategory, setOutsiderCategory] = useState('All');
+  const [outsiderCart, setOutsiderCart] = useState([]); // [{ medId, name, genericName, shelfLocation, unitPrice, qty, total }]
+  const [outsiderBuyerName, setOutsiderBuyerName] = useState('');
+  const [outsiderBuyerPhone, setOutsiderBuyerPhone] = useState('');
+  const [outsiderPaymentMode, setOutsiderPaymentMode] = useState('Physical Cash Payment'); // 'Physical Cash Payment' | 'Online UPI / QR Payment' | 'Card / POS Payment'
+  const [outsiderPaymentRemarks, setOutsiderPaymentRemarks] = useState('');
+  const [outsiderReceipt, setOutsiderReceipt] = useState(null); // Receipt modal data
 
   const [attendanceForm, setAttendanceForm] = useState({
     staffId: '',
@@ -78,6 +116,9 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const saveMedications = (updated) => {
     setMedications(updated);
     localStorage.setItem('dhms_medications', JSON.stringify(updated));
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const saveAttendance = (updated) => {
@@ -120,6 +161,156 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const saveAdmissions = (updated) => {
     setAdmissions(updated);
     localStorage.setItem('dhms_admissions', JSON.stringify(updated));
+  };
+
+  // Outsider Cart Helpers
+  const handleAddToCart = (med) => {
+    if (med.stock <= 0) {
+      alert(`Cannot add ${med.name} - Stock is depleted (0 left).`);
+      return;
+    }
+    const existing = outsiderCart.find(item => item.medId === med.id);
+    if (existing) {
+      if (existing.qty >= med.stock) {
+        alert(`Cannot add more. Only ${med.stock} units available in inventory for ${med.name}.`);
+        return;
+      }
+      setOutsiderCart(outsiderCart.map(item => 
+        item.medId === med.id 
+          ? { ...item, qty: item.qty + 1, total: (item.qty + 1) * item.unitPrice }
+          : item
+      ));
+    } else {
+      setOutsiderCart([...outsiderCart, {
+        medId: med.id,
+        name: med.name,
+        genericName: med.genericName,
+        shelfLocation: med.shelfLocation || 'Main Pharmacy Rack',
+        unitPrice: parseFloat(med.price) || 0,
+        qty: 1,
+        total: parseFloat(med.price) || 0
+      }]);
+    }
+  };
+
+  const handleUpdateCartQty = (medId, newQty) => {
+    const med = medications.find(m => m.id === medId);
+    const parsedQty = parseInt(newQty) || 0;
+    if (parsedQty <= 0) {
+      setOutsiderCart(outsiderCart.filter(item => item.medId !== medId));
+      return;
+    }
+    if (med && parsedQty > med.stock) {
+      alert(`Max available stock for ${med.name} is ${med.stock} units.`);
+      setOutsiderCart(outsiderCart.map(item => 
+        item.medId === medId 
+          ? { ...item, qty: med.stock, total: med.stock * item.unitPrice }
+          : item
+      ));
+      return;
+    }
+    setOutsiderCart(outsiderCart.map(item => 
+      item.medId === medId 
+        ? { ...item, qty: parsedQty, total: parsedQty * item.unitPrice }
+        : item
+    ));
+  };
+
+  const handleRemoveFromCart = (medId) => {
+    setOutsiderCart(outsiderCart.filter(item => item.medId !== medId));
+  };
+
+  const calculateCartTotal = () => {
+    return outsiderCart.reduce((sum, item) => sum + item.total, 0);
+  };
+
+  // Outsider Checkout & Bill Sync
+  const handleOutsiderCheckout = (e) => {
+    e.preventDefault();
+    if (outsiderCart.length === 0) {
+      alert("Cart is empty! Please select at least one medication.");
+      return;
+    }
+
+    const buyerName = outsiderBuyerName.trim() || 'Walk-in Visitor';
+    const buyerPhone = outsiderBuyerPhone.trim() || 'N/A';
+    const grandTotal = calculateCartTotal();
+    const invoiceId = `INV-OUT-${Math.floor(1000 + Math.random() * 9000)}`;
+    const today = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toLocaleString();
+
+    // 1. Deduct Medication Stocks
+    let stockError = null;
+    const updatedMeds = medications.map(m => {
+      const cartItem = outsiderCart.find(ci => ci.medId === m.id);
+      if (cartItem) {
+        if (m.stock < cartItem.qty) {
+          stockError = `Insufficient stock for ${m.name}. Available: ${m.stock}, Requested: ${cartItem.qty}`;
+        }
+        return { ...m, stock: Math.max(0, m.stock - cartItem.qty) };
+      }
+      return m;
+    });
+
+    if (stockError) {
+      alert(stockError);
+      return;
+    }
+
+    saveMedications(updatedMeds);
+
+    // 2. Add Invoice to Central Billing (dhms_billing) for Cash Counter overview & Admin analytics
+    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const medNamesSummary = outsiderCart.map(i => `${i.name} (x${i.qty})`).join(', ');
+
+    const newInvoice = {
+      id: invoiceId,
+      patientId: `WALK-${Math.floor(100 + Math.random() * 900)}`,
+      patientName: `${buyerName} (Outsider/Visitor)`,
+      phone: buyerPhone,
+      date: today,
+      paymentDate: today,
+      amount: `₹${grandTotal.toFixed(2)}`,
+      status: 'Paid',
+      paymentMethod: outsiderPaymentMode,
+      paymentRemarks: outsiderPaymentRemarks.trim() || `Walk-in Pharmacy Counter Sale. Dispensed by ${loggedInStaff?.name || 'Pharmacist'}.`,
+      type: `Pharmacy Walk-In Sale: ${medNamesSummary}`,
+      items: outsiderCart.map(i => ({
+        id: i.medId,
+        name: i.name,
+        qty: i.qty,
+        unitPrice: i.unitPrice,
+        shelfLocation: i.shelfLocation,
+        total: i.total
+      })),
+      soldBy: loggedInStaff?.name || 'Pharmacist Specialist'
+    };
+
+    localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // 3. Set Receipt for Instant Print/Preview Modal
+    setOutsiderReceipt({
+      invoiceId,
+      date: today,
+      time: timestamp,
+      buyerName,
+      buyerPhone,
+      items: [...outsiderCart],
+      grandTotal,
+      paymentMode: outsiderPaymentMode,
+      soldBy: loggedInStaff?.name || 'Pharmacist Specialist'
+    });
+
+    // Reset Form
+    setOutsiderCart([]);
+    setOutsiderBuyerName('');
+    setOutsiderBuyerPhone('');
+    setOutsiderPaymentRemarks('');
+    setOutsiderPaymentMode('Physical Cash Payment');
   };
 
   // 1. Attendance actions
@@ -197,6 +388,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
     const newEntry = {
       ...newMed,
       id: `MED-${Math.floor(100 + Math.random() * 900)}`,
+      shelfLocation: newMed.shelfLocation?.trim() || 'Shelf A-1 (Main Bay)',
       stock: parseInt(newMed.stock) || 0,
       price: parseFloat(newMed.price) || 0.00,
       lowStockThreshold: parseInt(newMed.lowStockThreshold) || 10
@@ -210,10 +402,11 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       category: 'Antibiotics',
       stock: 50,
       price: 10.00,
+      shelfLocation: 'Shelf A-1',
       isEmergency: false,
       lowStockThreshold: 15
     });
-    alert(`${newEntry.name} added to inventory!`);
+    alert(`${newEntry.name} added to inventory at [${newEntry.shelfLocation}]!`);
   };
 
   const handleUpdateStock = (e) => {
@@ -499,14 +692,14 @@ Thank you for using DHMS Hospital.
             <li className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>
               Overview
             </li>
-            <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
-              Staff Attendance
+            <li className={activeTab === 'outsider_sales' ? 'active' : ''} onClick={() => setActiveTab('outsider_sales')}>
+              Walk-in / Outsider Sale
             </li>
             <li className={activeTab === 'inventory' ? 'active' : ''} onClick={() => setActiveTab('inventory')}>
-              Inventory / Stock
+              Inventory / Stock & Shelf
             </li>
             <li className={activeTab === 'dispensing' ? 'active' : ''} onClick={() => setActiveTab('dispensing')}>
-              Dispensing
+              Dispensing (OPD/IPD)
             </li>
             <li className={activeTab === 'billing' ? 'active' : ''} onClick={() => setActiveTab('billing')}>
               Admissions & Billing
@@ -718,14 +911,349 @@ Thank you for using DHMS Hospital.
             </div>
           )}
 
+          {/* Outsider / Walk-in Medicine Sale Tab */}
+          {activeTab === 'outsider_sales' && (
+            <div className="view-pane animate-fade-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h1 className="pane-title" style={{ margin: 0 }}>Walk-In / Outsider Medicine Sale Counter</h1>
+                  <p style={{ color: '#64748b', fontSize: '14px', margin: '4px 0 0 0' }}>
+                    Quick counter POS for visitors and outsiders purchasing medicines. Instantly locate shelf rack, accept Online/Offline payment, and auto-sync with Central Cash Counter & Finance.
+                  </p>
+                </div>
+                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '8px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>⚡</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#065f46' }}>Real-Time Shelf Locator & Cash Counter Sync Active</span>
+                </div>
+              </div>
+
+              <div className="grid-split-3-1" style={{ gap: '24px' }}>
+                {/* Left: Medication Catalogue & Shelf Search */}
+                <div className="section-card" style={{ flex: 1.8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h2 style={{ margin: 0, fontSize: '17px' }}>1. Find Medication & Storage Shelf</h2>
+                    <span style={{ fontSize: '13px', color: '#64748b' }}>
+                      Showing {medications.filter(m => {
+                        const q = outsiderSearch.toLowerCase();
+                        const matchQ = m.name.toLowerCase().includes(q) || m.genericName.toLowerCase().includes(q) || (m.shelfLocation || '').toLowerCase().includes(q) || m.category.toLowerCase().includes(q);
+                        const matchC = outsiderCategory === 'All' || m.category === outsiderCategory;
+                        return matchQ && matchC;
+                      }).length} of {medications.length} items
+                    </span>
+                  </div>
+
+                  {/* Search and Filters */}
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="🔍 Search medicine, generic chemical, or shelf number (e.g. Shelf A-1, Paracetamol, Cardio)..." 
+                        value={outsiderSearch}
+                        onChange={(e) => setOutsiderSearch(e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <select 
+                      value={outsiderCategory} 
+                      onChange={(e) => setOutsiderCategory(e.target.value)}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '14px', outline: 'none' }}
+                    >
+                      <option value="All">All Categories</option>
+                      <option value="Antibiotics">Antibiotics</option>
+                      <option value="Cardiovascular">Cardiovascular</option>
+                      <option value="NSAIDs">NSAIDs</option>
+                      <option value="Analgesics">Analgesics</option>
+                      <option value="Anaphylaxis / Cardiac">Anaphylaxis / Cardiac</option>
+                      <option value="Antiarrhythmic">Antiarrhythmic</option>
+                      <option value="Opioid Antagonist">Opioid Antagonist</option>
+                    </select>
+                  </div>
+
+                  {/* Medication Table with Shelf Highlight */}
+                  <div className="table-wrapper" style={{ maxHeight: '520px', overflowY: 'auto' }}>
+                    <table className="dashboard-table">
+                      <thead>
+                        <tr>
+                          <th>Medication & Formula</th>
+                          <th>Category</th>
+                          <th>Exact Shelf / Storage Location</th>
+                          <th>Price / Unit</th>
+                          <th>Stock Available</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {medications
+                          .filter(med => {
+                            const q = outsiderSearch.toLowerCase();
+                            const matchQ = med.name.toLowerCase().includes(q) || 
+                                           med.genericName.toLowerCase().includes(q) || 
+                                           (med.shelfLocation || '').toLowerCase().includes(q) || 
+                                           med.category.toLowerCase().includes(q);
+                            const matchC = outsiderCategory === 'All' || med.category === outsiderCategory;
+                            return matchQ && matchC;
+                          })
+                          .map(med => {
+                            const inCartItem = outsiderCart.find(ci => ci.medId === med.id);
+                            return (
+                              <tr key={med.id} style={{ background: inCartItem ? '#f0fdf4' : 'transparent' }}>
+                                <td>
+                                  <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '14px' }}>{med.name}</div>
+                                  <div style={{ fontSize: '12px', color: '#64748b' }}>Generic: {med.genericName}</div>
+                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Code: {med.id}</span>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', color: '#475569' }}>
+                                    {med.category}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px', 
+                                    background: '#eff6ff', 
+                                    border: '1px solid #bfdbfe', 
+                                    color: '#1d4ed8', 
+                                    padding: '4px 10px', 
+                                    borderRadius: '6px', 
+                                    fontWeight: '700', 
+                                    fontSize: '12px' 
+                                  }}>
+                                    <span>📍</span>
+                                    <span>{med.shelfLocation || 'Shelf A-1 (General Bay)'}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <strong style={{ fontSize: '14px', color: '#047857' }}>₹{parseFloat(med.price).toFixed(2)}</strong>
+                                </td>
+                                <td>
+                                  <span style={{ 
+                                    fontWeight: '700', 
+                                    color: med.stock <= 0 ? '#ef4444' : med.stock <= med.lowStockThreshold ? '#f59e0b' : '#10b981',
+                                    fontSize: '13px'
+                                  }}>
+                                    {med.stock} Units
+                                  </span>
+                                  {med.stock <= 0 && <span style={{ display: 'block', fontSize: '11px', color: '#ef4444', fontWeight: 'bold' }}>Out of Stock</span>}
+                                </td>
+                                <td>
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleAddToCart(med)}
+                                    disabled={med.stock <= 0}
+                                    style={{
+                                      padding: '6px 12px',
+                                      background: med.stock <= 0 ? '#cbd5e1' : inCartItem ? '#10b981' : '#2563eb',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      cursor: med.stock <= 0 ? 'not-allowed' : 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    {inCartItem ? `✓ Added (x${inCartItem.qty})` : '+ Add to Sale'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        {medications.filter(med => {
+                          const q = outsiderSearch.toLowerCase();
+                          const matchQ = med.name.toLowerCase().includes(q) || med.genericName.toLowerCase().includes(q) || (med.shelfLocation || '').toLowerCase().includes(q) || med.category.toLowerCase().includes(q);
+                          const matchC = outsiderCategory === 'All' || med.category === outsiderCategory;
+                          return matchQ && matchC;
+                        }).length === 0 && (
+                          <tr>
+                            <td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                              No matching medications or shelf locations found for "{outsiderSearch}".
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Right: Visitor Billing & Instant POS Checkout */}
+                <div className="section-card" style={{ flex: 1.2, display: 'flex', flexDirection: 'column' }}>
+                  <h2 style={{ margin: '0 0 16px 0', fontSize: '17px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                    2. Visitor Bill & Checkout
+                  </h2>
+
+                  {/* Selected Cart Items */}
+                  <div style={{ flex: 1, maxHeight: '240px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #f1f5f9', borderRadius: '8px', padding: '8px', background: '#fafafa' }}>
+                    {outsiderCart.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8' }}>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🛒</div>
+                        <p style={{ margin: 0, fontSize: '13px' }}>Cart is empty. Search and add medications from the left table.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {outsiderCart.map((item) => (
+                          <div key={item.medId} style={{ background: 'white', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>{item.name}</strong>
+                              <span style={{ fontSize: '11px', color: '#2563eb' }}>📍 {item.shelfLocation}</span>
+                              <div style={{ fontSize: '12px', color: '#64748b' }}>₹{item.unitPrice.toFixed(2)} each</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                value={item.qty} 
+                                onChange={(e) => handleUpdateCartQty(item.medId, e.target.value)}
+                                style={{ width: '50px', padding: '4px 6px', textAlign: 'center', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                              />
+                              <strong style={{ fontSize: '13px', color: '#047857', minWidth: '60px', textAlign: 'right' }}>
+                                ₹{item.total.toFixed(2)}
+                              </strong>
+                              <button 
+                                type="button" 
+                                onClick={() => handleRemoveFromCart(item.medId)}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '2px' }}
+                                title="Remove item"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Grand Total Bar */}
+                  <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#475569' }}>Grand Total ({outsiderCart.reduce((sum, i) => sum + i.qty, 0)} items):</span>
+                    <span style={{ fontSize: '20px', fontWeight: '800', color: '#047857' }}>₹{calculateCartTotal().toFixed(2)}</span>
+                  </div>
+
+                  {/* Visitor Information & Payment Options Form */}
+                  <form onSubmit={handleOutsiderCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Visitor / Outsider Name (Optional)</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Walk-in Customer / John Doe" 
+                        value={outsiderBuyerName}
+                        onChange={(e) => setOutsiderBuyerName(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Mobile Number (for SMS / WhatsApp Receipt)</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. +91 98765 43210" 
+                        value={outsiderBuyerPhone}
+                        onChange={(e) => setOutsiderBuyerPhone(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Payment Mode</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '4px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => setOutsiderPaymentMode('Physical Cash Payment')}
+                          style={{
+                            padding: '8px 4px',
+                            borderRadius: '6px',
+                            border: outsiderPaymentMode === 'Physical Cash Payment' ? '2px solid #10b981' : '1px solid #cbd5e1',
+                            background: outsiderPaymentMode === 'Physical Cash Payment' ? '#ecfdf5' : 'white',
+                            color: outsiderPaymentMode === 'Physical Cash Payment' ? '#065f46' : '#64748b',
+                            fontWeight: '600',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          💵 Cash (Offline)
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setOutsiderPaymentMode('Online UPI / QR Payment')}
+                          style={{
+                            padding: '8px 4px',
+                            borderRadius: '6px',
+                            border: outsiderPaymentMode === 'Online UPI / QR Payment' ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                            background: outsiderPaymentMode === 'Online UPI / QR Payment' ? '#eff6ff' : 'white',
+                            color: outsiderPaymentMode === 'Online UPI / QR Payment' ? '#1d4ed8' : '#64748b',
+                            fontWeight: '600',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          📲 UPI / QR (Online)
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setOutsiderPaymentMode('Card / POS Payment')}
+                          style={{
+                            padding: '8px 4px',
+                            borderRadius: '6px',
+                            border: outsiderPaymentMode === 'Card / POS Payment' ? '2px solid #8b5cf6' : '1px solid #cbd5e1',
+                            background: outsiderPaymentMode === 'Card / POS Payment' ? '#f5f3ff' : 'white',
+                            color: outsiderPaymentMode === 'Card / POS Payment' ? '#6d28d9' : '#64748b',
+                            fontWeight: '600',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          💳 Card / POS
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Transaction Notes / Ref ID (Optional)</label>
+                      <input 
+                        type="text" 
+                        placeholder={outsiderPaymentMode.includes('UPI') ? "e.g. UPI Ref: 8291039120" : "e.g. Counter dispense notes"} 
+                        value={outsiderPaymentRemarks}
+                        onChange={(e) => setOutsiderPaymentRemarks(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      disabled={outsiderCart.length === 0}
+                      style={{
+                        marginTop: '8px',
+                        padding: '12px',
+                        background: outsiderCart.length === 0 ? '#94a3b8' : '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '15px',
+                        cursor: outsiderCart.length === 0 ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                      }}
+                    >
+                      ✓ Complete Sale & Print Receipt (₹{calculateCartTotal().toFixed(2)})
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'inventory' && (
             <div className="view-pane animate-fade-in">
-              <h1 className="pane-title">Medication Stock & Inventory Control</h1>
+              <h1 className="pane-title">Medication Stock & Shelf Inventory Control</h1>
 
               <div className="inventory-controls">
                 <input 
                   type="text" 
-                  placeholder="Search medication or generic name..." 
+                  placeholder="Search medication, generic chemical, or shelf..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="search-input"
@@ -758,7 +1286,7 @@ Thank you for using DHMS Hospital.
 
               <div className="grid-split-3-1" style={{ marginTop: '20px' }}>
                 <div className="section-card">
-                  <h2>Medication List</h2>
+                  <h2>Medication Inventory & Shelf Locations</h2>
                   <div className="table-wrapper">
                     <table className="dashboard-table">
                       <thead>
@@ -766,6 +1294,7 @@ Thank you for using DHMS Hospital.
                           <th>Code</th>
                           <th>Name</th>
                           <th>Generic Name</th>
+                          <th>Shelf / Rack Location</th>
                           <th>Stock Left</th>
                           <th>Price</th>
                           <th>Emergency</th>
@@ -781,6 +1310,22 @@ Thank you for using DHMS Hospital.
                               <div className="subtitle">{med.category}</div>
                             </td>
                             <td>{med.genericName}</td>
+                            <td>
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '4px', 
+                                background: '#eff6ff', 
+                                color: '#1d4ed8', 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: '700',
+                                border: '1px solid #bfdbfe' 
+                              }}>
+                                📍 {med.shelfLocation || 'Shelf A-1'}
+                              </span>
+                            </td>
                             <td>
                               <span className={`stock-text ${med.stock <= med.lowStockThreshold ? 'alert' : ''}`}>
                                 {med.stock} Units
@@ -809,7 +1354,7 @@ Thank you for using DHMS Hospital.
                 </div>
 
                 <div className="section-card">
-                  <h2>Add Medication</h2>
+                  <h2>Add Medication to Shelf</h2>
                   <form onSubmit={handleAddMedication} className="custom-form">
                     <div className="form-group">
                       <label>Drug Name & Strength</label>
@@ -828,6 +1373,16 @@ Thank you for using DHMS Hospital.
                         placeholder="e.g. Amoxicillin" 
                         value={newMed.genericName}
                         onChange={(e) => setNewMed({...newMed, genericName: e.target.value})}
+                        required 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Shelf / Rack Location</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Shelf B-2 (Cardio Rack) or Cold Storage #1" 
+                        value={newMed.shelfLocation}
+                        onChange={(e) => setNewMed({...newMed, shelfLocation: e.target.value})}
                         required 
                       />
                     </div>
@@ -894,6 +1449,9 @@ Thank you for using DHMS Hospital.
                 <div className="custom-modal-overlay">
                   <div className="custom-modal">
                     <h3>Restock Medication: {selectedMedForStock.name}</h3>
+                    <p style={{ fontSize: '13px', color: '#2563eb', margin: '0 0 12px 0' }}>
+                      📍 Stored at: {selectedMedForStock.shelfLocation || 'Shelf A-1'}
+                    </p>
                     <form onSubmit={handleUpdateStock}>
                       <div className="form-group">
                         <label>Enter Units to Add</label>
@@ -1163,6 +1721,109 @@ Thank you for using DHMS Hospital.
           )}
         </div>
       </div>
+      {/* Printable Walk-in Outsider Pharmacy Cash Receipt Modal */}
+      {outsiderReceipt && (
+        <div className="custom-modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="custom-modal" style={{ maxWidth: '540px', background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div id="dhms-walkin-receipt-print" style={{ background: '#ffffff', color: '#1e293b', fontFamily: 'monospace, sans-serif' }}>
+              {/* Receipt Header */}
+              <div style={{ textAlign: 'center', borderBottom: '2px dashed #94a3b8', paddingBottom: '12px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '0.5px' }}>DHMS CENTRAL PHARMACY</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Hospital Road, Medical City | 24x7 Dispensing Counter</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Tax Reg / Drug Lic: DL-PHR-2026-9921</div>
+                <div style={{ marginTop: '6px', display: 'inline-block', background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                  ✓ OFFICIAL SALE RECEIPT (PAID)
+                </div>
+              </div>
+
+              {/* Meta details */}
+              <div style={{ fontSize: '12px', lineHeight: '1.6', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>Receipt No:</strong> {outsiderReceipt.invoiceId}</span>
+                  <span><strong>Date:</strong> {outsiderReceipt.date}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>Customer:</strong> {outsiderReceipt.buyerName}</span>
+                  <span><strong>Phone:</strong> {outsiderReceipt.buyerPhone}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>Payment Mode:</strong> {outsiderReceipt.paymentMode}</span>
+                  <span><strong>Dispensed By:</strong> {outsiderReceipt.soldBy}</span>
+                </div>
+              </div>
+
+              {/* Items Purchased Table */}
+              <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', marginBottom: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #94a3b8', textAlign: 'left', color: '#475569' }}>
+                    <th style={{ padding: '6px 0' }}>Item / Strength</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'center' }}>Shelf</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'center' }}>Qty</th>
+                    <th style={{ padding: '6px 4px', textAlign: 'right' }}>Price</th>
+                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outsiderReceipt.items.map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px dashed #e2e8f0' }}>
+                      <td style={{ padding: '6px 0' }}>
+                        <strong>{item.name}</strong>
+                      </td>
+                      <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: '11px', color: '#2563eb' }}>
+                        {item.shelfLocation}
+                      </td>
+                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                        x{item.qty}
+                      </td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                        ₹{item.unitPrice.toFixed(2)}
+                      </td>
+                      <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 'bold' }}>
+                        ₹{item.total.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Total & Footer */}
+              <div style={{ borderTop: '2px dashed #94a3b8', paddingTop: '10px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '800' }}>
+                  <span>TOTAL AMOUNT PAID:</span>
+                  <span style={{ color: '#047857' }}>₹{outsiderReceipt.grandTotal.toFixed(2)}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>
+                  Amount synced with Central Cash Counter & Financial Accounts.
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center', fontSize: '10px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                Thank you for visiting DHMS Hospital Pharmacy. Store medicines below 25°C.
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+              <button 
+                type="button" 
+                onClick={() => setOutsiderReceipt(null)}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Close Window
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  window.print();
+                }}
+                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🖨️ Print Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

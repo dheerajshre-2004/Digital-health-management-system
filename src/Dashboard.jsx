@@ -338,11 +338,17 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [newMedName, setNewMedName] = useState('');
   const [newMedGeneric, setNewMedGeneric] = useState('');
+  const [newMedShelf, setNewMedShelf] = useState('Shelf A-1 (Main Bay)');
   const [newMedCategory, setNewMedCategory] = useState('Analgesics');
   const [newMedStock, setNewMedStock] = useState(100);
   const [newMedPrice, setNewMedPrice] = useState('25.00');
   const [newMedThreshold, setNewMedThreshold] = useState(20);
   const [newMedEmergency, setNewMedEmergency] = useState(false);
+
+  // Pharmacy Sales Report Controls for Admin
+  const [pharmacyReportTimeframe, setPharmacyReportTimeframe] = useState('all'); // 'all' | 'day' | 'week' | 'month'
+  const [pharmacyReportDate, setPharmacyReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pharmacyReportPaymentFilter, setPharmacyReportPaymentFilter] = useState('All');
 
   // Billing state
   const [billingList, setBillingList] = useState(() => {
@@ -2785,6 +2791,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       id: `MED-${Math.floor(100 + Math.random() * 900)}`,
       name: newMedName.trim(),
       genericName: newMedGeneric.trim() || newMedName.trim(),
+      shelfLocation: newMedShelf.trim() || 'Shelf A-1 (Main Bay)',
       category: newMedCategory,
       stock: parseInt(newMedStock) || 50,
       price: parseFloat(newMedPrice) || 25.00,
@@ -2794,10 +2801,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const updated = [newMed, ...currentMeds];
     localStorage.setItem('dhms_medications', JSON.stringify(updated));
     if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
-    alert(`✓ Added ${newMed.name} to pharmacy inventory.`);
+    alert(`✓ Added ${newMed.name} to pharmacy inventory at [${newMed.shelfLocation}].`);
     setShowAddMedModal(false);
     setNewMedName('');
     setNewMedGeneric('');
+    setNewMedShelf('Shelf A-1 (Main Bay)');
     setNewMedStock(100);
     setNewMedPrice('25.00');
   };
@@ -3815,18 +3823,24 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             </div>
 
              {/* Sub-tabs for Pharmacy Desk */}
-            <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px' }}>
+            <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => setAdminPharmacySubTab('medications')}
                 style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'medications' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'medications' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
               >
-                Medication Stock ({medsList.length})
+                📦 Medication Stock & Shelves ({medsList.length})
+              </button>
+              <button 
+                onClick={() => setAdminPharmacySubTab('sales_analytics')}
+                style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'sales_analytics' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'sales_analytics' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
+              >
+                📊 Day / Week Sales & Financing Report
               </button>
               <button 
                 onClick={() => setAdminPharmacySubTab('staff')}
                 style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: adminPharmacySubTab === 'staff' ? '3px solid #10b981' : '3px solid transparent', color: adminPharmacySubTab === 'staff' ? '#047857' : '#64748b', fontWeight: '600', cursor: 'pointer' }}
               >
-                Staff & Shift Roster ({pStaff.length})
+                👥 Staff & Shift Roster ({pStaff.length})
               </button>
             </div>
 
@@ -3837,6 +3851,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     <th>Med ID</th>
                     <th>Medication Name</th>
                     <th>Category</th>
+                    <th>Shelf / Rack Location</th>
                     <th>In Stock</th>
                     <th>Unit Price</th>
                     <th>Emergency Drug</th>
@@ -3849,6 +3864,22 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       <td><strong>{m.id}</strong></td>
                       <td><strong>{m.name}</strong></td>
                       <td>{m.category}</td>
+                      <td>
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          background: '#eff6ff', 
+                          color: '#1d4ed8', 
+                          padding: '3px 8px', 
+                          borderRadius: '4px', 
+                          fontSize: '11px', 
+                          fontWeight: '700',
+                          border: '1px solid #bfdbfe' 
+                        }}>
+                          📍 {m.shelfLocation || 'Shelf A-1 (Main Bay)'}
+                        </span>
+                      </td>
                       <td>
                         <span style={{ fontWeight: 'bold', color: m.stock <= m.lowStockThreshold ? '#ef4444' : '#10b981' }}>
                           {m.stock} units
@@ -3875,6 +3906,223 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 </tbody>
               </table>
             )}
+
+            {/* Pharmacy Sales & Financial Reporting View */}
+            {adminPharmacySubTab === 'sales_analytics' && (() => {
+              const allBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+              const cleanVal = (val) => parseFloat((val || '').toString().replace(/[^0-9.]/g, '').trim()) || 0;
+
+              // Filter for all pharmacy transactions (Prescriptions, Walk-In Sales, Admitted Meds)
+              const pharmacyInvoices = allBilling.filter(b => {
+                const t = (b.type || '').toLowerCase();
+                return t.includes('pharm') || t.includes('medicine') || t.includes('prescription') || t.includes('walk-in sale');
+              });
+
+              // Apply Timeframe Filter
+              const selectedDate = new Date(pharmacyReportDate || new Date().toISOString().split('T')[0]);
+              
+              const filteredSales = pharmacyInvoices.filter(inv => {
+                const invDateStr = inv.date || inv.paymentDate || '';
+                if (!invDateStr) return true;
+                const invDate = new Date(invDateStr);
+
+                if (pharmacyReportTimeframe === 'day') {
+                  return invDateStr === (pharmacyReportDate || new Date().toISOString().split('T')[0]);
+                } else if (pharmacyReportTimeframe === 'week') {
+                  const diffTime = Math.abs(selectedDate - invDate);
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  return diffDays <= 7;
+                } else if (pharmacyReportTimeframe === 'month') {
+                  return invDate.getMonth() === selectedDate.getMonth() && invDate.getFullYear() === selectedDate.getFullYear();
+                }
+                return true; // 'all'
+              }).filter(inv => {
+                if (pharmacyReportPaymentFilter === 'All') return true;
+                if (pharmacyReportPaymentFilter === 'Paid') return inv.status === 'Paid';
+                if (pharmacyReportPaymentFilter === 'Unpaid') return inv.status === 'Unpaid';
+                if (pharmacyReportPaymentFilter === 'Cash') return (inv.paymentMethod || '').toLowerCase().includes('cash');
+                if (pharmacyReportPaymentFilter === 'Online') return (inv.paymentMethod || '').toLowerCase().includes('upi') || (inv.paymentMethod || '').toLowerCase().includes('online') || (inv.paymentMethod || '').toLowerCase().includes('card');
+                return true;
+              });
+
+              // Financial Metrics
+              const totalRevenue = filteredSales.filter(s => s.status === 'Paid').reduce((sum, s) => sum + cleanVal(s.amount), 0);
+              const totalUnpaid = filteredSales.filter(s => s.status === 'Unpaid').reduce((sum, s) => sum + cleanVal(s.amount), 0);
+              const walkinSalesCount = filteredSales.filter(s => (s.type || '').toLowerCase().includes('walk-in')).length;
+              const walkinSalesRev = filteredSales.filter(s => (s.type || '').toLowerCase().includes('walk-in') && s.status === 'Paid').reduce((sum, s) => sum + cleanVal(s.amount), 0);
+              const onlineRev = filteredSales.filter(s => s.status === 'Paid' && ((s.paymentMethod || '').toLowerCase().includes('upi') || (s.paymentMethod || '').toLowerCase().includes('online') || (s.paymentMethod || '').toLowerCase().includes('card'))).reduce((sum, s) => sum + cleanVal(s.amount), 0);
+              const cashRev = filteredSales.filter(s => s.status === 'Paid' && (s.paymentMethod || '').toLowerCase().includes('cash')).reduce((sum, s) => sum + cleanVal(s.amount), 0);
+
+              return (
+                <div>
+                  {/* Filter Controls Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: '700', fontSize: '13px', color: '#334155' }}>Period Breakdown:</span>
+                      <div style={{ display: 'inline-flex', background: 'white', padding: '3px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => setPharmacyReportTimeframe('day')}
+                          style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', background: pharmacyReportTimeframe === 'day' ? '#10b981' : 'transparent', color: pharmacyReportTimeframe === 'day' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          📅 Day-Wise
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setPharmacyReportTimeframe('week')}
+                          style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', background: pharmacyReportTimeframe === 'week' ? '#10b981' : 'transparent', color: pharmacyReportTimeframe === 'week' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          📈 Week-Wise (7 Days)
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setPharmacyReportTimeframe('month')}
+                          style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', background: pharmacyReportTimeframe === 'month' ? '#10b981' : 'transparent', color: pharmacyReportTimeframe === 'month' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          📊 Month-Wise
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setPharmacyReportTimeframe('all')}
+                          style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', background: pharmacyReportTimeframe === 'all' ? '#10b981' : 'transparent', color: pharmacyReportTimeframe === 'all' ? 'white' : '#64748b', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          All Time
+                        </button>
+                      </div>
+
+                      {pharmacyReportTimeframe !== 'all' && (
+                        <input 
+                          type="date" 
+                          value={pharmacyReportDate}
+                          onChange={(e) => setPharmacyReportDate(e.target.value)}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        />
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Filter Payment:</span>
+                      <select 
+                        value={pharmacyReportPaymentFilter}
+                        onChange={(e) => setPharmacyReportPaymentFilter(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', fontSize: '12px' }}
+                      >
+                        <option value="All">All Transactions</option>
+                        <option value="Paid">Paid Only</option>
+                        <option value="Unpaid">Unpaid / Claims</option>
+                        <option value="Cash">Cash (Offline)</option>
+                        <option value="Online">Online / UPI / Card</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '16px', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#047857', fontWeight: '600' }}>TOTAL REVENUE COLLECTED</div>
+                      <div style={{ fontSize: '24px', fontWeight: '800', color: '#065f46', marginTop: '4px' }}>₹{totalRevenue.toFixed(2)}</div>
+                      <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px' }}>{filteredSales.filter(s => s.status === 'Paid').length} paid pharmacy sales</div>
+                    </div>
+
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '16px', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: '600' }}>WALK-IN OUTSIDER SALES</div>
+                      <div style={{ fontSize: '24px', fontWeight: '800', color: '#1e40af', marginTop: '4px' }}>₹{walkinSalesRev.toFixed(2)}</div>
+                      <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '4px' }}>{walkinSalesCount} visitor transactions</div>
+                    </div>
+
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', padding: '16px', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#6d28d9', fontWeight: '600' }}>ONLINE / UPI PAYMENTS</div>
+                      <div style={{ fontSize: '24px', fontWeight: '800', color: '#5b21b6', marginTop: '4px' }}>₹{onlineRev.toFixed(2)}</div>
+                      <div style={{ fontSize: '11px', color: '#7c3aed', marginTop: '4px' }}>Digital channels (UPI/QR/Cards)</div>
+                    </div>
+
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '16px', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#b45309', fontWeight: '600' }}>PHYSICAL CASH (OFFLINE)</div>
+                      <div style={{ fontSize: '24px', fontWeight: '800', color: '#92400e', marginTop: '4px' }}>₹{cashRev.toFixed(2)}</div>
+                      <div style={{ fontSize: '11px', color: '#d97706', marginTop: '4px' }}>Counter cash collections</div>
+                    </div>
+                  </div>
+
+                  {/* Transaction Ledger Table */}
+                  <h4 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>
+                    Sales Transactions & Invoices ({filteredSales.length} records)
+                  </h4>
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice / Ref</th>
+                          <th>Date</th>
+                          <th>Customer / Patient</th>
+                          <th>Type & Medication Details</th>
+                          <th>Amount</th>
+                          <th>Payment Mode</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSales.map((inv) => (
+                          <tr key={inv.id}>
+                            <td><strong>{inv.id}</strong></td>
+                            <td>{inv.date || inv.paymentDate || 'N/A'}</td>
+                            <td>
+                              <strong>{inv.patientName}</strong>
+                              {inv.phone && <div style={{ fontSize: '11px', color: '#64748b' }}>📞 {inv.phone}</div>}
+                            </td>
+                            <td>
+                              <div style={{ maxWidth: '300px', whiteSpace: 'normal', fontSize: '12px', lineHeight: '1.4' }}>
+                                {inv.type}
+                              </div>
+                              {inv.items && Array.isArray(inv.items) && (
+                                <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {inv.items.map((it, idx) => (
+                                    <span key={idx} style={{ fontSize: '10px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#475569' }}>
+                                      {it.name} (x{it.qty}) [📍 {it.shelfLocation}]
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: '14px', color: '#047857' }}>
+                                {inv.amount.startsWith('₹') ? inv.amount : `₹${parseFloat(inv.amount || 0).toFixed(2)}`}
+                              </strong>
+                            </td>
+                            <td>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                padding: '2px 8px', 
+                                borderRadius: '4px',
+                                fontWeight: '600',
+                                background: (inv.paymentMethod || '').toLowerCase().includes('cash') ? '#fffbeb' : '#eff6ff',
+                                color: (inv.paymentMethod || '').toLowerCase().includes('cash') ? '#b45309' : '#1d4ed8'
+                              }}>
+                                {inv.paymentMethod || 'Cash'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="status-badge" style={{
+                                backgroundColor: inv.status === 'Paid' ? '#dcfce7' : '#fee2e2',
+                                color: inv.status === 'Paid' ? '#15803d' : '#b91c1c'
+                              }}>
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredSales.length === 0 && (
+                          <tr>
+                            <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                              No pharmacy sales records found matching the selected timeframe.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
 
             {adminPharmacySubTab === 'staff' && (
               <div>
