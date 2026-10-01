@@ -18,6 +18,8 @@ import {
   sendLabReportWhatsApp,
   sendDailyPillReminderWhatsApp 
 } from './whatsappService';
+import OfficialLabReportModal from './OfficialLabReportModal';
+import { getTemplateForTest } from './labTemplates';
 
 export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
@@ -4220,59 +4222,19 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           </div>
         )}
 
-        {/* Lab Results Modal */}
+        {/* Official Lab Results Modal */}
         {selectedLabOrder && (
-          <div className="pd-modal-overlay" onClick={() => setSelectedLabOrder(null)}>
-            <div className="pd-modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="pd-modal-header">
-                <h2>Lab Diagnostic Report: {selectedLabOrder.id}</h2>
-                <button className="pd-modal-close" onClick={() => setSelectedLabOrder(null)}>&times;</button>
-              </div>
-              <div className="pd-modal-body">
-                <div className="pd-modal-meta-grid">
-                  <div><strong>Test Name:</strong> <p>{selectedLabOrder.testName}</p></div>
-                  <div><strong>Physician:</strong> <p>{selectedLabOrder.doctor || selectedLabOrder.doctorName || 'Attending Physician'}</p></div>
-                  <div><strong>Release Date:</strong> <p>{selectedLabOrder.date}</p></div>
-                  <div><strong>Verify Status:</strong> <span className="pd-badge completed">Verified</span></div>
-                </div>
-
-                <div className="pd-modal-section">
-                  <h3>Laboratory Findings</h3>
-                  <table className="pd-modal-table">
-                    <thead>
-                      <tr>
-                        <th>Pathology Parameter</th>
-                        <th>Measured Value</th>
-                        <th>Reference Range</th>
-                        <th>Units</th>
-                        <th>Flag Indicator</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(Array.isArray(selectedLabOrder.results) && selectedLabOrder.results.length > 0 ? selectedLabOrder.results : [
-                        { parameter: "Routine Assay Parameter", value: "Verified Normal", range: "Standard", unit: "IU/L", flag: "Normal" }
-                      ]).map((res, idx) => (
-                        <tr key={idx}>
-                          <td><strong>{res.parameter}</strong></td>
-                          <td><strong>{res.value}</strong></td>
-                          <td>{res.range}</td>
-                          <td>{res.unit}</td>
-                          <td>
-                            <span className={`pd-badge ${res.flag === 'Normal' ? 'completed' : 'in-session'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
-                              {res.flag}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="pd-modal-footer">
-                <button className="pd-btn-outline" onClick={() => setSelectedLabOrder(null)}>Close</button>
-              </div>
-            </div>
-          </div>
+          <OfficialLabReportModal 
+            reportData={{
+              ...selectedLabOrder,
+              patientName: activePatientProfile?.name || selectedLabOrder.patientName || "Patient",
+              patientId: activePatientProfile?.id || selectedLabOrder.patientId || "PT-SELF",
+              age: activePatientProfile?.age || selectedLabOrder.age || "32",
+              gender: activePatientProfile?.gender || selectedLabOrder.gender || "Male",
+              contact: activePatientProfile?.phone || selectedLabOrder.contact || "+91 98765 43210"
+            }} 
+            onClose={() => setSelectedLabOrder(null)} 
+          />
         )}
       </div>
     );

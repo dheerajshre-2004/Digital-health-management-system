@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './LaboratoryDashboard.css';
 import BloodBankManagement from './BloodBank';
+import { getTemplateForTest, calculateParamFlag } from './labTemplates';
+import OfficialLabReportModal from './OfficialLabReportModal';
 
 export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -16,6 +18,8 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
 
   // Modal and entry states
   const [selectedLabForResults, setSelectedLabForResults] = useState(null);
+  const [labParametersState, setLabParametersState] = useState([]);
+  const [currentTestTemplate, setCurrentTestTemplate] = useState(null);
   const [labResultsText, setLabResultsText] = useState('');
   const [labRemarks, setLabRemarks] = useState('');
   const [viewedLabRequestResults, setViewedLabRequestResults] = useState(null);
@@ -167,6 +171,22 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
 
     const todayStr = new Date().toISOString().split('T')[0];
 
+    // Compute structured results array
+    const finalStructuredResults = labParametersState.map(p => {
+      const flag = calculateParamFlag(p.value, p.min, p.max);
+      return {
+        parameter: p.name,
+        name: p.name,
+        value: p.value,
+        unit: p.unit,
+        min: p.min,
+        max: p.max,
+        range: p.min !== null && p.max !== null && p.min !== undefined && p.max !== undefined ? `${p.min} - ${p.max}` : (p.textRange || "Standard Normal"),
+        category: p.category || "Diagnostic Parameter",
+        flag: flag
+      };
+    });
+
     // 1. Update the lab request with status, results, and timeline progress
     const updatedLab = labRequests.map(lab => {
       if (lab.id === selectedLabForResults.id) {
@@ -177,19 +197,14 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
           { title: "Results Published & Verified", date: todayStr, done: true }
         ];
 
-        const structuredResults = [
-          { parameter: "Diagnostic Findings", value: labResultsText, range: "Clinical Findings", unit: "Report", flag: "Normal" }
-        ];
-        if (labRemarks) {
-          structuredResults.push({ parameter: "Technician Remarks", value: labRemarks, range: "N/A", unit: "Notes", flag: "Normal" });
-        }
-
         return { 
           ...lab, 
           status: 'Completed',
-          results: structuredResults,
+          results: finalStructuredResults,
           rawResultsText: labResultsText,
           remarks: labRemarks,
+          department: currentTestTemplate?.department || "HAEMATOLOGY",
+          template: currentTestTemplate,
           completedDate: todayStr,
           timeline: completedTimeline
         };
@@ -199,18 +214,28 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     setLabRequests(updatedLab);
     localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLab));
 
-    // 2. Append a new Lab Report to the patient's EHR profile in localStorage
+    // 2. Append a new comprehensive official Lab Report to the patient's EHR profile
     const patientList = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
     const newReport = {
       id: `EHR-${Math.floor(100 + Math.random() * 900)}`,
-      name: `${selectedLabForResults.testName} Report`,
+      name: `${selectedLabForResults.testName} Official Report`,
       type: 'Lab Report',
-      size: '2.4 KB',
+      size: '3.8 KB',
       date: todayStr,
-      author: loggedInStaff?.name || 'Central Diagnostic Laboratory',
+      author: loggedInStaff?.name || 'Central Diagnostic Laboratory (Dr. A. K. Asthana, Pathologist)',
+      testName: selectedLabForResults.testName,
+      patientName: selectedLabForResults.patientName,
+      patientId: selectedLabForResults.patientId,
+      doctorName: selectedLabForResults.doctorName || 'Self / Direct OPD',
+      results: finalStructuredResults,
+      department: currentTestTemplate?.department || "HAEMATOLOGY",
+      template: currentTestTemplate,
+      remarks: labRemarks || labResultsText || 'Diagnostic investigation completed and verified.',
       details: { 
-        summary: labResultsText,
+        summary: `Pathology report for ${selectedLabForResults.testName} (${finalStructuredResults.length} parameters analyzed).`,
         remarks: labRemarks,
+        results: finalStructuredResults,
+        template: currentTestTemplate,
         labRequestId: selectedLabForResults.id,
         orderedBy: selectedLabForResults.doctorName || 'Attending Doctor'
       }
@@ -636,6 +661,32 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                               <div style={{ display: 'flex', gap: '6px' }}>
                                 <button 
                                   onClick={() => {
+                                    const template = getTemplateForTest(req.testName);
+                                    setCurrentTestTemplate(template);
+                                    
+                                    // If request already has results array, populate from that; otherwise use template defaults
+                                    if (Array.isArray(req.results) && req.results.length > 0) {
+                                      setLabParametersState(req.results.map(r => ({
+                                        name: r.parameter || r.name,
+                                        value: r.value,
+                                        unit: r.unit || '',
+                                        min: r.min,
+                                        max: r.max,
+                                        textRange: r.range || r.textRange,
+                                        category: r.category || 'Diagnostic Parameter'
+                                      })));
+                                    } else {
+                                      setLabParametersState(template.parameters.map(p => ({
+                                        name: p.name,
+                                        value: p.defaultVal,
+                                        unit: p.unit,
+                                        min: p.min,
+                                        max: p.max,
+                                        textRange: p.textRange || '',
+                                        category: p.category
+                                      })));
+                                    }
+                                    
                                     setSelectedLabForResults(req);
                                     setLabResultsText(req.rawResultsText || '');
                                     setLabRemarks(req.remarks || '');
@@ -999,90 +1050,127 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
         </div>
       </div>
 
-      {/* Lab Results Submission Modal */}
+      {/* Lab Results Submission Modal - Structured Clinical Entry */}
       {selectedLabForResults && (
         <div className="lab-modal-overlay">
-          <div className="lab-modal">
-            <div className="lab-modal-header bg-purple">
-              <h3>Lab Report Entry - {selectedLabForResults.testName}</h3>
+          <div className="lab-modal" style={{ maxWidth: '820px', width: '95%' }}>
+            <div className="lab-modal-header bg-purple" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px' }}>🔬 Clinical Diagnostic Report Entry — {selectedLabForResults.testName}</h3>
+                <span style={{ fontSize: '11.5px', opacity: 0.9 }}>Standard Pathology Assays & Biological Reference Evaluation</span>
+              </div>
               <button onClick={() => setSelectedLabForResults(null)} className="lab-modal-close">&times;</button>
             </div>
             
             <form onSubmit={handleCompleteLabWithResults}>
-              <div className="lab-modal-body">
-                <div className="lab-patient-summary">
-                  <div><strong>Patient:</strong> {selectedLabForResults.patientName} (ID: {selectedLabForResults.patientId})</div>
-                  <div><strong>Recommending Doctor:</strong> {selectedLabForResults.doctorName}</div>
+              <div className="lab-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="lab-patient-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                  <div><strong>Patient:</strong> {selectedLabForResults.patientName} <span style={{ color: '#64748b' }}>({selectedLabForResults.patientId})</span></div>
+                  <div><strong>Prescribing Doctor:</strong> {selectedLabForResults.doctorName || 'Self / Direct OPD'}</div>
+                  <div><strong>Department:</strong> {currentTestTemplate?.department || 'Diagnostics'}</div>
                   <div><strong>Service Cost:</strong> {selectedLabForResults.cost}</div>
                 </div>
 
+                {/* Structured Pathology Parameters Input Table */}
                 <div className="form-group">
-                  <label>Diagnostic Results / Key Findings</label>
-                  <textarea 
-                    placeholder="Enter diagnostic details (e.g. Cholesterol: 215 mg/dL, HDL: 45 mg/dL, LDL: 142 mg/dL...)"
-                    value={labResultsText}
-                    onChange={(e) => setLabResultsText(e.target.value)}
-                    required
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>
+                      Diagnostic Biomarkers & Measured Assay Values ({labParametersState.length} Parameters)
+                    </label>
+                    <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: '600' }}>
+                      Flags auto-calculate based on reference ranges
+                    </span>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', textAlign: 'left', borderBottom: '2px solid #cbd5e1' }}>
+                        <th style={{ padding: '8px 10px' }}>Test Parameter</th>
+                        <th style={{ padding: '8px 10px', width: '130px' }}>Measured Value</th>
+                        <th style={{ padding: '8px 10px', width: '65px', textAlign: 'center' }}>Flag</th>
+                        <th style={{ padding: '8px 10px', width: '100px' }}>Units</th>
+                        <th style={{ padding: '8px 10px', width: '160px' }}>Reference Range</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {labParametersState.map((param, pIdx) => {
+                        const flag = calculateParamFlag(param.value, param.min, param.max);
+                        const isAbnormal = flag === 'H' || flag === 'L';
+
+                        return (
+                          <tr key={pIdx} style={{ borderBottom: '1px solid #f1f5f9', background: isAbnormal ? '#fef2f2' : 'white' }}>
+                            <td style={{ padding: '6px 10px' }}>
+                              <strong>{param.name}</strong>
+                              {param.category && <div style={{ fontSize: '10px', color: '#64748b' }}>{param.category}</div>}
+                            </td>
+                            <td style={{ padding: '6px 10px' }}>
+                              <input
+                                type="text"
+                                value={param.value}
+                                onChange={(e) => {
+                                  const updated = [...labParametersState];
+                                  updated[pIdx].value = e.target.value;
+                                  setLabParametersState(updated);
+                                }}
+                                required
+                                style={{
+                                  width: '100%',
+                                  padding: '5px 8px',
+                                  borderRadius: '4px',
+                                  border: isAbnormal ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
+                                  fontWeight: '700',
+                                  color: isAbnormal ? '#dc2626' : '#0f172a',
+                                  background: isAbnormal ? '#fff1f2' : 'white',
+                                  fontSize: '12.5px'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                              {flag === 'H' && <span style={{ background: '#fee2e2', color: '#dc2626', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px' }}>HIGH</span>}
+                              {flag === 'L' && <span style={{ background: '#e0f2fe', color: '#0284c7', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px' }}>LOW</span>}
+                              {flag === 'Normal' && <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>}
+                            </td>
+                            <td style={{ padding: '6px 10px', color: '#64748b' }}>{param.unit || '-'}</td>
+                            <td style={{ padding: '6px 10px', color: '#475569' }}>
+                              {param.min !== null && param.max !== null && param.min !== undefined && param.max !== undefined
+                                ? `${param.min} - ${param.max}`
+                                : (param.textRange || 'Standard Normal')}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
-                <div className="form-group">
-                  <label>Technician Remarks / Recommendations</label>
+                <div className="form-group" style={{ marginTop: '14px' }}>
+                  <label style={{ fontWeight: '600', fontSize: '12.5px' }}>Pathologist / Technician Clinical Impressions & Observations</label>
                   <textarea 
-                    placeholder="Any specific observations or general remarks..."
+                    placeholder="Enter diagnostic impression, sample observations, or recommendations..."
                     value={labRemarks}
                     onChange={(e) => setLabRemarks(e.target.value)}
+                    style={{ minHeight: '60px', width: '100%', borderRadius: '6px', padding: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
                   />
                 </div>
               </div>
 
-              <div className="lab-modal-footer">
+              <div className="lab-modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => setSelectedLabForResults(null)} className="lab-btn-cancel">Cancel</button>
-                <button type="submit" className="lab-btn-submit bg-purple">Complete & Dispatched to Recommended Doctor</button>
+                <button type="submit" className="lab-btn-submit bg-purple" style={{ padding: '8px 18px', fontWeight: '700' }}>
+                  ✓ Complete & Publish Official Report
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Lab Results View Modal */}
+      {/* Official Diagnostic Lab Report Modal */}
       {viewedLabRequestResults && (
-        <div className="lab-modal-overlay">
-          <div className="lab-modal">
-            <div className="lab-modal-header bg-dark">
-              <h3>Lab Report Summary - {viewedLabRequestResults.testName}</h3>
-              <button onClick={() => setViewedLabRequestResults(null)} className="lab-modal-close">&times;</button>
-            </div>
-            
-            <div className="lab-modal-body">
-              <div className="lab-patient-summary">
-                <div><strong>Patient:</strong> {viewedLabRequestResults.patientName} (ID: {viewedLabRequestResults.patientId})</div>
-                <div><strong>Recommending Doctor:</strong> {viewedLabRequestResults.doctorName}</div>
-                <div><strong>Date Completed:</strong> {viewedLabRequestResults.completedDate || viewedLabRequestResults.date}</div>
-              </div>
-
-              <div className="lab-results-block">
-                <h4>Diagnostic Findings:</h4>
-                <div className="findings-box">
-                  {viewedLabRequestResults.results}
-                </div>
-              </div>
-
-              {viewedLabRequestResults.remarks && (
-                <div className="lab-results-block" style={{ marginTop: '16px' }}>
-                  <h4>Technician Remarks:</h4>
-                  <div className="remarks-box">
-                    {viewedLabRequestResults.remarks}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="lab-modal-footer">
-              <button onClick={() => setViewedLabRequestResults(null)} className="lab-btn-submit bg-dark">Close Report</button>
-            </div>
-          </div>
-        </div>
+        <OfficialLabReportModal
+          reportData={viewedLabRequestResults}
+          onClose={() => setViewedLabRequestResults(null)}
+        />
       )}
 
       {/* Lab Facility Form Modal */}
