@@ -2915,16 +2915,17 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
 
   const handleCompleteTelePayment = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!pendingTeleAppt) return;
     setIsProcessingTelePay(true);
 
     setTimeout(() => {
       try {
         const patientId = currentPatient?.id || loggedInPatient?.id || "PT-80234";
-        const patientName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : "John Doe";
+        const patientName = currentPatient ? `${currentPatient.firstName || ''} ${currentPatient.lastName || ''}`.trim() || "John Doe" : "John Doe";
         const invoiceId = `INV-TELE-${Math.floor(10000 + Math.random() * 90000)}`;
-        const txnId = `TXN-${telePaymentMethod.toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+        const txnId = `TXN-${(telePaymentMethod || 'UPI').toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+        const apptId = pendingTeleAppt.id || `APT-${Math.floor(10000 + Math.random() * 90000)}`;
         const formattedFee = `₹${parseFloat(pendingTeleAppt.fee || '500').toFixed(2)}`;
         const paymentDate = new Date().toISOString().split('T')[0];
 
@@ -2940,10 +2941,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           amount: formattedFee,
           status: 'Paid',
           type: 'Telemedicine Consultation Fee',
-          paymentMethod: `Online Gateway (${telePaymentMethod})`,
+          paymentMethod: `Online Gateway (${telePaymentMethod || 'UPI'})`,
           paymentRemarks: `Online Paid. Txn ID: ${txnId}`,
           transactionId: txnId,
-          appointmentId: pendingTeleAppt.id
+          appointmentId: apptId
         };
 
         const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
@@ -2953,7 +2954,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
         // 2. Create Confirmed Appointment in dhms_appointments
         const newAppt = {
-          id: pendingTeleAppt.id,
+          id: apptId,
           patientId: patientId,
           patientName: patientName,
           doctorId: pendingTeleAppt.doctorId,
@@ -2961,12 +2962,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           department: pendingTeleAppt.department,
           date: pendingTeleAppt.date,
           time: pendingTeleAppt.time,
-          reason: pendingTeleAppt.reason,
+          reason: pendingTeleAppt.reason || 'Video Teleconsultation',
           status: "Scheduled",
           type: "Telemedicine",
           source: "Online",
           paymentStatus: "Paid",
-          paymentMethod: `Online Gateway (${telePaymentMethod})`,
+          paymentMethod: `Online Gateway (${telePaymentMethod || 'UPI'})`,
           transactionId: txnId,
           invoiceId: invoiceId,
           consultationFee: formattedFee
@@ -2975,7 +2976,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         const currentAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
         const updatedAppts = [newAppt, ...currentAppts];
         localStorage.setItem('dhms_appointments', JSON.stringify(updatedAppts));
-        setAppointments(prev => [newAppt, ...prev]);
+        setAppointments(prev => [newAppt, ...prev.filter(a => a.id !== apptId)]);
 
         // 3. Update local teleconsultations list
         const newConsult = {
@@ -2992,7 +2993,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           consultationFee: formattedFee,
           reason: newAppt.reason
         };
-        setTeleconsultations(prev => [newConsult, ...prev]);
+        setTeleconsultations(prev => [newConsult, ...prev.filter(t => t.id !== apptId)]);
 
         // 4. Trigger storage sync
         if (typeof window !== 'undefined' && window.dispatchEvent) {
@@ -3011,12 +3012,12 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         if (window.Swal) {
           window.Swal.fire({
             title: 'Payment Successful! 🎉',
-            html: `<p>Your online payment of <b>${formattedFee}</b> for Telemedicine consultation with <b>${newAppt.doctorName}</b> is confirmed.</p><p style="font-size:12px;color:#64748b;">Transaction ID: ${txnId}<br/>Invoice ID: ${invoiceId}</p>`,
+            html: `<p>Your online payment of <b>${formattedFee}</b> for Telemedicine consultation with <b>${newAppt.doctorName}</b> is confirmed.</p><p style="font-size:12px;color:#64748b;">Appointment ID: <b>${apptId}</b><br/>Transaction ID: ${txnId}<br/>Invoice ID: ${invoiceId}</p>`,
             icon: 'success',
             confirmButtonColor: '#7c3aed'
           });
         } else {
-          alert(`Payment Successful! Consultation booked with ${newAppt.doctorName}. Transaction ID: ${txnId}`);
+          alert(`✓ Payment Successful!\n\nConsultation booked with ${newAppt.doctorName}.\nAppointment ID: ${apptId}\nTransaction ID: ${txnId}`);
         }
       } catch (err) {
         console.error("Payment processing error:", err);
@@ -3027,7 +3028,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         setIsProcessingTelePay(false);
         setShowTelePaymentModal(false);
       }
-    }, 600);
+    }, 400);
   };
   const handleTogglePatientLabTest = (fac) => {
     if (selectedLabTests.some(t => (t.code && t.code === fac.code) || t.name === fac.name)) {
@@ -4538,7 +4539,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                         className="pd-btn-outline"
                         style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#cbd5e1' }}
                         onClick={() => {
-                          const bill = billing.find(b => b.id === tele.invoiceId || b.appointmentId === tele.id) || {
+                          const bill = billingList.find(b => b.id === tele.invoiceId || b.appointmentId === tele.id) || {
                             id: tele.invoiceId || 'INV-TELE-001',
                             patientId: currentPatient?.id || 'PT-80234',
                             patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'John Doe',
