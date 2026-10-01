@@ -26,10 +26,30 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     return JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
   });
 
+  const [labFacilities, setLabFacilities] = useState(() => {
+    return JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
+  });
+
   const [selectedAdmForSettlement, setSelectedAdmForSettlement] = useState(null);
   const [settlementPaymentMethod, setSettlementPaymentMethod] = useState('Physical Cash Payment');
   const [settlementRemarks, setSettlementRemarks] = useState('');
   const [printedDischargeClearance, setPrintedDischargeClearance] = useState(null);
+
+  // Direct Lab Test Walk-in & Billing States
+  const [directLabPatientType, setDirectLabPatientType] = useState('registered'); // 'registered' | 'walkin'
+  const [directLabPatientSearch, setDirectLabPatientSearch] = useState('');
+  const [directLabSelectedPatient, setDirectLabSelectedPatient] = useState(null);
+  const [directLabWalkinForm, setDirectLabWalkinForm] = useState({
+    name: '',
+    phone: '',
+    gender: 'Male',
+    age: '',
+    referringDoctor: 'Self / Direct Walk-In'
+  });
+  const [directLabSelectedTests, setDirectLabSelectedTests] = useState([]);
+  const [directLabSearch, setDirectLabSearch] = useState('');
+  const [directLabPaymentMode, setDirectLabPaymentMode] = useState('Physical Cash Payment');
+  const [directLabPaymentRemarks, setDirectLabPaymentRemarks] = useState('');
 
   // Filter & Search States
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,6 +236,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
       setAttendanceRecords(JSON.parse(localStorage.getItem('dhms_master_attendance') || '[]'));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
+      setLabFacilities(JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]'));
     };
 
     // Immediate initial sync
@@ -2452,6 +2473,404 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
     );
   };
 
+  const handleToggleDirectLabTestSelect = (fac) => {
+    if (directLabSelectedTests.some(t => t.code === fac.code)) {
+      setDirectLabSelectedTests(directLabSelectedTests.filter(t => t.code !== fac.code));
+    } else {
+      setDirectLabSelectedTests([...directLabSelectedTests, fac]);
+    }
+  };
+
+  const handleDirectLabPaymentSubmit = (e) => {
+    e.preventDefault();
+    if (directLabSelectedTests.length === 0) {
+      alert("Please select at least one laboratory diagnostic test to bill.");
+      return;
+    }
+
+    let patId = '';
+    let patName = '';
+    let patPhone = '';
+
+    if (directLabPatientType === 'registered') {
+      if (!directLabSelectedPatient) {
+        alert("Please search and select a registered patient profile.");
+        return;
+      }
+      patId = directLabSelectedPatient.id;
+      patName = `${directLabSelectedPatient.firstName} ${directLabSelectedPatient.lastName}`.trim();
+      patPhone = directLabSelectedPatient.phone || '';
+    } else {
+      if (!directLabWalkinForm.name.trim()) {
+        alert("Please enter the patient's name.");
+        return;
+      }
+      patId = `PT-DIR-${Math.floor(1000 + Math.random() * 9000)}`;
+      patName = directLabWalkinForm.name.trim();
+      patPhone = directLabWalkinForm.phone.trim();
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const totalCostNum = directLabSelectedTests.reduce((sum, t) => {
+      const clean = parseFloat((t.cost || '0').replace(/[^0-9.]/g, '')) || 0;
+      return sum + clean;
+    }, 0);
+    const formattedTotalCost = `₹${totalCostNum.toFixed(2)}`;
+    const invoiceId = `INV-LAB-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    // 1. Create paid lab request items in dhms_lab_requests
+    const newLabOrders = directLabSelectedTests.map((test, idx) => ({
+      id: `LAB-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`,
+      patientId: patId,
+      patientName: patName,
+      patientPhone: patPhone,
+      testName: test.name,
+      department: test.dept || 'Clinical Diagnostics',
+      doctorName: directLabWalkinForm.referringDoctor || 'Direct Walk-In / Cash Desk',
+      date: todayStr,
+      cost: test.cost.startsWith('₹') ? test.cost : `₹${test.cost}`,
+      status: 'Pending',
+      paymentStatus: 'Paid',
+      paymentMethod: directLabPaymentMode,
+      paidAt: todayStr,
+      invoiceId: invoiceId,
+      source: 'Cash Counter Direct Lab Payment',
+      timeline: [
+        { title: "Direct Lab Payment Collected at Cash Counter", date: todayStr, done: true },
+        { title: "Sample Collection at Lab", date: "Visit Lab Station", done: false },
+        { title: "Pathology Analysis", date: "Pending", done: false },
+        { title: "Results Published", date: "Pending", done: false }
+      ],
+      results: []
+    }));
+
+    const currentLabs = JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]');
+    const updatedLabs = [...newLabOrders, ...currentLabs];
+    localStorage.setItem('dhms_lab_requests', JSON.stringify(updatedLabs));
+    setLabRequests(updatedLabs);
+
+    // 2. Dispatch PAID billing invoice directly
+    const newInvoice = {
+      id: invoiceId,
+      patientId: patId,
+      patientName: patName,
+      date: todayStr,
+      paymentDate: todayStr,
+      amount: formattedTotalCost,
+      status: 'Paid',
+      type: `Direct Lab Diagnostics (${directLabSelectedTests.map(t => t.name).join(', ')})`,
+      paymentMethod: directLabPaymentMode,
+      paymentRemarks: directLabPaymentRemarks.trim() || `Direct Lab billing paid via ${directLabPaymentMode} at Central Cash Counter`,
+      labOrderCount: directLabSelectedTests.length,
+      cashierName: loggedInStaff?.name || 'Cash Counter Desk'
+    };
+
+    const currentBilling = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
+    const updatedBilling = [newInvoice, ...currentBilling];
+    localStorage.setItem('dhms_billing', JSON.stringify(updatedBilling));
+    setBillingList(updatedBilling);
+
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Trigger printable receipt
+    setPrintedInvoiceData(newInvoice);
+
+    // Reset Form
+    setDirectLabSelectedTests([]);
+    setDirectLabWalkinForm({ name: '', phone: '', gender: 'Male', age: '', referringDoctor: 'Self / Direct Walk-In' });
+    setDirectLabSelectedPatient(null);
+    setDirectLabPaymentRemarks('');
+
+    alert(`Direct Lab Payment for ${patName} (${formattedTotalCost}) collected & receipt generated! Sent to Diagnostic Lab for sample intake.`);
+  };
+
+  const renderDirectLabBilling = () => {
+    const facilitiesList = labFacilities.length > 0 ? labFacilities : [
+      { code: "PATH-CBC", name: "Complete Blood Count (CBC)", dept: "Hematology", cost: "₹45.00", time: "4-6 Hours", fast: "No fasting required", description: "Evaluates overall health and detects a wide range of disorders including anemia and infection." },
+      { code: "PATH-LIP", name: "Lipid Profile / Panel", dept: "Clinical Biochemistry", cost: "₹120.00", time: "8-12 Hours", fast: "Fasting required (12 hours)", description: "Measures cholesterol levels and triglycerides to assess cardiovascular risk." },
+      { code: "PATH-THY", name: "Thyroid Panel (TSH, Free T4)", dept: "Endocrinology", cost: "₹85.00", time: "24 Hours", fast: "No fasting required", description: "Assesses thyroid gland function and helps diagnose hyperthyroidism or hypothyroidism." },
+      { code: "PATH-CMP", name: "Comprehensive Metabolic Panel (CMP)", dept: "Clinical Biochemistry", cost: "₹110.00", time: "12 Hours", fast: "Fasting required (8-10 hours)", description: "Provides information about kidneys, liver, electrolyte and acid/base balance." },
+      { code: "PATH-VIT", name: "Vitamin D-25 Hydroxy Screen", dept: "Immunology", cost: "₹95.00", time: "24-48 Hours", fast: "No fasting required", description: "Checks for bone weaknesses, bone malformations, or abnormal metabolism." },
+      { code: "PATH-URN", name: "Urinalysis & Urine Culture", dept: "Microbiology", cost: "₹45.00", time: "24 Hours", fast: "No fasting required", description: "Detects urinary tract infections (UTI), kidney disorders, and diabetes." }
+    ];
+
+    const filteredFacilities = facilitiesList.filter(f => 
+      f.name.toLowerCase().includes(directLabSearch.toLowerCase()) || 
+      f.code.toLowerCase().includes(directLabSearch.toLowerCase()) ||
+      (f.dept && f.dept.toLowerCase().includes(directLabSearch.toLowerCase()))
+    );
+
+    const totalSelectedAmount = directLabSelectedTests.reduce((sum, t) => {
+      const clean = parseFloat((t.cost || '0').replace(/[^0-9.]/g, '')) || 0;
+      return sum + clean;
+    }, 0);
+
+    return (
+      <div className="cc-view-container animate-fade-in">
+        <div className="cc-header-banner" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: 'white' }}>
+          <div>
+            <h2 style={{ color: 'white', margin: '0 0 6px 0' }}>🧪 Direct Lab Test Payment & Walk-In Billing</h2>
+            <p style={{ color: 'rgba(255,255,255,0.9)', margin: 0 }}>Collect instant payments for walk-in or doctor-recommended laboratory tests, generate official receipts, and automatically dispatch paid orders to the Pathology Lab.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginTop: '20px' }}>
+          {/* Left Column: Test Catalog Selection */}
+          <div className="cc-card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>1. Select Diagnostic Tests & Panels</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Click tests below to add to patient billing</span>
+              </div>
+              <span style={{ background: '#e0f2fe', color: '#0369a1', fontWeight: 'bold', fontSize: '12px', padding: '4px 10px', borderRadius: '12px' }}>
+                {directLabSelectedTests.length} Selected
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <input 
+                type="text" 
+                placeholder="Search diagnostic catalog by test name, code, or department..."
+                value={directLabSearch}
+                onChange={e => setDirectLabSearch(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '430px', overflowY: 'auto', paddingRight: '4px' }}>
+              {filteredFacilities.map(fac => {
+                const isSelected = directLabSelectedTests.some(t => t.code === fac.code);
+                return (
+                  <div 
+                    key={fac.code}
+                    onClick={() => handleToggleDirectLabTestSelect(fac)}
+                    style={{
+                      border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                      background: isSelected ? '#f0f9ff' : 'white',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                          {fac.code}
+                        </span>
+                        <strong style={{ fontSize: '13.5px', color: '#1e293b' }}>{fac.name}</strong>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
+                        {fac.dept || 'Diagnostics'} • Fasting: {fac.fast || 'No'} • Turnaround: {fac.time || '24h'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#0369a1' }}>
+                        {fac.cost.startsWith('₹') ? fac.cost : `₹${fac.cost}`}
+                      </span>
+                      <div style={{ fontSize: '11px', color: isSelected ? '#0284c7' : '#94a3b8', fontWeight: '600', marginTop: '2px' }}>
+                        {isSelected ? '✓ Added' : '+ Add Test'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Patient Details & Payment Collection */}
+          <div className="cc-card" style={{ padding: '20px' }}>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#1e293b' }}>2. Patient Identification & Payment Collection</h3>
+
+            <form onSubmit={handleDirectLabPaymentSubmit}>
+              {/* Patient Type Toggle */}
+              <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px', marginBottom: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setDirectLabPatientType('registered'); setDirectLabWalkinForm({ name: '', phone: '', gender: 'Male', age: '', referringDoctor: 'Self / Direct Walk-In' }); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: directLabPatientType === 'registered' ? 'white' : 'transparent',
+                    color: directLabPatientType === 'registered' ? '#0369a1' : '#64748b',
+                    fontWeight: '700',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    boxShadow: directLabPatientType === 'registered' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                >
+                  Registered Hospital Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDirectLabPatientType('walkin'); setDirectLabSelectedPatient(null); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: directLabPatientType === 'walkin' ? 'white' : 'transparent',
+                    color: directLabPatientType === 'walkin' ? '#0369a1' : '#64748b',
+                    fontWeight: '700',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    boxShadow: directLabPatientType === 'walkin' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                >
+                  Walk-In / Direct Visitor
+                </button>
+              </div>
+
+              {directLabPatientType === 'registered' ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>
+                    Search Registered Patient
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Search by Patient Name, ID (UHID), or Phone..."
+                    value={directLabPatientSearch}
+                    onChange={e => setDirectLabPatientSearch(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+
+                  {directLabPatientSearch && (
+                    <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', marginTop: '6px', background: 'white' }}>
+                      {patients.filter(p => 
+                        `${p.firstName} ${p.lastName}`.toLowerCase().includes(directLabPatientSearch.toLowerCase()) ||
+                        p.id.toLowerCase().includes(directLabPatientSearch.toLowerCase()) ||
+                        (p.phone && p.phone.includes(directLabPatientSearch))
+                      ).slice(0, 5).map(p => (
+                        <div 
+                          key={p.id}
+                          onClick={() => { setDirectLabSelectedPatient(p); setDirectLabPatientSearch(''); }}
+                          style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '12.5px' }}
+                        >
+                          <strong>{p.firstName} {p.lastName}</strong> ({p.id}) • {p.phone || 'No phone'}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {directLabSelectedPatient && (
+                    <div style={{ marginTop: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#166534' }}>
+                      <strong>✓ Selected: {directLabSelectedPatient.firstName} {directLabSelectedPatient.lastName}</strong> ({directLabSelectedPatient.id})
+                      <div style={{ fontSize: '11px', color: '#15803d', marginTop: '2px' }}>
+                        Age: {directLabSelectedPatient.age || '30'} • Gender: {directLabSelectedPatient.gender || 'Male'} • Phone: {directLabSelectedPatient.phone || '-'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>Full Name *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g. Ramesh Kumar"
+                      value={directLabWalkinForm.name}
+                      onChange={e => setDirectLabWalkinForm({...directLabWalkinForm, name: e.target.value})}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>Contact Phone</label>
+                    <input 
+                      type="text" 
+                      placeholder="10-digit mobile"
+                      value={directLabWalkinForm.phone}
+                      onChange={e => setDirectLabWalkinForm({...directLabWalkinForm, phone: e.target.value})}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>Referring Doctor</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Dr. Sharma / Walk-In"
+                      value={directLabWalkinForm.referringDoctor}
+                      onChange={e => setDirectLabWalkinForm({...directLabWalkinForm, referringDoctor: e.target.value})}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Summary Box */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                  <span style={{ color: '#475569' }}>Selected Tests ({directLabSelectedTests.length}):</span>
+                  <strong>{directLabSelectedTests.length > 0 ? directLabSelectedTests.map(t => t.name).join(', ') : 'None'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '8px' }}>
+                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Total Lab Fees Payable:</span>
+                  <strong style={{ fontSize: '20px', color: '#0f766e' }}>₹{totalSelectedAmount.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* Payment Mode Selection */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>
+                  Payment Method
+                </label>
+                <select 
+                  value={directLabPaymentMode} 
+                  onChange={e => setDirectLabPaymentMode(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white', fontWeight: '600' }}
+                >
+                  <option value="Physical Cash Payment">💵 Physical Cash (Counter In-Hand)</option>
+                  <option value="UPI / QR Code Transfer">📱 UPI / QR Code Transfer</option>
+                  <option value="Online Card Payment">💳 Credit / Debit Card (POS)</option>
+                  <option value="Insurance / TPA Cover">🛡️ Insurance Direct Billing</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                  Transaction Remarks / Note (Optional)
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Paid at cash counter desk"
+                  value={directLabPaymentRemarks}
+                  onChange={e => setDirectLabPaymentRemarks(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="cc-btn-primary" 
+                style={{ 
+                  width: '100%', 
+                  padding: '12px', 
+                  fontSize: '14.5px', 
+                  background: directLabSelectedTests.length === 0 ? '#94a3b8' : '#059669',
+                  cursor: directLabSelectedTests.length === 0 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+                disabled={directLabSelectedTests.length === 0}
+              >
+                💵 Collect Payment & Issue Lab Receipt (₹{totalSelectedAmount.toFixed(2)})
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderReceiptEditor = () => {
     const paidInvoices = billingList.filter(b => b.status === 'Paid');
 
@@ -2676,6 +3095,15 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                 )}
               </li>
             )}
+            {!adminMode && (
+              <li className={activeTab === 'direct_lab' ? 'active' : ''} onClick={() => { setActiveTab('direct_lab'); setDirectLabSelectedTests([]); }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.31"></path><path d="M14 9.3V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.52 16h12.96"></path></svg>
+                Direct Lab Billing
+                <span style={{ marginLeft: 'auto', background: '#0284c7', color: 'white', padding: '1px 6px', borderRadius: '10px', fontSize: '11px', fontWeight: '800' }}>
+                  Walk-In
+                </span>
+              </li>
+            )}
             <li className={activeTab === 'transactions' ? 'active' : ''} onClick={() => { setActiveTab('transactions'); setCurrentPage(1); }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
@@ -2693,6 +3121,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
           {activeTab === 'accounting_tally' && renderAccountingTally()}
           {activeTab === 'unpaid' && !adminMode && renderUnpaidInvoices()}
           {activeTab === 'ipd_settlement' && !adminMode && renderIpdSettlement()}
+          {activeTab === 'direct_lab' && !adminMode && renderDirectLabBilling()}
           {activeTab === 'transactions' && renderTransactions()}
           {activeTab === 'attendance' && renderAttendance()}
         </main>
