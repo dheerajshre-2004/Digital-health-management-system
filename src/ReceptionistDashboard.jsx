@@ -483,15 +483,32 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     }
 
     // Validate Slot Capacity (Hard limit cap)
+    const docIdRaw = String(appointmentData.doctorId).trim();
+    const docIdNorm = docIdRaw.toLowerCase().replace('.', '').replace(/\s+/g, '_');
     const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
-    const docSlotConfig = slotConfigs.find(c => c.doctorId === appointmentData.doctorId && c.date === appointmentData.date) || {
+    const docSlotConfig = slotConfigs.find(c => 
+      c.date === appointmentData.date && (
+        c.doctorId === docIdRaw || 
+        c.doctorId === docIdNorm || 
+        c.normalizedDoctorId === docIdNorm ||
+        c.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+        c.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+      )
+    ) || {
       slot1Capacity: 5,
       slot2Capacity: 5
     };
     const allExistingAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
     const slotKey = appointmentData.time === 'Slot 1' ? 'slot1Capacity' : 'slot2Capacity';
     const currentSlotCapacity = docSlotConfig[slotKey] || 5;
-    const currentBookedCount = allExistingAppts.filter(a => a.doctorId === appointmentData.doctorId && a.date === appointmentData.date && a.time === appointmentData.time && a.status !== 'Cancelled').length;
+    const currentBookedCount = allExistingAppts.filter(a => 
+      a.date === appointmentData.date && a.time === appointmentData.time && a.status !== 'Cancelled' && (
+        a.doctorId === docIdRaw || 
+        a.doctorId === docIdNorm ||
+        a.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+        a.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+      )
+    ).length;
 
     if (currentBookedCount >= currentSlotCapacity) {
       alert(`Slot Booking Rejected: Doctor ${matchedDoc ? matchedDoc.name : ''} has reached the maximum capacity of ${currentSlotCapacity} patients for ${appointmentData.time} on ${appointmentData.date}. Please select another slot or date.`);
@@ -1304,14 +1321,38 @@ End of Generated Health Summary Report
                     {(() => {
                       const getSlotAvailability = (docId, date) => {
                         if (!docId || !date) return { slot1: { capacity: 5, booked: 0, available: 5, isFull: false, isAlmostFull: false }, slot2: { capacity: 5, booked: 0, available: 5, isFull: false, isAlmostFull: false } };
+                        const docIdRaw = String(docId).trim();
+                        const docIdNorm = docIdRaw.toLowerCase().replace('.', '').replace(/\s+/g, '_');
                         const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
-                        const config = slotConfigs.find(c => c.doctorId === docId && c.date === date) || {
+                        const config = slotConfigs.find(c => 
+                          c.date === date && (
+                            c.doctorId === docIdRaw || 
+                            c.doctorId === docIdNorm || 
+                            c.normalizedDoctorId === docIdNorm ||
+                            c.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+                            c.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+                          )
+                        ) || {
                           slot1Capacity: 5,
                           slot2Capacity: 5
                         };
                         const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
-                        const slot1Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled').length;
-                        const slot2Bookings = allAppts.filter(a => a.doctorId === docId && a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled').length;
+                        const slot1Bookings = allAppts.filter(a => 
+                          a.date === date && a.time === 'Slot 1' && a.status !== 'Cancelled' && (
+                            a.doctorId === docIdRaw || 
+                            a.doctorId === docIdNorm ||
+                            a.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+                            a.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+                          )
+                        ).length;
+                        const slot2Bookings = allAppts.filter(a => 
+                          a.date === date && a.time === 'Slot 2' && a.status !== 'Cancelled' && (
+                            a.doctorId === docIdRaw || 
+                            a.doctorId === docIdNorm ||
+                            a.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+                            a.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+                          )
+                        ).length;
                         const s1Avail = Math.max(0, config.slot1Capacity - slot1Bookings);
                         const s2Avail = Math.max(0, config.slot2Capacity - slot2Bookings);
                         const s1Full = slot1Bookings >= config.slot1Capacity;

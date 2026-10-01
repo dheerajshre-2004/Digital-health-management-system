@@ -566,25 +566,38 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     e.preventDefault();
     if (!activeDoctorId) return;
 
-    const docId = activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_');
+    const rawId = String(activeDoctorId).trim();
+    const docIdNorm = rawId.toLowerCase().replace('.', '').replace(/\s+/g, '_');
     const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
     
-    const existingIndex = slotConfigs.findIndex(c => c.doctorId === docId && c.date === slotManageDate);
+    const s1Cap = parseInt(slot1CapacityInput) > 0 ? parseInt(slot1CapacityInput) : 5;
+    const s2Cap = parseInt(slot2CapacityInput) > 0 ? parseInt(slot2CapacityInput) : 5;
+
+    // Remove any existing entries for this doctor and date (matching either raw or normalized ID)
+    const filteredConfigs = slotConfigs.filter(c => 
+      !(c.date === slotManageDate && (
+        c.doctorId === rawId || 
+        c.doctorId === docIdNorm ||
+        c.doctorId?.toLowerCase() === rawId.toLowerCase() ||
+        c.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+      ))
+    );
+
     const newConfig = {
-      doctorId: docId,
+      doctorId: rawId,
+      normalizedDoctorId: docIdNorm,
       date: slotManageDate,
-      slot1Capacity: parseInt(slot1CapacityInput) || 5,
-      slot2Capacity: parseInt(slot2CapacityInput) || 5
+      slot1Capacity: s1Cap,
+      slot2Capacity: s2Cap
     };
 
-    if (existingIndex > -1) {
-      slotConfigs[existingIndex] = newConfig;
-    } else {
-      slotConfigs.push(newConfig);
-    }
+    filteredConfigs.push(newConfig);
 
-    localStorage.setItem('dhms_doctor_slots', JSON.stringify(slotConfigs));
-    alert("Slot capacities saved successfully for " + slotManageDate + "!");
+    localStorage.setItem('dhms_doctor_slots', JSON.stringify(filteredConfigs));
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert(`✓ Slot capacities updated successfully for ${slotManageDate}!\nMorning (Slot 1): ${s1Cap} slots | Afternoon (Slot 2): ${s2Cap} slots`);
   };
 
   useEffect(() => {
