@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dhms-cache-v2';
+const CACHE_NAME = 'dhms-cache-v3';
 const ASSETS = [
   '/',
   '/index.html',
