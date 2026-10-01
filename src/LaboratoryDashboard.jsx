@@ -664,11 +664,10 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                                     const template = getTemplateForTest(req.testName);
                                     setCurrentTestTemplate(template);
                                     
-                                    // If request already has results array, populate from that; otherwise use template defaults
-                                    if (Array.isArray(req.results) && req.results.length > 0) {
+                                    if (req.results && Array.isArray(req.results) && req.results.length > 0) {
                                       setLabParametersState(req.results.map(r => ({
                                         name: r.parameter || r.name,
-                                        value: r.value,
+                                        value: r.value !== undefined ? r.value : '',
                                         unit: r.unit || '',
                                         min: r.min,
                                         max: r.max,
@@ -676,14 +675,16 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                                         category: r.category || 'Diagnostic Parameter'
                                       })));
                                     } else {
+                                      // Start fresh with blank inputs for new patient entry
                                       setLabParametersState(template.parameters.map(p => ({
                                         name: p.name,
-                                        value: p.defaultVal,
+                                        value: '',
                                         unit: p.unit,
                                         min: p.min,
                                         max: p.max,
                                         textRange: p.textRange || '',
-                                        category: p.category
+                                        category: p.category,
+                                        defaultVal: p.defaultVal
                                       })));
                                     }
                                     
@@ -1073,13 +1074,34 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
 
                 {/* Structured Pathology Parameters Input Table */}
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                     <label style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>
                       Diagnostic Biomarkers & Measured Assay Values ({labParametersState.length} Parameters)
                     </label>
-                    <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: '600' }}>
-                      Flags auto-calculate based on reference ranges
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLabParametersState(labParametersState.map(p => ({ ...p, value: '' })));
+                          setLabRemarks('');
+                        }}
+                        style={{
+                          fontSize: '11.5px',
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          border: '1px solid #cbd5e1',
+                          background: '#f8fafc',
+                          color: '#64748b',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                      >
+                        🔄 Clear All Inputs
+                      </button>
+                      <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: '600' }}>
+                        Flags auto-calculate based on reference ranges
+                      </span>
+                    </div>
                   </div>
 
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
