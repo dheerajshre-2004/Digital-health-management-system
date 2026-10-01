@@ -352,6 +352,36 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     return [];
   });
 
+  // Admin Master Hospital Letterhead & Receipt Configuration
+  const [adminHospitalSettings, setAdminHospitalSettings] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('dhms_hospital_settings')) || {
+        name: 'DHMS CENTRAL CLINICAL CENTER',
+        address: '100 Hospital Road, Medical City',
+        contact: 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org',
+        taxId: 'HOSP-MED-2026-9921',
+        disclaimer: 'This is a computer generated official billing receipt.'
+      };
+    } catch {
+      return {
+        name: 'DHMS CENTRAL CLINICAL CENTER',
+        address: '100 Hospital Road, Medical City',
+        contact: 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org',
+        taxId: 'HOSP-MED-2026-9921',
+        disclaimer: 'This is a computer generated official billing receipt.'
+      };
+    }
+  });
+
+  const handleSaveAdminHospitalSettings = (e) => {
+    e.preventDefault();
+    localStorage.setItem('dhms_hospital_settings', JSON.stringify(adminHospitalSettings));
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
+    alert('✓ Master Hospital Letterhead & Receipt Configuration saved successfully!\nAll newly generated invoices, cashier receipts, and printouts will automatically reflect these hospital details.');
+  };
+
   // Inpatient (IPD) Admissions State for Doctors & Hospital
   const [admissions, setAdmissions] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_admissions') || '[]');
@@ -2822,6 +2852,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
           { id: 'cashcounter', label: 'Cash Flow, Billing & Tally Accounting' },
+          { id: 'receipt_settings', label: 'Hospital Letterhead & Receipt Configuration' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
           { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'pharmacy', label: 'Pharmacy Stock & Meds' },
@@ -5776,6 +5807,189 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         return (
           <div className="module-content" style={{ padding: 0 }}>
             <CashCounterDashboard embedMode={true} adminMode={true} onLogout={onLogout} loggedInStaff={{ name: 'Hospital Administrator', role: 'System Admin' }} />
+          </div>
+        );
+
+      case 'receipt_settings':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>🏥 Hospital Letterhead & Official Receipt Customizer</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+                  Manage hospital letterhead details, facility addresses, contact info, and tax/provider credentials. All changes automatically update and reflect in every invoice, cashier receipt, and patient payment printout.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(350px, 1.2fr) minmax(320px, 1fr)', gap: '24px', alignItems: 'start' }}>
+              {/* Left Column: Hospital Header Edit Form */}
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  ⚙️ Configure Master Letterhead Details
+                </h3>
+
+                <form onSubmit={handleSaveAdminHospitalSettings} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Hospital / Clinical Institution Name <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={adminHospitalSettings.name} 
+                      onChange={(e) => setAdminHospitalSettings({ ...adminHospitalSettings, name: e.target.value })} 
+                      placeholder="e.g. DHMS CENTRAL CLINICAL CENTER"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box', fontWeight: '600' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Hospital Physical Address & Location <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={adminHospitalSettings.address} 
+                      onChange={(e) => setAdminHospitalSettings({ ...adminHospitalSettings, address: e.target.value })} 
+                      placeholder="e.g. 100 Hospital Road, Medical City"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Official Contact Phone & Billing Email <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={adminHospitalSettings.contact} 
+                      onChange={(e) => setAdminHospitalSettings({ ...adminHospitalSettings, contact: e.target.value })} 
+                      placeholder="Phone: +1 (555) 019-2000 | Email: billing@dhms.org"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Provider Tax / Reg. ID
+                      </label>
+                      <input 
+                        type="text" 
+                        value={adminHospitalSettings.taxId || 'HOSP-MED-2026-9921'} 
+                        onChange={(e) => setAdminHospitalSettings({ ...adminHospitalSettings, taxId: e.target.value })} 
+                        placeholder="e.g. HOSP-MED-2026-9921"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                        Currency Symbol
+                      </label>
+                      <input 
+                        type="text" 
+                        value="INR (₹)" 
+                        disabled 
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '13px', boxSizing: 'border-box', color: '#64748b' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Receipt Footer Disclaimer / Accreditation Note
+                    </label>
+                    <textarea 
+                      rows="2"
+                      value={adminHospitalSettings.disclaimer || 'This is a computer generated official billing receipt.'} 
+                      onChange={(e) => setAdminHospitalSettings({ ...adminHospitalSettings, disclaimer: e.target.value })} 
+                      placeholder="e.g. This is a computer generated official billing receipt."
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '12px', borderRadius: '8px', fontSize: '12px', color: '#1e40af' }}>
+                    💡 <strong>Automated System Integration:</strong> Invoices are generated automatically by departments (Laboratory, OPD Doctor, Pharmacy, Wards). You do not need to manually enter patient names here. Updating this letterhead ensures all generated receipts print with your updated hospital name and contact credentials.
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                    <button 
+                      type="submit" 
+                      style={{ padding: '10px 22px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      💾 Save Master Letterhead Settings
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Right Column: Live Official Receipt Template Preview */}
+              <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>📄 Live Receipt Output Preview</h3>
+                  <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', fontWeight: '700', padding: '2px 8px', borderRadius: '999px' }}>Live Template</span>
+                </div>
+
+                {/* Styled Thermal / Letterhead Receipt Box */}
+                <div style={{ border: '2px dashed #cbd5e1', padding: '24px', borderRadius: '8px', background: '#fafafa', fontFamily: 'Courier New, Courier, monospace', color: '#1e293b' }}>
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '12px', marginBottom: '16px' }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 'bold' }}>{adminHospitalSettings.name || 'DHMS CENTRAL CLINICAL CENTER'}</h4>
+                    <p style={{ margin: '2px 0', fontSize: '11.5px', color: '#475569' }}>{adminHospitalSettings.address || '100 Hospital Road, Medical City'}</p>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{adminHospitalSettings.contact || 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org'}</p>
+                    {adminHospitalSettings.taxId && <p style={{ margin: '2px 0 0 0', fontSize: '10.5px', color: '#94a3b8' }}>Reg/Tax ID: {adminHospitalSettings.taxId}</p>}
+                  </div>
+
+                  <div style={{ fontSize: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span>Invoice ID:</span>
+                      <strong>INV-OPD-78219</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span>Billing Date:</span>
+                      <span>{new Date().toISOString().split('T')[0]}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span>Payment Status:</span>
+                      <strong style={{ color: '#15803d' }}>PAID / RECEIVED</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: '12px', marginBottom: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span>Patient ID:</span>
+                      <span>PT-AUTO-GENERATED</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span>Patient Name:</span>
+                      <span style={{ fontStyle: 'italic', color: '#64748b' }}>[Auto-filled dynamically on billing]</span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: '12px', borderTop: '1px solid #1e293b', borderBottom: '1px solid #1e293b', padding: '8px 0', margin: '12px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                      <span>Description</span>
+                      <span>Amount</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                      <span>Clinical Service Fee</span>
+                      <span>₹500.00</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '8px' }}>
+                    <span>AMOUNT PAID:</span>
+                    <span style={{ color: '#15803d' }}>₹500.00</span>
+                  </div>
+
+                  <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '10.5px', color: '#64748b', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
+                    <p style={{ margin: 0 }}>{adminHospitalSettings.disclaimer || 'This is a computer generated official billing receipt.'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         );
 

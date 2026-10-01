@@ -57,11 +57,32 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const [paymentRemarks, setPaymentRemarks] = useState('');
   const [printedInvoiceData, setPrintedInvoiceData] = useState(null);
 
-  // Edit Receipt Tab States
+  // Hospital Letterhead Settings (Master configured by Admin)
+  const getHospitalSettings = () => {
+    try {
+      return JSON.parse(localStorage.getItem('dhms_hospital_settings')) || {
+        name: 'DHMS CENTRAL CLINICAL CENTER',
+        address: '100 Hospital Road, Medical City',
+        contact: 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org',
+        taxId: 'HOSP-MED-2026-9921'
+      };
+    } catch {
+      return {
+        name: 'DHMS CENTRAL CLINICAL CENTER',
+        address: '100 Hospital Road, Medical City',
+        contact: 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org',
+        taxId: 'HOSP-MED-2026-9921'
+      };
+    }
+  };
+
+  const [hospitalSettings, setHospitalSettings] = useState(getHospitalSettings);
+
+  // Edit Receipt Tab States (Available in Admin Module)
   const [selectedReceiptForEdit, setSelectedReceiptForEdit] = useState(null);
-  const [editHospitalName, setEditHospitalName] = useState('DHMS CENTRAL CLINICAL CENTER');
-  const [editHospitalAddress, setEditHospitalAddress] = useState('100 Hospital Road, Medical City');
-  const [editHospitalContact, setEditHospitalContact] = useState('Phone: +1 (555) 019-2000 | Email: billing@dhms.org');
+  const [editHospitalName, setEditHospitalName] = useState(() => getHospitalSettings().name);
+  const [editHospitalAddress, setEditHospitalAddress] = useState(() => getHospitalSettings().address);
+  const [editHospitalContact, setEditHospitalContact] = useState(() => getHospitalSettings().contact);
   const [editRefId, setEditRefId] = useState('');
   const [editBillingDate, setEditBillingDate] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
@@ -73,10 +94,11 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
   const [editPaymentRemarks, setEditPaymentRemarks] = useState('');
 
   const loadInvoiceForEdit = (inv) => {
+    const hs = getHospitalSettings();
     setSelectedReceiptForEdit(inv);
-    setEditHospitalName(inv.hospitalName || 'DHMS CENTRAL CLINICAL CENTER');
-    setEditHospitalAddress(inv.hospitalAddress || '100 Hospital Road, Medical City');
-    setEditHospitalContact(inv.hospitalContact || 'Phone: +1 (555) 019-2000 | Email: billing@dhms.org');
+    setEditHospitalName(hs.name);
+    setEditHospitalAddress(hs.address);
+    setEditHospitalContact(hs.contact);
     setEditRefId(inv.id || '');
     setEditBillingDate(inv.date || '');
     setEditPaymentDate(inv.paymentDate || new Date().toISOString().split('T')[0]);
@@ -2658,12 +2680,6 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
               {adminMode ? 'Completed Transactions' : 'All Transactions'}
             </li>
-            {!adminMode && (
-              <li className={activeTab === 'receipts' ? 'active' : ''} onClick={() => setActiveTab('receipts')}>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                Receipt Editor
-              </li>
-            )}
             <li className={activeTab === 'attendance' ? 'active' : ''} onClick={() => setActiveTab('attendance')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               {adminMode ? 'Cashier Shift Log' : 'Shift Attendance'}
@@ -2678,7 +2694,6 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
           {activeTab === 'unpaid' && !adminMode && renderUnpaidInvoices()}
           {activeTab === 'ipd_settlement' && !adminMode && renderIpdSettlement()}
           {activeTab === 'transactions' && renderTransactions()}
-          {activeTab === 'receipts' && !adminMode && renderReceiptEditor()}
           {activeTab === 'attendance' && renderAttendance()}
         </main>
       </div>
@@ -2748,9 +2763,9 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
             </div>
             <div className="cc-modal-body print-area" id="printable-receipt" style={{ padding: '32px', backgroundColor: 'white', color: '#1e293b', fontFamily: 'Courier New, Courier, monospace', overflowY: 'auto', flex: 1 }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: '16px', marginBottom: '20px' }}>
-                <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>{printedInvoiceData.hospitalName || "DHMS CENTRAL CLINICAL CENTER"}</h2>
-                <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalAddress || "100 Hospital Road, Medical City"}</p>
-                <p style={{ margin: 0, fontSize: '12px' }}>{printedInvoiceData.hospitalContact || "Phone: +1 (555) 019-2000 | Email: billing@dhms.org"}</p>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>{hospitalSettings.name || printedInvoiceData.hospitalName || "DHMS CENTRAL CLINICAL CENTER"}</h2>
+                <p style={{ margin: 0, fontSize: '12px' }}>{hospitalSettings.address || printedInvoiceData.hospitalAddress || "100 Hospital Road, Medical City"}</p>
+                <p style={{ margin: 0, fontSize: '12px' }}>{hospitalSettings.contact || printedInvoiceData.hospitalContact || "Phone: +1 (555) 019-2000 | Email: billing@dhms.org"}</p>
               </div>
 
               <div style={{ marginBottom: '20px', fontSize: '13px' }}>
