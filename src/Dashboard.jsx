@@ -1181,8 +1181,128 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const bpAlert = getBPAlert(vitalBP);
     const hrAlert = getHRAlert(vitalHR);
     const tempAlert = getTempAlert(vitalTemp);
+    const spo2Alert = getSpO2Alert(vitalSpO2);
+
+    const activeAppt = selectedApptForCheckup || activeCallAppt;
+    const patRecord = activeAppt ? patients.find(p => p.id === activeAppt.patientId || p.name === activeAppt.patientName) : null;
+    const triageData = activeAppt?.vitals || patRecord?.latestVitals || (patRecord?.vitalsHistory && patRecord.vitalsHistory[0]);
+
     return (
       <div className="clinical-workspace-form">
+
+        {/* Dynamic Vitals & Intake Summary Banner */}
+        <div className="clinical-section" style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🩺</span>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: '800' }}>
+                  Recorded Patient Vitals & Clinical Examination Metrics
+                </h4>
+                <p style={{ margin: 0, fontSize: '11.5px', color: '#64748b' }}>
+                  {triageData?.checkedBy ? `Recorded dynamically by ${triageData.checkedBy} at ${triageData.checkedAt || 'Intake'}` : 'Dynamic checkup vitals log synced to patient file'}
+                </p>
+              </div>
+            </div>
+            {triageData?.triageLevel && (
+              <span style={{
+                fontSize: '11.5px',
+                fontWeight: '800',
+                padding: '3px 10px',
+                borderRadius: '999px',
+                background: triageData.triageLevel.includes('Emergency') ? '#fee2e2' : (triageData.triageLevel.includes('Urgent') ? '#fef3c7' : '#dcfce7'),
+                color: triageData.triageLevel.includes('Emergency') ? '#dc2626' : (triageData.triageLevel.includes('Urgent') ? '#d97706' : '#15803d'),
+                border: '1px solid currentColor'
+              }}>
+                Triage: {triageData.triageLevel}
+              </span>
+            )}
+          </div>
+
+          {/* Core Interactive Vitals Inputs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>Blood Pressure</label>
+                {bpAlert && <span style={{ fontSize: '10px', color: bpAlert.color, fontWeight: 'bold' }}>●</span>}
+              </div>
+              <input
+                type="text"
+                className="clinical-input"
+                placeholder="120/80"
+                value={vitalBP}
+                onChange={(e) => setVitalBP(e.target.value)}
+                style={{ fontWeight: '700', fontSize: '14px', color: bpAlert?.color || '#0f172a' }}
+              />
+              <span style={{ fontSize: '10px', color: bpAlert?.color || '#64748b' }}>{bpAlert?.label || 'mmHg'}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>Pulse Rate</label>
+                {hrAlert && <span style={{ fontSize: '10px', color: hrAlert.color, fontWeight: 'bold' }}>●</span>}
+              </div>
+              <input
+                type="text"
+                className="clinical-input"
+                placeholder="72"
+                value={vitalHR}
+                onChange={(e) => setVitalHR(e.target.value)}
+                style={{ fontWeight: '700', fontSize: '14px', color: hrAlert?.color || '#0f172a' }}
+              />
+              <span style={{ fontSize: '10px', color: hrAlert?.color || '#64748b' }}>{hrAlert?.label || 'bpm'}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>Body Temp</label>
+                {tempAlert && <span style={{ fontSize: '10px', color: tempAlert.color, fontWeight: 'bold' }}>●</span>}
+              </div>
+              <input
+                type="text"
+                className="clinical-input"
+                placeholder="98.6"
+                value={vitalTemp}
+                onChange={(e) => setVitalTemp(e.target.value)}
+                style={{ fontWeight: '700', fontSize: '14px', color: tempAlert?.color || '#0f172a' }}
+              />
+              <span style={{ fontSize: '10px', color: tempAlert?.color || '#64748b' }}>{tempAlert?.label || '°F'}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>SpO₂ Oxygen</label>
+                {spo2Alert && <span style={{ fontSize: '10px', color: spo2Alert.color, fontWeight: 'bold' }}>●</span>}
+              </div>
+              <input
+                type="text"
+                className="clinical-input"
+                placeholder="98"
+                value={vitalSpO2}
+                onChange={(e) => setVitalSpO2(e.target.value)}
+                style={{ fontWeight: '700', fontSize: '14px', color: spo2Alert?.color || '#0f172a' }}
+              />
+              <span style={{ fontSize: '10px', color: spo2Alert?.color || '#64748b' }}>{spo2Alert?.label || '%'}</span>
+            </div>
+          </div>
+
+          {/* Extended Nurse Intake Data (Respiratory, BMI, Glucose, Pain, Allergies, Notes) */}
+          {triageData && (
+            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '11.5px' }}>
+              <div><span style={{ color: '#64748b' }}>Resp Rate:</span> <strong>{triageData.respRate || '16 /min'}</strong></div>
+              <div><span style={{ color: '#64748b' }}>Weight / Height:</span> <strong>{triageData.weight || '-'} / {triageData.height || '-'}</strong></div>
+              <div><span style={{ color: '#64748b' }}>BMI:</span> <strong>{triageData.bmi || '-'}</strong></div>
+              <div><span style={{ color: '#64748b' }}>Blood Sugar:</span> <strong>{triageData.bloodGlucose || 'Normal'}</strong></div>
+              <div><span style={{ color: '#64748b' }}>Pain Score:</span> <strong style={{ color: parseInt(triageData.painScore) > 5 ? '#dc2626' : '#334155' }}>{triageData.painScore || '0/10'}</strong></div>
+              <div><span style={{ color: '#64748b' }}>Known Allergies:</span> <strong style={{ color: triageData.allergies && triageData.allergies !== 'None' ? '#dc2626' : '#166534' }}>{triageData.allergies || patRecord?.allergies || 'None'}</strong></div>
+              {triageData.nurseNotes && (
+                <div style={{ gridColumn: '1 / -1', marginTop: '4px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px', color: '#475569' }}>
+                  <span style={{ fontWeight: '700', color: '#1e293b' }}>Nurse Triage Note:</span> {triageData.nurseNotes}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Structured Clinical Notes */}
         <div className="clinical-section">
@@ -1601,8 +1721,34 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           isReferred: isReferred,
           referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
         };
+        const vitalsObj = {
+          bp: vitalBP || '120/80',
+          hr: vitalHR || '72',
+          pulse: `${vitalHR || '72'} bpm`,
+          temp: vitalTemp || '98.6',
+          spo2: vitalSpO2 || '98',
+          checkedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          checkedBy: currentDoc.name
+        };
+
+        const vitalsHistoryEntry = {
+          id: `VIT-TELE-${Date.now()}`,
+          date: todayStr,
+          time: activeCallAppt.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          doctorName: currentDoc.name,
+          appointmentId: activeCallAppt.id,
+          bp: vitalBP || '120/80',
+          pulse: `${vitalHR || '72'} bpm`,
+          hr: vitalHR || '72',
+          temp: vitalTemp || '98.6',
+          spo2: vitalSpO2 || '98',
+          nurseNotes: symptomsNote || 'Telemedicine consultation examination vitals'
+        };
+
         return {
           ...p,
+          latestVitals: vitalsObj,
+          vitalsHistory: [vitalsHistoryEntry, ...(p.vitalsHistory || []).filter(h => h.appointmentId !== activeCallAppt.id)],
           clinicalHistory: [historyEntry, ...(p.clinicalHistory || [])]
         };
       }
@@ -1942,6 +2088,25 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   const handleOpenCheckupModal = (appt) => {
     resetClinicalForm();
+    if (appt) {
+      // Find latest patient vitals if appointment vitals not directly present
+      const patObj = patients.find(p => p.id === appt.patientId || p.name === appt.patientName);
+      const triageVitals = appt.vitals || patObj?.latestVitals || (patObj?.vitalsHistory && patObj.vitalsHistory[0]);
+      
+      if (triageVitals) {
+        if (triageVitals.bp) setVitalBP(triageVitals.bp);
+        else if (triageVitals.sysBP && triageVitals.diaBP) setVitalBP(`${triageVitals.sysBP}/${triageVitals.diaBP}`);
+        
+        if (triageVitals.hr) setVitalHR(String(triageVitals.hr).replace(/\D/g, ''));
+        else if (triageVitals.pulse) setVitalHR(String(triageVitals.pulse).replace(/\D/g, ''));
+        
+        if (triageVitals.temp) setVitalTemp(String(triageVitals.temp).replace(/[^0-9.]/g, ''));
+        if (triageVitals.spo2) setVitalSpO2(String(triageVitals.spo2).replace(/\D/g, ''));
+      }
+      if (appt.reason && !symptomsNote) {
+        setSymptomsNote(`Chief Complaint: ${appt.reason}`);
+      }
+    }
     setSelectedApptForCheckup(appt);
   };
 
@@ -2033,8 +2198,34 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
             isReferred: !!isReferred,
             referral: isReferred ? { department: referralDept, doctor: referralDoc, reason: referralReason } : null
           };
+          const vitalsObj = {
+            bp: vitalBP || '120/80',
+            hr: vitalHR || '72',
+            pulse: `${vitalHR || '72'} bpm`,
+            temp: vitalTemp || '98.6',
+            spo2: vitalSpO2 || '98',
+            checkedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            checkedBy: currentDoc.name
+          };
+
+          const vitalsHistoryEntry = {
+            id: `VIT-DOC-${Date.now()}`,
+            date: todayStr,
+            time: apptToComplete.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            doctorName: currentDoc.name,
+            appointmentId: apptToComplete.id,
+            bp: vitalBP || '120/80',
+            pulse: `${vitalHR || '72'} bpm`,
+            hr: vitalHR || '72',
+            temp: vitalTemp || '98.6',
+            spo2: vitalSpO2 || '98',
+            nurseNotes: symptomsNote || 'Consultation examination vitals recorded by Doctor'
+          };
+
           return {
             ...p,
+            latestVitals: vitalsObj,
+            vitalsHistory: [vitalsHistoryEntry, ...(p.vitalsHistory || []).filter(h => h.appointmentId !== apptToComplete.id)],
             clinicalHistory: [historyEntry, ...(p.clinicalHistory || [])]
           };
         }
@@ -4370,6 +4561,81 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       </div>
                       <button type="submit" style={{ gridColumn: 'span 2', padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Update Clinical Profile</button>
                     </form>
+
+                    {/* Vitals History Log for Doctor Review */}
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <h4 style={{ margin: 0, fontSize: '15px', color: '#1e293b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          🩺 Historical Vitals & Intake Logs ({selectedEhrPatient.vitalsHistory?.length || (selectedEhrPatient.latestVitals ? 1 : 0)})
+                        </h4>
+                        {selectedEhrPatient.latestVitals && (
+                          <span style={{ fontSize: '11.5px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '999px', fontWeight: '700' }}>
+                            Latest: {selectedEhrPatient.latestVitals.bp || '120/80'} mmHg
+                          </span>
+                        )}
+                      </div>
+
+                      {(!selectedEhrPatient.vitalsHistory || selectedEhrPatient.vitalsHistory.length === 0) && !selectedEhrPatient.latestVitals ? (
+                        <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+                          No vital sign checkup logs recorded yet for this patient.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                          {(selectedEhrPatient.vitalsHistory || [selectedEhrPatient.latestVitals]).map((vit, vIdx) => (
+                            <div key={vIdx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                                <strong style={{ color: '#2563eb' }}>{vit.date || 'Today'} {vit.time ? `at ${vit.time}` : ''}</strong>
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>Recorded by: <strong>{vit.checkedBy || vit.doctorName || 'Clinical Nurse'}</strong></span>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '6px' }}>
+                                <div>BP: <strong>{vit.bp || (vit.sysBP ? `${vit.sysBP}/${vit.diaBP}` : '120/80')}</strong></div>
+                                <div>Pulse: <strong>{vit.pulse || `${vit.hr || '72'} bpm`}</strong></div>
+                                <div>Temp: <strong>{vit.temp || '98.6'}°F</strong></div>
+                                <div>SpO₂: <strong>{vit.spo2 || '98'}%</strong></div>
+                                {vit.respRate && <div>Resp: <strong>{vit.respRate}</strong></div>}
+                                {vit.bloodGlucose && <div>Sugar: <strong>{vit.bloodGlucose}</strong></div>}
+                                {vit.weight && <div>Wt: <strong>{vit.weight}</strong></div>}
+                                {vit.bmi && <div>BMI: <strong>{vit.bmi}</strong></div>}
+                              </div>
+                              {vit.nurseNotes && (
+                                <div style={{ marginTop: '4px', fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+                                  Note: {vit.nurseNotes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Doctor Clinical Consultations Log */}
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', fontWeight: '800' }}>
+                        📋 Consultation & Examination Encounters ({selectedEhrPatient.clinicalHistory?.length || 0})
+                      </h4>
+                      {(!selectedEhrPatient.clinicalHistory || selectedEhrPatient.clinicalHistory.length === 0) ? (
+                        <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+                          No clinical consultation history logged yet.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                          {selectedEhrPatient.clinicalHistory.map((h, hIdx) => (
+                            <div key={hIdx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <strong style={{ color: '#0f172a' }}>{h.diagnosis || 'Clinical Consultation'}</strong>
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>{h.date} - {h.doctor}</span>
+                              </div>
+                              {h.vitals && (
+                                <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px' }}>
+                                  Vitals: BP {h.vitals.bp || '120/80'} • HR {h.vitals.hr || '72'} bpm • Temp {h.vitals.temp || '98.6'}°F • SpO₂ {h.vitals.spo2 || '98'}%
+                                </div>
+                              )}
+                              {h.plan && <div style={{ color: '#475569', fontSize: '11.5px' }}>Plan: {h.plan}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -1738,7 +1738,115 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         );
       })()}
 
+      {/* Dynamic Vitals & Clinical Examination File Card */}
+      {(() => {
+        const latestVitals = currentPatient?.latestVitals || (currentPatient?.vitalsHistory && currentPatient.vitalsHistory[0]);
+        const allVitalsLogs = currentPatient?.vitalsHistory || (latestVitals ? [latestVitals] : []);
 
+        return (
+          <div className="pd-section-card" style={{ marginBottom: '24px', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', border: '1.5px solid #cbd5e1', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  🩺
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b', fontWeight: '800' }}>
+                    My Checkup Vitals & Examination Record
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                    {latestVitals ? `Dynamically synced with OPD Triage & Doctor Consultations • Last examined by ${latestVitals.checkedBy || latestVitals.doctorName || 'Clinical Nurse'}` : 'Vitals logged during nurse triage and doctor examinations will dynamically display here.'}
+                  </p>
+                </div>
+              </div>
+
+              {latestVitals && (
+                <span style={{
+                  padding: '4px 12px',
+                  borderRadius: '999px',
+                  background: '#dcfce7',
+                  color: '#15803d',
+                  border: '1px solid #bbf7d0',
+                  fontSize: '12px',
+                  fontWeight: '700'
+                }}>
+                  ● Live Synchronized File
+                </span>
+              )}
+            </div>
+
+            {/* Quick Metrics Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Blood Pressure</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                  {latestVitals?.bp || (latestVitals?.sysBP ? `${latestVitals.sysBP}/${latestVitals.diaBP}` : '120/80')} <small style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>mmHg</small>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Heart Rate</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                  {latestVitals?.pulse ? String(latestVitals.pulse).replace(/\D/g, '') : (latestVitals?.hr || '72')} <small style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>BPM</small>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Body Temp</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                  {latestVitals?.temp || '98.6'} <small style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>°F</small>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Blood Oxygen (SpO₂)</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                  {latestVitals?.spo2 || '98'} <small style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b' }}>%</small>
+                </div>
+              </div>
+
+              {latestVitals?.respRate && (
+                <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Resp Rate</span>
+                  <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                    {latestVitals.respRate}
+                  </div>
+                </div>
+              )}
+
+              {latestVitals?.bloodGlucose && (
+                <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Blood Glucose</span>
+                  <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                    {latestVitals.bloodGlucose}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Checkup Logs Timeline */}
+            {allVitalsLogs.length > 0 && (
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>
+                  Recent Checkup Intake Logs ({allVitalsLogs.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                  {allVitalsLogs.map((log, lIdx) => (
+                    <div key={lIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', flexWrap: 'wrap', gap: '6px' }}>
+                      <div>
+                        <strong>{log.date || 'Checkup'} {log.time ? `(${log.time})` : ''}</strong> — <span style={{ color: '#2563eb' }}>BP: {log.bp || '120/80'}</span> • <span>Pulse: {log.pulse || `${log.hr || 72} bpm`}</span> • <span>Temp: {log.temp || '98.6'}°F</span> • <span>SpO₂: {log.spo2 || '98'}%</span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        Examined by: <strong>{log.checkedBy || log.doctorName || 'Attending Staff'}</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="pd-content-grid">
         <div className="pd-left-column">

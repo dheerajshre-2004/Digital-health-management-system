@@ -3865,6 +3865,12 @@ End of Generated Health Summary Report
                     Appointments ({appointments.filter(a => a.patientId === selectedPatientFile.id).length})
                   </button>
                   <button 
+                    className={`rd-modal-tab-btn ${activeModalTab === 'vitals' ? 'active' : ''}`}
+                    onClick={() => setActiveModalTab('vitals')}
+                  >
+                    🩺 Vitals History ({selectedPatientFile.vitalsHistory?.length || (selectedPatientFile.latestVitals ? 1 : 0)})
+                  </button>
+                  <button 
                     className={`rd-modal-tab-btn ${activeModalTab === 'prescriptions' ? 'active' : ''}`}
                     onClick={() => setActiveModalTab('prescriptions')}
                   >
@@ -3974,6 +3980,41 @@ End of Generated Health Summary Report
                               <td>
                                 <span className={`rd-status-badge ${a.status.toLowerCase().replace(' ', '-')}`}>{a.status}</span>
                               </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {activeModalTab === 'vitals' && (
+                    <table className="rd-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Checkup Date & Time</th>
+                          <th>Examined By</th>
+                          <th>BP (mmHg)</th>
+                          <th>Pulse</th>
+                          <th>Temp</th>
+                          <th>SpO₂</th>
+                          <th>Sugar / BMI</th>
+                          <th>Clinical / Nurse Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(!selectedPatientFile.vitalsHistory || selectedPatientFile.vitalsHistory.length === 0) && !selectedPatientFile.latestVitals ? (
+                          <tr><td colSpan="8" className="empty-row">No recorded checkup vitals on file</td></tr>
+                        ) : (
+                          (selectedPatientFile.vitalsHistory || [selectedPatientFile.latestVitals]).map((v, vIdx) => (
+                            <tr key={v.id || vIdx}>
+                              <td><strong>{v.date || 'Today'}</strong> <br/><small style={{ color: '#64748b' }}>{v.time || '-'}</small></td>
+                              <td><strong style={{ color: '#2563eb' }}>{v.checkedBy || v.doctorName || 'Clinical Nurse'}</strong></td>
+                              <td><strong style={{ color: '#0f172a' }}>{v.bp || (v.sysBP ? `${v.sysBP}/${v.diaBP}` : '120/80')}</strong></td>
+                              <td>{v.pulse || `${v.hr || '72'} bpm`}</td>
+                              <td>{v.temp || '98.6'}°F</td>
+                              <td>{v.spo2 || '98'}%</td>
+                              <td>{v.bloodGlucose ? `${v.bloodGlucose}` : (v.bmi ? `BMI: ${v.bmi}` : '-')}</td>
+                              <td style={{ fontSize: '11.5px', color: '#475569' }}>{v.nurseNotes || v.chiefComplaint || 'Normal vitals logged'}</td>
                             </tr>
                           ))
                         )}

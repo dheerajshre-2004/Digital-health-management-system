@@ -266,9 +266,19 @@ export default function TriageDashboard({ onLogout, loggedInStaff }) {
     const allPatients = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
     const updatedPatients = allPatients.map(p => {
       if (p.id === selectedApptForVitals.patientId || p.name?.toLowerCase() === selectedApptForVitals.patientName?.toLowerCase()) {
+        const history = p.vitalsHistory || [];
+        const newHistoryEntry = {
+          id: `VIT-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          doctorName: selectedApptForVitals.doctorName || 'Attending Physician',
+          appointmentId: selectedApptForVitals.id,
+          ...recordedVitalsObj
+        };
         return {
           ...p,
-          latestVitals: recordedVitalsObj
+          latestVitals: recordedVitalsObj,
+          vitalsHistory: [newHistoryEntry, ...history.filter(h => h.appointmentId !== selectedApptForVitals.id)]
         };
       }
       return p;
