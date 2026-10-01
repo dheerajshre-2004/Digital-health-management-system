@@ -2052,7 +2052,22 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   // Core records from localStorage
   const [appointments, setAppointments] = useState(() => {
-    return JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const raw = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    let modified = false;
+    const sanitized = raw.map(a => {
+      if (!a.id) {
+        modified = true;
+        return {
+          ...a,
+          id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}`
+        };
+      }
+      return a;
+    });
+    if (modified) {
+      localStorage.setItem('dhms_appointments', JSON.stringify(sanitized));
+    }
+    return sanitized;
   });
 
   const [prescriptions, setPrescriptions] = useState(() => {
@@ -2084,7 +2099,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
   useEffect(() => {
     const handleStorageChange = () => {
-      setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      const rawAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      setAppointments(rawAppts.map(a => (!a.id ? { ...a, id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}` } : a)));
       setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
       setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
       setLabRequests(JSON.parse(localStorage.getItem('dhms_lab_requests') || '[]'));
@@ -3652,15 +3668,16 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
               <tbody>
                 {appointments
                   .filter(a => {
-                    const matchQ = a.patientName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                                   a.doctorName.toLowerCase().includes(adminSearch.toLowerCase()) ||
-                                   a.id.toLowerCase().includes(adminSearch.toLowerCase());
+                    const apptId = a.id || a.appointmentId || '';
+                    const matchQ = (a.patientName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   (a.doctorName || '').toLowerCase().includes(adminSearch.toLowerCase()) ||
+                                   apptId.toLowerCase().includes(adminSearch.toLowerCase());
                     const matchS = adminStatusFilter === 'All' || a.status === adminStatusFilter;
                     return matchQ && matchS;
                   })
                   .map(appt => (
-                    <tr key={appt.id}>
-                      <td><strong>{appt.id}</strong></td>
+                    <tr key={appt.id || appt.appointmentId || Math.random()}>
+                      <td><strong>{appt.id || appt.appointmentId || `APT-${Math.abs((appt.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
                       <td>{appt.patientName}</td>
                       <td>
                         <div>{appt.doctorName}</div>
@@ -5047,8 +5064,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                     </tr>
                   ) : (
                     filteredAdminAppts.map(appt => (
-                      <tr key={appt.id}>
-                        <td><strong style={{ color: '#4338ca' }}>{appt.id}</strong></td>
+                      <tr key={appt.id || appt.appointmentId || Math.random()}>
+                        <td><strong style={{ color: '#4338ca' }}>{appt.id || appt.appointmentId || `APT-${Math.abs((appt.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
                         <td>
                           <strong>{appt.patientName}</strong>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>{appt.patientId || 'PT-REG'}</div>
@@ -5084,7 +5101,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           {appt.status !== 'Completed' ? (
                             <button
                               onClick={() => {
-                                const updated = appointments.map(a => a.id === appt.id ? { ...a, status: 'Completed' } : a);
+                                const apptKey = appt.id || appt.appointmentId;
+                                const updated = appointments.map(a => (a.id === apptKey || a.appointmentId === apptKey) ? { ...a, status: 'Completed' } : a);
                                 setAppointments(updated);
                                 localStorage.setItem('dhms_appointments', JSON.stringify(updated));
                                 if (window.dispatchEvent) window.dispatchEvent(new Event('storage'));
@@ -5136,8 +5154,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                 </thead>
                 <tbody>
                   {docAppts.map(appt => (
-                    <tr key={appt.id}>
-                      <td><strong>{appt.id}</strong></td>
+                    <tr key={appt.id || appt.appointmentId || Math.random()}>
+                      <td><strong>{appt.id || appt.appointmentId || `APT-${Math.abs((appt.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
                       <td>{appt.patientName}</td>
                       <td>{appt.date} ({appt.time})</td>
                       <td>{appt.reason}</td>

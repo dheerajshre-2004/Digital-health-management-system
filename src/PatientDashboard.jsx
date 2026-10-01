@@ -193,13 +193,14 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         setEhrRecords(found.reports || []);
       }
       
-      const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const rawAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      const allAppts = rawAppts.map(a => (!a.id ? { ...a, id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}` } : a));
       const patientId = id;
       setAppointments(allAppts.filter(a => a.patientId === patientId));
       
       const teleAppts = allAppts.filter(a => a.patientId === patientId && a.type === 'Telemedicine');
       setTeleconsultations(teleAppts.map(a => ({
-        id: a.id,
+        id: a.id || a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}`,
         doctor: a.doctorName,
         department: a.department,
         date: a.date,
@@ -249,9 +250,23 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   });
 
   const [appointments, setAppointments] = useState(() => {
-    const list = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const raw = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    let modified = false;
+    const sanitized = raw.map(a => {
+      if (!a.id) {
+        modified = true;
+        return {
+          ...a,
+          id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}`
+        };
+      }
+      return a;
+    });
+    if (modified) {
+      localStorage.setItem('dhms_appointments', JSON.stringify(sanitized));
+    }
     const patientId = currentPatient?.id || "PT-80234";
-    return list.filter(a => a.patientId === patientId);
+    return sanitized.filter(a => a.patientId === patientId);
   });
 
   const [reschedulingAppt, setReschedulingAppt] = useState(null);
@@ -1075,9 +1090,10 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     const docName = selDoc?.name || newTeleDoctor;
     const docDept = selDoc?.specialty || selDoc?.department || newTeleDept || 'General Medicine';
-    const docFee = selDoc?.consultationFee ? parseFloat(selDoc.consultationFee) : (docDept === 'Cardiology' || docDept === 'Neurology' ? 500 : 300);
+    const apptId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
 
     setPendingTeleAppt({
+      id: apptId,
       doctorId: newTeleDoctor,
       doctorName: docName,
       department: docDept,

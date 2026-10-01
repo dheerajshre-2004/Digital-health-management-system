@@ -808,8 +808,8 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                       {currentAppts.map(appt => {
                         const isPaid = appt.feeStatus === 'Paid' || appt.paymentStatus === 'Paid';
                         return (
-                          <tr key={appt.id}>
-                            <td><strong>{appt.id}</strong></td>
+                          <tr key={appt.id || appt.appointmentId || Math.random()}>
+                            <td><strong>{appt.id || appt.appointmentId || `APT-${Math.abs((appt.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
                             <td><strong>{appt.patientName}</strong><div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div></td>
                             <td>{appt.date}</td>
                             <td>{appt.time}</td>

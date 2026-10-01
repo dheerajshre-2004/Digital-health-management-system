@@ -65,7 +65,22 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   });
 
   const [appointments, setAppointments] = useState(() => {
-    return JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    const raw = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+    let modified = false;
+    const sanitized = raw.map(a => {
+      if (!a.id) {
+        modified = true;
+        return {
+          ...a,
+          id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}`
+        };
+      }
+      return a;
+    });
+    if (modified) {
+      localStorage.setItem('dhms_appointments', JSON.stringify(sanitized));
+    }
+    return sanitized;
   });
 
   const [doctorsList, setDoctorsList] = useState(() => {
@@ -226,7 +241,8 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   React.useEffect(() => {
     const handleStorageChange = () => {
       setPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
-      setAppointments(JSON.parse(localStorage.getItem('dhms_appointments') || '[]'));
+      const rawAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+      setAppointments(rawAppts.map(a => (!a.id ? { ...a, id: a.appointmentId || `APT-${Math.floor(10000 + Math.random() * 90000)}` } : a)));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setBedsInventory(JSON.parse(localStorage.getItem('dhms_beds_inventory') || '[]'));
       setSentEmailsList(JSON.parse(localStorage.getItem('dhms_sent_emails') || '[]'));
@@ -4013,8 +4029,8 @@ End of Generated Health Summary Report
                           <tr><td colSpan="5" className="empty-row">No appointment history</td></tr>
                         ) : (
                           appointments.filter(a => a.patientId === selectedPatientFile.id).map(a => (
-                            <tr key={a.id}>
-                              <td><strong>{a.id}</strong></td>
+                            <tr key={a.id || a.appointmentId || Math.random()}>
+                              <td><strong>{a.id || a.appointmentId || `APT-${Math.abs((a.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
                               <td>{a.doctorName}</td>
                               <td>{a.date} ({a.time})</td>
                               <td>{a.reason}</td>
