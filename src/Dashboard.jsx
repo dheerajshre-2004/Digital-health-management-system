@@ -414,6 +414,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
   const [slotManageDate, setSlotManageDate] = useState(new Date().toISOString().split('T')[0]);
   const [slot1CapacityInput, setSlot1CapacityInput] = useState(5);
   const [slot2CapacityInput, setSlot2CapacityInput] = useState(5);
+  const [teleSlotCapacityInput, setTeleSlotCapacityInput] = useState(5);
   const [docFeeSetting, setDocFeeSetting] = useState('300.00');
 
   useEffect(() => {
@@ -426,13 +427,15 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (role === 'doctor' && activeDoctorId) {
       const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
       const docId = activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_');
-      const config = slotConfigs.find(c => c.doctorId === docId && c.date === slotManageDate);
+      const config = slotConfigs.find(c => (c.doctorId === docId || c.doctorId === activeDoctorId) && c.date === slotManageDate);
       if (config) {
-        setSlot1CapacityInput(config.slot1Capacity);
-        setSlot2CapacityInput(config.slot2Capacity);
+        setSlot1CapacityInput(config.slot1Capacity !== undefined ? config.slot1Capacity : 5);
+        setSlot2CapacityInput(config.slot2Capacity !== undefined ? config.slot2Capacity : 5);
+        setTeleSlotCapacityInput(config.teleSlotCapacity !== undefined ? config.teleSlotCapacity : 5);
       } else {
         setSlot1CapacityInput(5); // default
         setSlot2CapacityInput(5); // default
+        setTeleSlotCapacityInput(5); // default
       }
 
       // Sync active doctor's current consultation fee
@@ -578,6 +581,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     
     const s1Cap = parseInt(slot1CapacityInput) > 0 ? parseInt(slot1CapacityInput) : 5;
     const s2Cap = parseInt(slot2CapacityInput) > 0 ? parseInt(slot2CapacityInput) : 5;
+    const teleCap = parseInt(teleSlotCapacityInput) > 0 ? parseInt(teleSlotCapacityInput) : 5;
 
     // Remove any existing entries for this doctor and date (matching either raw or normalized ID)
     const filteredConfigs = slotConfigs.filter(c => 
@@ -594,7 +598,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       normalizedDoctorId: docIdNorm,
       date: slotManageDate,
       slot1Capacity: s1Cap,
-      slot2Capacity: s2Cap
+      slot2Capacity: s2Cap,
+      teleSlotCapacity: teleCap
     };
 
     filteredConfigs.push(newConfig);
@@ -603,7 +608,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (window.dispatchEvent) {
       window.dispatchEvent(new Event('storage'));
     }
-    alert(`✓ Slot capacities updated successfully for ${slotManageDate}!\nMorning (Slot 1): ${s1Cap} slots | Afternoon (Slot 2): ${s2Cap} slots`);
+    alert(`✓ Slot capacities updated successfully for ${slotManageDate}!\nMorning (Slot 1): ${s1Cap} slots | Afternoon (Slot 2): ${s2Cap} slots | Telemedicine: ${teleCap} slots/day`);
   };
 
   useEffect(() => {
@@ -5481,10 +5486,13 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       case 'slot_management': {
         const docId = activeDoctorId ? activeDoctorId.toLowerCase().replace('.', '').replace(' ', '_') : '';
         const docAppointmentsForDate = appointments.filter(a => 
-          a.doctorId === activeDoctorId && a.date === slotManageDate && a.status !== 'Cancelled'
+          (a.doctorId === activeDoctorId || (a.doctorName && activeDocObj?.name && a.doctorName.toLowerCase().includes(activeDocObj.name.toLowerCase()))) && 
+          a.date === slotManageDate && 
+          a.status !== 'Cancelled'
         );
         const slot1BookedPatients = docAppointmentsForDate.filter(a => a.time === 'Slot 1');
         const slot2BookedPatients = docAppointmentsForDate.filter(a => a.time === 'Slot 2');
+        const teleBookedPatients = docAppointmentsForDate.filter(a => a.type === 'Telemedicine');
 
         const getNextSevenDays = () => {
           const days = [];
@@ -5499,8 +5507,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
         return (
           <div className="module-content">
-            <h2>Manage Slot Capacities & Bookings</h2>
-            <p>Set custom capacities for Morning (Slot 1) and Afternoon (Slot 2) for any day. View booked patients and inspect their EHR records.</p>
+            <h2>Manage Slot Capacities & Telemedicine Limits</h2>
+            <p>Set custom capacities for Morning (Slot 1), Afternoon (Slot 2), and daily Telemedicine video consults for any day. View booked patients and inspect their EHR records.</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginTop: '20px' }}>
               <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -5538,6 +5546,25 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                       value={slot2CapacityInput} 
                       onChange={(e) => setSlot2CapacityInput(e.target.value)} 
                       style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+
+                  <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', padding: '12px', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '16px' }}>📹</span>
+                      <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#6d28d9' }}>Telemedicine Slots Limit (Per Day)</label>
+                    </div>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '11.5px', color: '#7c3aed' }}>
+                      Set the maximum number of online video teleconsultation slots open to patients on this date.
+                    </p>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="30"
+                      required 
+                      value={teleSlotCapacityInput} 
+                      onChange={(e) => setTeleSlotCapacityInput(e.target.value)} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #c4b5fd', background: 'white', boxSizing: 'border-box', fontWeight: '700', color: '#5b21b6' }} 
                     />
                   </div>
 
@@ -5586,11 +5613,12 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {getNextSevenDays().map(dayStr => {
                       const allSlotsConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
-                      const dayConfig = allSlotsConfigs.find(c => c.doctorId === docId && c.date === dayStr) || { slot1Capacity: 5, slot2Capacity: 5 };
+                      const dayConfig = allSlotsConfigs.find(c => (c.doctorId === docId || c.doctorId === activeDoctorId) && c.date === dayStr) || { slot1Capacity: 5, slot2Capacity: 5, teleSlotCapacity: 5 };
                       
-                      const dayAppts = appointments.filter(a => a.doctorId === activeDoctorId && a.date === dayStr && a.status !== 'Cancelled');
+                      const dayAppts = appointments.filter(a => (a.doctorId === activeDoctorId || (a.doctorName && activeDocObj?.name && a.doctorName.toLowerCase().includes(activeDocObj.name.toLowerCase()))) && a.date === dayStr && a.status !== 'Cancelled');
                       const s1Booked = dayAppts.filter(a => a.time === 'Slot 1').length;
                       const s2Booked = dayAppts.filter(a => a.time === 'Slot 2').length;
+                      const teleBooked = dayAppts.filter(a => a.type === 'Telemedicine').length;
 
                       const isSelected = slotManageDate === dayStr;
 
@@ -5609,7 +5637,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                         >
                           <div style={{ fontWeight: 'bold', color: isSelected ? '#1e40af' : '#1e293b' }}>{dayStr}</div>
                           <div style={{ color: '#64748b', marginTop: '4px' }}>
-                            Slot 1: {s1Booked}/{dayConfig.slot1Capacity} booked | Slot 2: {s2Booked}/{dayConfig.slot2Capacity} booked
+                            Slot 1: {s1Booked}/{dayConfig.slot1Capacity} | Slot 2: {s2Booked}/{dayConfig.slot2Capacity} | 📹 Tele: {teleBooked}/{dayConfig.teleSlotCapacity || 5}
                           </div>
                         </div>
                       );
@@ -5689,6 +5717,64 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                           >
                             Inspect EHR File
                           </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Telemedicine Video Slots Booked Card */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #ddd6fe', boxShadow: '0 4px 6px -1px rgba(124,58,237,0.08)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f3e8ff', paddingBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '18px' }}>📹</span>
+                      <h3 style={{ margin: 0, color: '#6d28d9' }}>Telemedicine Consultation Bookings</h3>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', background: '#ede9fe', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+                      {teleBookedPatients.length} / {teleSlotCapacityInput} Booked
+                    </span>
+                  </div>
+                  {teleBookedPatients.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: 0, textAlign: 'center', padding: '16px 0' }}>No telemedicine video appointments booked for this date.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {teleBookedPatients.map(appt => (
+                        <div key={appt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '8px', border: '1px solid #e9d5ff', background: '#faf5ff' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{appt.patientName}</span>
+                              <span style={{ fontSize: '11px', color: '#6b21a8' }}>({appt.patientId})</span>
+                              <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                ✓ {appt.time}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}><strong>Reason:</strong> {appt.reason || 'Teleconsultation'}</div>
+                            <div style={{ fontSize: '11px', color: '#7c3aed', marginTop: '2px', fontWeight: '600' }}>
+                              Status: {appt.status} • Fee: {appt.consultationFee || '₹500.00'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => handleStartDoctorCall(appt)}
+                              style={{ padding: '6px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              🎥 Connect Call
+                            </button>
+                            <button
+                              onClick={() => {
+                                const patientObj = patients.find(p => p.id === appt.patientId);
+                                if (patientObj) {
+                                  setSelectedEhrPatient(patientObj);
+                                  setActiveView('patients');
+                                } else {
+                                  alert("Patient records not found.");
+                                }
+                              }}
+                              style={{ padding: '6px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}
+                            >
+                              EHR
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

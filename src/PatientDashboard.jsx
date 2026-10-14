@@ -1000,6 +1000,66 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     };
   };
 
+  const getTeleSlotAvailability = (doctorIdentifier, date) => {
+    if (!doctorIdentifier || !date) {
+      return { capacity: 5, booked: 0, available: 5, isFull: false, bookedSlots: [], isBusy: false };
+    }
+    const docIdRaw = String(doctorIdentifier).trim();
+    const docIdNorm = docIdRaw.toLowerCase().replace('.', '').replace(/\s+/g, '_');
+    const slotConfigs = JSON.parse(localStorage.getItem('dhms_doctor_slots') || '[]');
+    const config = slotConfigs.find(c =>
+      c.date === date && (
+        c.doctorId === docIdRaw ||
+        c.doctorId === docIdNorm ||
+        c.normalizedDoctorId === docIdNorm ||
+        c.doctorId?.toLowerCase() === docIdRaw.toLowerCase() ||
+        c.doctorId?.toLowerCase().replace('.', '').replace(/\s+/g, '_') === docIdNorm
+      )
+    ) || {
+      teleSlotCapacity: 5
+    };
+
+    const teleCap = config.teleSlotCapacity !== undefined ? parseInt(config.teleSlotCapacity) : 5;
+    const allAppts = JSON.parse(localStorage.getItem('dhms_appointments') || '[]');
+
+    const matchDoctor = (a) => {
+      if (!a) return false;
+      const aDocId = a.doctorId ? String(a.doctorId).trim() : '';
+      const aNorm = aDocId.toLowerCase().replace('.', '').replace(/\s+/g, '_');
+      if (aDocId === docIdRaw || aNorm === docIdNorm || aDocId.toLowerCase() === docIdRaw.toLowerCase()) return true;
+      if (a.doctorName) {
+        const dName = a.doctorName.toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+        const targetDoc = doctorsList.find(d => d.id === doctorIdentifier || d.name === doctorIdentifier);
+        if (targetDoc) {
+          const targetName = (targetDoc.name || '').toLowerCase().replace(/^dr\.?\s*/i, '').trim();
+          if (dName === targetName || dName.includes(targetName) || targetName.includes(dName)) return true;
+        }
+      }
+      return false;
+    };
+
+    const dayTeleAppts = allAppts.filter(a => 
+      matchDoctor(a) && 
+      a.date === date && 
+      a.type === 'Telemedicine' && 
+      a.status !== 'Cancelled'
+    );
+
+    const bookedSlots = dayTeleAppts.map(a => a.time);
+    const bookedCount = dayTeleAppts.length;
+    const available = Math.max(0, teleCap - bookedCount);
+    const isFull = bookedCount >= teleCap;
+
+    return {
+      capacity: teleCap,
+      booked: bookedCount,
+      available,
+      isFull,
+      bookedSlots,
+      isBusy: isFull || bookedCount >= Math.floor(teleCap * 0.75)
+    };
+  };
+
   const [doctorsList, setDoctorsList] = useState(() => {
     return JSON.parse(localStorage.getItem('dhms_doctors') || '[]');
   });
@@ -1155,9 +1215,20 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
       return;
     }
 
+    const teleAvail = getTeleSlotAvailability(newTeleDoctor, newTeleDate);
+    if (teleAvail.isFull) {
+      alert(`Doctor Fully Booked: ${selDoc?.name || 'The selected doctor'} has reached the maximum telemedicine consultation limit (${teleAvail.capacity} slots) for ${newTeleDate}. Please select another date or doctor.`);
+      return;
+    }
+
     const chosenTime = newTeleTime || '11:00 AM';
     if (isTeleSlotPassedForDate(newTeleDate, chosenTime)) {
       alert(`Invalid Time: The time slot ${chosenTime} has already passed for today. Please select an upcoming time slot.`);
+      return;
+    }
+
+    if (teleAvail.bookedSlots.includes(chosenTime)) {
+      alert(`Slot Already Booked: The ${chosenTime} slot on ${newTeleDate} is already reserved by another patient. Please choose a different time slot.`);
       return;
     }
 
@@ -6513,9 +6584,13 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                       {doctorsList.map(doc => {
                         const cleanDocName = (doc.name || 'Doctor').replace(/^(Dr\.?\s*)+/i, 'Dr. ');
                         const isDocUnavailable = doc.status && doc.status !== 'Available' && doc.status !== 'On Duty';
+                        const docAvail = getTeleSlotAvailability(doc.id, newTeleDate || getTodayDateString());
+                        const isDocFull = docAvail.isFull;
+                        const isDocBusy = docAvail.isBusy && !isDocFull;
+
                         return (
-                          <option key={doc.id} value={doc.id} disabled={isDocUnavailable}>
-                            {cleanDocName} ({doc.specialty || doc.department}) - [{doc.status || 'Available'}]{isDocUnavailable ? ' (UNAVAILABLE)' : ''}
+                          <option key={doc.id} value={doc.id} disabled={isDocUnavailable || isDocFull}>
+                            {cleanDocName} ({doc.specialty || doc.department}) — {isDocUnavailable ? `[${doc.status}]` : isDocFull ? '[BUSY - 0 Slots Left]' : isDocBusy ? `[BUSY - ${docAvail.available} Slots Left]` : `[${docAvail.available}/${docAvail.capacity} Slots Free]`}
                           </option>
                         );
                       })}
@@ -6543,6 +6618,52 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
                 </div>
 
+                {/* Doctor Live Availability & Daily Limit Banner */}
+                {(() => {
+                  if (!newTeleDoctor) return null;
+                  const teleAvail = getTeleSlotAvailability(newTeleDoctor, newTeleDate || getTodayDateString());
+                  return (
+                    <div style={{
+                      background: teleAvail.isFull ? '#fef2f2' : teleAvail.isBusy ? '#fffbeb' : '#f5f3ff',
+                      border: `1px solid ${teleAvail.isFull ? '#fca5a5' : teleAvail.isBusy ? '#fde68a' : '#ddd6fe'}`,
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>{teleAvail.isFull ? '🔴' : teleAvail.isBusy ? '🟡' : '🟢'}</span>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 'bold', color: teleAvail.isFull ? '#991b1b' : teleAvail.isBusy ? '#92400e' : '#5b21b6' }}>
+                            {teleAvail.isFull 
+                              ? 'Doctor Schedule Full for Video Calls' 
+                              : teleAvail.isBusy 
+                                ? 'Doctor Schedule Busy (Few Slots Left)' 
+                                : 'Doctor Available for Teleconsultation'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            Date: <strong>{newTeleDate || getTodayDateString()}</strong> • Limit: <strong>{teleAvail.capacity} slots/day</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        background: teleAvail.isFull ? '#fee2e2' : teleAvail.isBusy ? '#fef3c7' : '#ede9fe',
+                        color: teleAvail.isFull ? '#b91c1c' : teleAvail.isBusy ? '#b45309' : '#6d28d9',
+                        border: `1px solid ${teleAvail.isFull ? '#fca5a5' : teleAvail.isBusy ? '#fcd34d' : '#c4b5fd'}`
+                      }}>
+                        {teleAvail.isFull ? '0 Slots Remaining' : `${teleAvail.available} of ${teleAvail.capacity} Slots Left`}
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Date</label>
@@ -6563,22 +6684,33 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
                   <div className="rd-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '12.5px', color: '#475569', fontWeight: '700' }}>Preferred Time Slot</label>
-                    <select 
-                      required 
-                      value={newTeleTime || ''} 
-                      onChange={(e) => setNewTeleTime(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '13px', fontWeight: '600' }}
-                    >
-                      <option value="" disabled>Select Time Slot</option>
-                      {['09:30 AM', '11:00 AM', '02:30 PM', '04:00 PM', '05:30 PM'].map(tSlot => {
-                        const isPassed = isTeleSlotPassedForDate(newTeleDate || getTodayDateString(), tSlot);
-                        return (
-                          <option key={tSlot} value={tSlot} disabled={isPassed}>
-                            {tSlot} {isPassed ? '(Passed)' : ''}
+                    {(() => {
+                      const teleAvail = getTeleSlotAvailability(newTeleDoctor, newTeleDate || getTodayDateString());
+                      return (
+                        <select 
+                          required 
+                          disabled={teleAvail.isFull}
+                          value={newTeleTime || ''} 
+                          onChange={(e) => setNewTeleTime(e.target.value)}
+                          style={{ padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: teleAvail.isFull ? '#f8fafc' : 'white', fontSize: '13px', fontWeight: '600' }}
+                        >
+                          <option value="" disabled>
+                            {teleAvail.isFull ? 'No Slots Available (Daily Limit Reached)' : 'Select Time Slot'}
                           </option>
-                        );
-                      })}
-                    </select>
+                          {['09:30 AM', '11:00 AM', '02:30 PM', '04:00 PM', '05:30 PM'].map(tSlot => {
+                            const isPassed = isTeleSlotPassedForDate(newTeleDate || getTodayDateString(), tSlot);
+                            const isBooked = teleAvail.bookedSlots.includes(tSlot);
+                            const isDisabled = isPassed || isBooked || teleAvail.isFull;
+
+                            return (
+                              <option key={tSlot} value={tSlot} disabled={isDisabled}>
+                                {tSlot} {isPassed ? '(Passed)' : isBooked ? '(Booked - Busy)' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
 
