@@ -268,21 +268,18 @@ const rtcConfig = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:stun.services.mozilla.com' },
     // OpenRelay Public TURN servers for NAT / Carrier cellular traversal
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
@@ -420,12 +417,16 @@ class TelemedicineSignaling {
         const storeKey = `dhms_tele_call_${callIdStr}_candidates_${payload.isInitiator ? 'init' : 'resp'}`;
         try {
           const existing = JSON.parse(localStorage.getItem(storeKey) || '[]');
-          existing.push(payload.candidate);
-          localStorage.setItem(storeKey, JSON.stringify(existing));
-          if (supabase && supabase.from) {
-            supabase.from('dhms_store')
-              .upsert({ key: storeKey, value: existing, updated_at: new Date().toISOString() })
-              .then(() => {});
+          const candObj = typeof payload.candidate === 'object' && payload.candidate.toJSON ? payload.candidate.toJSON() : payload.candidate;
+          const candStr = candObj.candidate || JSON.stringify(candObj);
+          if (!existing.some(c => (c && c.candidate ? c.candidate === candStr : JSON.stringify(c) === candStr))) {
+            existing.push(candObj);
+            localStorage.setItem(storeKey, JSON.stringify(existing));
+            if (supabase && supabase.from) {
+              supabase.from('dhms_store')
+                .upsert({ key: storeKey, value: existing, updated_at: new Date().toISOString() })
+                .then(() => {});
+            }
           }
         } catch (e) {}
       }
@@ -624,12 +625,22 @@ class TelemedicineSignaling {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        this.broadcast({
-          type: 'ICE_CANDIDATE',
-          callId,
-          candidate: event.candidate,
-          isInitiator
-        });
+        try {
+          const candJson = event.candidate.toJSON ? event.candidate.toJSON() : {
+            candidate: event.candidate.candidate,
+            sdpMid: event.candidate.sdpMid,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+            usernameFragment: event.candidate.usernameFragment
+          };
+          this.broadcast({
+            type: 'ICE_CANDIDATE',
+            callId,
+            candidate: candJson,
+            isInitiator
+          });
+        } catch (err) {
+          console.warn("[WebRTC] Error serializing candidate:", err);
+        }
       }
     };
 
@@ -652,7 +663,8 @@ class TelemedicineSignaling {
     const flushPendingCandidates = async () => {
       while (pendingCandidates.length > 0) {
         const candidate = pendingCandidates.shift();
-        const candKey = JSON.stringify(candidate);
+        if (!candidate || !candidate.candidate) continue;
+        const candKey = typeof candidate === 'string' ? candidate : (candidate.candidate || JSON.stringify(candidate));
         if (appliedCandidateKeys.has(candKey)) continue;
         appliedCandidateKeys.add(candKey);
         try {
@@ -664,8 +676,8 @@ class TelemedicineSignaling {
     };
 
     const applyCandidateSafely = async (candidate) => {
-      if (!candidate) return;
-      const candKey = JSON.stringify(candidate);
+      if (!candidate || (!candidate.candidate && typeof candidate !== 'string')) return;
+      const candKey = typeof candidate === 'string' ? candidate : (candidate.candidate || JSON.stringify(candidate));
       if (appliedCandidateKeys.has(candKey)) return;
 
       if (isRemoteDescSet && pc.remoteDescription) {

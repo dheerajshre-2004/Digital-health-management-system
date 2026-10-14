@@ -825,6 +825,13 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
     setTeleMobileTab('video');
     setActiveTab('telemedicine');
     setIncomingTeleCall(null);
+
+    // Mobile gesture audio unlock: unlock video playback directly in the user click/tap event handler
+    if (patientRemoteVideoRef.current) {
+      patientRemoteVideoRef.current.muted = false;
+      patientRemoteVideoRef.current.volume = 1.0;
+      patientRemoteVideoRef.current.play().catch(() => {});
+    }
   };
 
   const handleDeclineIncomingCall = () => {
@@ -4910,6 +4917,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                         } else {
                           const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
                           if (fallback) setLocalMediaStream(fallback);
+                        }
+                        if (patientRemoteVideoRef.current) {
+                          patientRemoteVideoRef.current.muted = false;
+                          patientRemoteVideoRef.current.volume = 1.0;
+                          patientRemoteVideoRef.current.play().catch(() => {});
                         }
                       }}>
                         📹 Join Consultation

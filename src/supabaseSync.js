@@ -65,7 +65,10 @@ export function initSupabaseSync() {
 
     // If it's a DHMS-specific key, sync it with Supabase in the background
     if (key.startsWith('dhms_') && key !== 'dhms_active_session' && key !== 'dhms_tab_session') {
-      const isUrgentKey = key === 'dhms_active_tele_call' || key === 'dhms_tele_signal_event' || key.startsWith('dhms_signal_');
+      const isUrgentKey = key === 'dhms_active_tele_call' || 
+                          key === 'dhms_tele_signal_event' || 
+                          key.startsWith('dhms_tele_call_') || 
+                          key.startsWith('dhms_signal_');
       
       if (isUrgentKey) {
         // Immediate sync without debounce for instant real-time call & WebRTC signaling
