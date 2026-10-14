@@ -893,13 +893,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
 
     let stream = doctorMediaStream;
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
-      // First provide an immediate reliable stream so WebRTC peer connection initializes without delay
-      const initialFallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
-      if (initialFallback) {
-        stream = initialFallback;
-        setDoctorMediaStream(initialFallback);
-      }
-
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const realStream = await navigator.mediaDevices.getUserMedia({
@@ -912,6 +905,17 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           setDoctorMediaStream(realStream);
         } catch (e) {
           console.warn("[Doctor] Camera/Mic request note, using animated avatar stream:", e);
+          const initialFallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+          if (initialFallback) {
+            stream = initialFallback;
+            setDoctorMediaStream(initialFallback);
+          }
+        }
+      } else {
+        const initialFallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
+        if (initialFallback) {
+          stream = initialFallback;
+          setDoctorMediaStream(initialFallback);
         }
       }
     }

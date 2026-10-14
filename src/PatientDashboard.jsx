@@ -741,13 +741,6 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     let stream = localMediaStream;
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
-      // First generate instantaneous reliable animated video stream
-      const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
-      if (initialFallback) {
-        stream = initialFallback;
-        setLocalMediaStream(initialFallback);
-      }
-
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const realStream = await navigator.mediaDevices.getUserMedia({
@@ -759,7 +752,18 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           stream = realStream;
           setLocalMediaStream(realStream);
         } catch (e) {
-          console.warn("[Patient] Direct click camera request error:", e);
+          console.warn("[Patient] Direct click camera request error, using fallback avatar stream:", e);
+          const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
+          if (initialFallback) {
+            stream = initialFallback;
+            setLocalMediaStream(initialFallback);
+          }
+        }
+      } else {
+        const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
+        if (initialFallback) {
+          stream = initialFallback;
+          setLocalMediaStream(initialFallback);
         }
       }
     }
