@@ -437,6 +437,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
   // Telemedicine Media States & Chat
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
+  const [mediaPermissionWarning, setMediaPermissionWarning] = useState('');
   const [localMediaStream, setLocalMediaStream] = useState(null);
   const [patientRemoteStream, setPatientRemoteStream] = useState(null);
   const [incomingTeleCall, setIncomingTeleCall] = useState(null);
@@ -634,23 +635,52 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
         const isStreamAlive = localMediaStream && localMediaStream.active && localMediaStream.getTracks().some(t => t.readyState === 'live');
         if (!isStreamAlive) {
           const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+          
+          if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            setMediaPermissionWarning('Mobile browser restricted camera on HTTP. Access via HTTPS or enable Insecure Origins flag to enable physical camera.');
+          }
+
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-              });
-              if (!isCancelled) {
+              // Try standard constraints
+              let stream;
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } },
+                  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
+              } catch (audioVideoErr) {
+                // If dual fails, try video only or audio only
+                console.warn("[Patient] Dual getUserMedia failed, attempting fallback constraints:", audioVideoErr);
+                try {
+                  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                } catch (simpleErr) {
+                  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                }
+              }
+
+              if (!isCancelled && stream) {
+                setMediaPermissionWarning('');
                 stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
                 stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
                 setLocalMediaStream(stream);
               }
             } catch (err) {
               console.warn("[Patient] getUserMedia error:", err);
+              if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setMediaPermissionWarning('Camera/Mic permission was denied. Please allow camera and mic permissions in browser settings.');
+              }
               const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
               if (fallback && !isCancelled) {
                 setLocalMediaStream(fallback);
               }
+            }
+          } else {
+            console.warn("[Patient] navigator.mediaDevices not available on this origin (HTTP context).");
+            setMediaPermissionWarning('Camera access requires HTTPS or localhost on mobile browsers. Running in animated avatar consultation mode.');
+            const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+            if (fallback && !isCancelled) {
+              setLocalMediaStream(fallback);
             }
           }
         }
@@ -741,18 +771,38 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
     let stream = localMediaStream;
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
+      if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        setMediaPermissionWarning('Mobile browser restricted camera on HTTP. Access via HTTPS or enable Insecure Origins flag to enable physical camera.');
+      }
+
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          const realStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          });
-          realStream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
-          realStream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
-          stream = realStream;
-          setLocalMediaStream(realStream);
+          let realStream;
+          try {
+            realStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } },
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+          } catch (firstErr) {
+            try {
+              realStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            } catch (secErr) {
+              realStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+          }
+
+          if (realStream) {
+            setMediaPermissionWarning('');
+            realStream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+            realStream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+            stream = realStream;
+            setLocalMediaStream(realStream);
+          }
         } catch (e) {
           console.warn("[Patient] Direct click camera request error, using fallback avatar stream:", e);
+          if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            setMediaPermissionWarning('Camera/Mic permission denied by browser. Please allow permissions in browser settings.');
+          }
           const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
           if (initialFallback) {
             stream = initialFallback;
@@ -760,6 +810,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
           }
         }
       } else {
+        setMediaPermissionWarning('Camera access requires HTTPS or localhost on mobile. Running in animated avatar consultation mode.');
         const initialFallback = createPatientFallbackVideoStream(patName || "Patient", "#6366f1");
         if (initialFallback) {
           stream = initialFallback;
@@ -4367,6 +4418,33 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </button>
           </div>
 
+          {/* Insecure HTTP / Camera Permission Warning Banner */}
+          {mediaPermissionWarning && (
+            <div style={{
+              background: '#b45309',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              lineHeight: '1.4',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>⚠️</span>
+                <span>{mediaPermissionWarning}</span>
+              </div>
+              <button 
+                onClick={() => setMediaPermissionWarning('')}
+                style={{ background: 'transparent', border: 'none', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Video Viewport Container */}
           <div className={`video-viewport-container ${teleMobileTab === 'chat' ? 'pd-hide-mobile' : ''}`}>
             {/* Remote Feed */}
@@ -4398,11 +4476,11 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  zIndex: 2,
+                  zIndex: patientRemoteStream ? 5 : 2,
                   background: 'transparent'
                 }} 
               />
-              <div className="video-label-tag" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>{appointedDoctor} • Live HD</div>
+              <div className="video-label-tag" style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 10 }}>{appointedDoctor} • {patientRemoteStream ? 'Live Doctor Cam' : 'Connected'}</div>
             </div>
 
             {/* Local Feed */}
@@ -4728,18 +4806,39 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                         setActiveCallId(tele.id);
                         setIsVideoCallActive(true);
                         setTeleMobileTab('video');
+                        const patName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : (loggedInPatient?.name || "Patient");
+                        if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                          setMediaPermissionWarning('Mobile browser restricted camera on HTTP. Access via HTTPS or enable Insecure Origins flag to enable physical camera.');
+                        }
                         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                           try {
-                            const stream = await navigator.mediaDevices.getUserMedia({
-                              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-                              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                            });
-                            stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
-                            stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
-                            setLocalMediaStream(stream);
+                            let stream;
+                            try {
+                              stream = await navigator.mediaDevices.getUserMedia({
+                                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } },
+                                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                              });
+                            } catch (e1) {
+                              try {
+                                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                              } catch (e2) {
+                                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                              }
+                            }
+                            if (stream) {
+                              setMediaPermissionWarning('');
+                              stream.getVideoTracks().forEach(t => { t.enabled = isCamOn; });
+                              stream.getAudioTracks().forEach(t => { t.enabled = isMicOn; });
+                              setLocalMediaStream(stream);
+                            }
                           } catch (e) {
                             console.warn("Direct media capture error:", e);
+                            const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+                            if (fallback) setLocalMediaStream(fallback);
                           }
+                        } else {
+                          const fallback = createPatientFallbackVideoStream(patName, '#6366f1');
+                          if (fallback) setLocalMediaStream(fallback);
                         }
                       }}>
                         📹 Join Consultation

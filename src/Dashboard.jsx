@@ -895,14 +895,26 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (!stream || !stream.active || stream.getTracks().every(t => t.readyState === 'ended')) {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          const realStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          });
-          realStream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
-          realStream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
-          stream = realStream;
-          setDoctorMediaStream(realStream);
+          let realStream;
+          try {
+            realStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } },
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+          } catch (pErr) {
+            try {
+              realStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            } catch (sErr) {
+              realStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+          }
+
+          if (realStream) {
+            realStream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
+            realStream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
+            stream = realStream;
+            setDoctorMediaStream(realStream);
+          }
         } catch (e) {
           console.warn("[Doctor] Camera/Mic request note, using animated avatar stream:", e);
           const initialFallback = createFallbackVideoStream(docObj.name || "Doctor", "#10b981");
@@ -941,11 +953,21 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           const docObj = doctorsRoster.find(d => d.id === activeDoctorId) || loggedInDoctor || doctorsRoster[0] || { id: 'DOC-101', name: 'Dr. Attending Physician', department: 'General Medicine' };
           if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-              });
-              if (!isCancelled) {
+              let stream;
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } },
+                  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
+              } catch (firstErr) {
+                try {
+                  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                } catch (secErr) {
+                  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                }
+              }
+
+              if (!isCancelled && stream) {
                 stream.getVideoTracks().forEach(t => { t.enabled = isDoctorCamOn; });
                 stream.getAudioTracks().forEach(t => { t.enabled = isDoctorMicOn; });
                 setDoctorMediaStream(stream);
@@ -1027,6 +1049,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       if (doctorRemoteVideoRef.current.srcObject !== doctorRemotePatientStream) {
         doctorRemoteVideoRef.current.srcObject = doctorRemotePatientStream;
       }
+      doctorRemoteVideoRef.current.muted = false;
+      doctorRemoteVideoRef.current.volume = 1.0;
       doctorRemoteVideoRef.current.play().catch(() => {});
     }
   }, [doctorRemotePatientStream, isVideoCallActive]);

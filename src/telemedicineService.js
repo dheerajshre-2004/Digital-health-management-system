@@ -262,17 +262,30 @@ export function createUniversalFallbackStream(name = 'Participant', bgColor = '#
   }
 }
 
-// WebRTC Configuration with comprehensive global STUN servers for cross-network connectivity
+// WebRTC Configuration with comprehensive global STUN + TURN relay servers for cross-network desktop-to-mobile connectivity
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:stun.services.mozilla.com' }
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    // OpenRelay Public TURN servers for NAT / Carrier cellular traversal
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ],
   iceCandidatePoolSize: 10
 };
@@ -594,7 +607,7 @@ class TelemedicineSignaling {
             remoteStream.addTrack(t);
           }
         });
-        onRemoteStream(event.streams[0]);
+        onRemoteStream(remoteStream);
       } else if (event.track) {
         if (!remoteStream.getTracks().some(existing => existing.id === event.track.id)) {
           remoteStream.addTrack(event.track);
@@ -605,11 +618,7 @@ class TelemedicineSignaling {
       event.track.onunmute = () => {
         console.log(`[WebRTC - ${isInitiator ? 'Doctor' : 'Patient'}] Track unmuted:`, event.track.kind);
         event.track.enabled = true;
-        if (event.streams && event.streams[0]) {
-          onRemoteStream(event.streams[0]);
-        } else {
-          onRemoteStream(remoteStream);
-        }
+        onRemoteStream(remoteStream);
       };
     };
 
@@ -742,7 +751,10 @@ class TelemedicineSignaling {
             await flushPendingCandidates();
           }
         } else if (msg.type === 'ICE_CANDIDATE' && msg.candidate) {
-          await applyCandidateSafely(msg.candidate);
+          // Only process candidates sent by the other peer (different initiator flag)
+          if (msg.isInitiator !== isInitiator) {
+            await applyCandidateSafely(msg.candidate);
+          }
         } else if ((msg.type === 'CALL_ACCEPTED' || msg.type === 'PATIENT_READY_FOR_CALL' || msg.type === 'REQUEST_OFFER') && isInitiator) {
           console.log("[WebRTC - Doctor] Peer requested offer, dispatching...");
           sendOffer();
