@@ -98,6 +98,17 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const [dispenseFilter, setDispenseFilter] = useState('All');
   const [dispenseSearch, setDispenseSearch] = useState('');
 
+  // Inpatient Medication Dispensing / Adding State
+  const [selectedAdmForMedication, setSelectedAdmForProcessingMed] = useState(null);
+  const [medToAddForm, setMedToAddForm] = useState({
+    medId: '',
+    dosage: '1 dose',
+    frequency: 'TDS (3 times a day)',
+    instructions: 'Post-meal oral administration',
+    quantity: 1
+  });
+  const [selectedAdmDetails, setSelectedAdmDetails] = useState(null);
+
   // Load from LocalStorage on mount and listen for storage updates
   useEffect(() => {
     const loadFromStorage = () => {
@@ -635,40 +646,71 @@ Thank you for using DHMS Hospital.
     document.body.removeChild(element);
   };
 
-  const handleDischargeAndPay = (adm) => {
-    const totalBill = calculatePharmacyBill(adm);
-    const confirmPay = window.confirm(`Patient ${adm.patientName} total pharmacy bill is ₹${totalBill.toFixed(2)}. Proceed with payment and discharge?`);
-    if (!confirmPay) return;
+  const handleAddInpatientMedication = (e) => {
+    e.preventDefault();
+    if (!selectedAdmForMedication) return;
 
-    // Update admission record
+    const chosenMed = medications.find(m => m.id === medToAddForm.medId);
+    if (!chosenMed) {
+      alert("Please select a valid medication from the hospital pharmacy inventory.");
+      return;
+    }
+
+    const qty = parseInt(medToAddForm.quantity) || 1;
+    if (chosenMed.stock < qty) {
+      alert(`Insufficient inventory stock! Only ${chosenMed.stock} units available for ${chosenMed.name}.`);
+      return;
+    }
+
+    // Deduct inventory stock
+    const updatedMeds = medications.map(m => {
+      if (m.id === chosenMed.id) {
+        return { ...m, stock: Math.max(0, m.stock - qty) };
+      }
+      return m;
+    });
+    saveMedications(updatedMeds);
+
+    const unitPrice = parseFloat(chosenMed.price) || 0;
+    const totalCost = unitPrice * qty;
     const today = new Date().toISOString().split('T')[0];
-    const updatedAdmissions = admissions.map(a => {
-      if (a.id === adm.id) {
+
+    const newMedItem = {
+      name: `${chosenMed.name} (${qty > 1 ? `${qty} units` : medToAddForm.dosage})`,
+      medId: chosenMed.id,
+      quantity: qty,
+      instructions: `${medToAddForm.frequency} - ${medToAddForm.instructions}`,
+      cost: totalCost,
+      status: 'Dispensed',
+      date: today,
+      dispensedBy: loggedInStaff?.name || 'Inpatient Pharmacist'
+    };
+
+    const updatedAdmissions = admissions.map(adm => {
+      if (adm.id === selectedAdmForMedication.id) {
+        const curMeds = adm.medications || [];
         return {
-          ...a,
-          status: 'Discharged',
-          dischargeDate: today,
-          pharmacyBillPaid: true
+          ...adm,
+          medications: [...curMeds, newMedItem]
         };
       }
-      return a;
+      return adm;
     });
+
     saveAdmissions(updatedAdmissions);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new Event('storage'));
+    }
 
-    // Record billing transaction
-    const billing = JSON.parse(localStorage.getItem('dhms_billing') || '[]');
-    const newInvoice = {
-      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-      patientId: adm.patientId,
-      patientName: adm.patientName,
-      date: today,
-      amount: `₹${totalBill.toFixed(2)}`,
-      status: 'Paid',
-      type: 'Admitted Pharmacy Bill'
-    };
-    localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
-
-    alert(`Patient ${adm.patientName} discharged successfully and bill marked as Paid.`);
+    alert(`✅ Medication "${chosenMed.name}" (${qty} units - ₹${totalCost.toFixed(2)}) added to ${selectedAdmForMedication.patientName}'s running bill successfully!`);
+    setSelectedAdmForProcessingMed(null);
+    setMedToAddForm({
+      medId: '',
+      dosage: '1 dose',
+      frequency: 'TDS (3 times a day)',
+      instructions: 'Post-meal oral administration',
+      quantity: 1
+    });
   };
 
   // Filters
@@ -1706,11 +1748,32 @@ Thank you for using DHMS Hospital.
 
           {activeTab === 'billing' && (
             <div className="view-pane animate-fade-in">
-              <h1 className="pane-title">Inpatient Admission Billing & Discharge</h1>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h1 className="pane-title" style={{ margin: 0 }}>Inpatient Medication Dispensing & Running Bills</h1>
+                  <p className="section-desc" style={{ marginTop: '4px' }}>
+                    Track all medications given to patients during admission, add doses to running bills, and monitor discharge clearance settled at Reception.
+                  </p>
+                </div>
+              </div>
               
               <div className="section-card">
-                <h2>Admitted Patients Pharmacy Bills</h2>
-                <p className="section-desc">Track running pharmacy medication bills for admitted patients. Accept payment and process pharmacy discharge.</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Admitted Inpatients & Medication Summary</h2>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      Discharge billing & settlement is processed at the Reception Desk. Running medication bills auto-sync with Reception.
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+                      🟢 Total Admissions: {admissions.length}
+                    </span>
+                    <span style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+                      🏥 Active Inpatients: {admissions.filter(a => a.status === 'Admitted' || a.status?.includes('Pending') || a.status?.includes('Advised')).length}
+                    </span>
+                  </div>
+                </div>
 
                 <div className="table-wrapper">
                   <table className="dashboard-table">
@@ -1720,71 +1783,140 @@ Thank you for using DHMS Hospital.
                         <th>Patient</th>
                         <th>Ward</th>
                         <th>Admission Date</th>
-                        <th>Medications Given</th>
-                        <th>Running Bill Total</th>
-                        <th>Status</th>
+                        <th>Medications Dispensed</th>
+                        <th>Running Pharmacy Bill</th>
+                        <th>Admission Status</th>
+                        <th>Discharge Bill Status</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {admissions.map(adm => (
-                        <tr key={adm.id}>
-                          <td><strong>{adm.id}</strong></td>
-                          <td>
-                            <strong>{adm.patientName}</strong>
-                            <div className="subtitle">ID: {adm.patientId}</div>
-                          </td>
-                          <td>{adm.ward}</td>
-                          <td>{adm.admissionDate}</td>
-                          <td>
-                            {adm.medications && adm.medications.length > 0 ? (
-                              <div className="meds-list-cell">
-                                {adm.medications.map((m, i) => (
-                                  <span key={i} className={`med-item-pill ${m.status.toLowerCase()}`}>
-                                    {m.name} ({m.status})
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="subtitle italic">No medications given yet</span>
-                            )}
-                          </td>
-                          <td>
-                            <strong style={{ fontSize: '15px', color: '#1e3a8a' }}>
-                              ₹{calculatePharmacyBill(adm).toFixed(2)}
-                            </strong>
-                          </td>
-                          <td>
-                            <span className={`status-badge ${adm.status === 'Admitted' ? 'surgery' : 'available'}`}>
-                              {adm.status}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              {adm.status === 'Admitted' ? (
-                                <button 
-                                  onClick={() => handleDischargeAndPay(adm)} 
-                                  className="btn-action-discharge"
-                                >
-                                  Pay & Discharge
-                                </button>
+                      {admissions.map(adm => {
+                        const totalMedsBill = calculatePharmacyBill(adm);
+                        const isCleared = adm.status === 'Discharged' || adm.pharmacyBillPaid;
+                        const isAdmitted = adm.status === 'Admitted';
+
+                        return (
+                          <tr key={adm.id} style={{ background: isCleared ? '#f8fafc' : 'white' }}>
+                            <td><strong>{adm.id}</strong></td>
+                            <td>
+                              <strong>{adm.patientName}</strong>
+                              <div className="subtitle">ID: {adm.patientId}</div>
+                            </td>
+                            <td>{adm.ward}</td>
+                            <td>{adm.admissionDate}</td>
+                            <td>
+                              {adm.medications && adm.medications.length > 0 ? (
+                                <div>
+                                  <div className="meds-list-cell">
+                                    {adm.medications.map((m, i) => (
+                                      <span key={i} className={`med-item-pill ${m.status.toLowerCase()}`}>
+                                        {m.name} ({m.status})
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                                    Total Items: <strong>{adm.medications.length}</strong>
+                                  </div>
+                                </div>
                               ) : (
-                                <span className="completed-badge">Discharged & Paid</span>
+                                <span className="subtitle italic">No medications given yet</span>
                               )}
-                              <button 
-                                onClick={() => handleDownloadInvoice(adm)} 
-                                className="btn-action-restock"
-                                style={{ padding: '8px 12px', fontSize: '12px' }}
-                              >
-                                Download Invoice
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: '15px', color: isCleared ? '#15803d' : '#1e3a8a' }}>
+                                ₹{totalMedsBill.toFixed(2)}
+                              </strong>
+                              {adm.medications && adm.medications.length > 0 && (
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {(adm.medications || []).filter(m => m.status === 'Dispensed').length} dispensed
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`status-badge ${adm.status === 'Admitted' ? 'surgery' : adm.status === 'Discharged' ? 'available' : 'emergency'}`}>
+                                {adm.status}
+                              </span>
+                            </td>
+                            <td>
+                              {isCleared ? (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: '700',
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  border: '1px solid #86efac'
+                                }}>
+                                  ✓ Cleared & Settled (Reception)
+                                </span>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: '700',
+                                  background: '#fef3c7',
+                                  color: '#b45309',
+                                  border: '1px solid #fde68a'
+                                }}>
+                                  ⏳ Pending Reception Clearance
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                {isAdmitted && (
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedAdmForProcessingMed(adm);
+                                      setMedToAddForm({
+                                        medId: medications.length > 0 ? medications[0].id : '',
+                                        dosage: '1 dose',
+                                        frequency: 'TDS (3 times a day)',
+                                        instructions: 'Post-meal oral administration',
+                                        quantity: 1
+                                      });
+                                    }} 
+                                    style={{
+                                      padding: '6px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      background: '#10b981',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    + Add Medication
+                                  </button>
+                                )}
+                                <button 
+                                  onClick={() => handleDownloadInvoice(adm)} 
+                                  className="btn-action-restock"
+                                  style={{ padding: '6px 10px', fontSize: '12px' }}
+                                >
+                                  Invoice
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {admissions.length === 0 && (
                         <tr>
-                          <td colSpan="8" style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '20px' }}>
+                          <td colSpan="9" style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '20px' }}>
                             No admission records found in system.
                           </td>
                         </tr>
@@ -1897,6 +2029,151 @@ Thank you for using DHMS Hospital.
                 🖨️ Print Receipt
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Inpatient Add Medication Modal */}
+      {selectedAdmForMedication && (
+        <div className="custom-modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="custom-modal" style={{ maxWidth: '520px', background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>💊 Dispense Medication to Inpatient</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Patient: <strong>{selectedAdmForMedication.patientName}</strong> ({selectedAdmForMedication.patientId}) - {selectedAdmForMedication.ward}
+                </span>
+              </div>
+              <button 
+                onClick={() => setSelectedAdmForProcessingMed(null)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddInpatientMedication} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Select Medicine from Pharmacy Stock
+                </label>
+                <select
+                  value={medToAddForm.medId}
+                  onChange={e => setMedToAddForm({ ...medToAddForm, medId: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  required
+                >
+                  <option value="" disabled>-- Select Drug --</option>
+                  {medications.map(m => (
+                    <option key={m.id} value={m.id} disabled={m.stock <= 0}>
+                      {m.name} ({m.genericName}) - ₹{parseFloat(m.price).toFixed(2)}/unit [{m.stock > 0 ? `${m.stock} in stock` : 'OUT OF STOCK'}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Units / Quantity Dispensed
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={medications.find(m => m.id === medToAddForm.medId)?.stock || 100}
+                    value={medToAddForm.quantity}
+                    onChange={e => setMedToAddForm({ ...medToAddForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Dosage Strength
+                  </label>
+                  <input
+                    type="text"
+                    value={medToAddForm.dosage}
+                    onChange={e => setMedToAddForm({ ...medToAddForm, dosage: e.target.value })}
+                    placeholder="e.g. 500mg, 1 tablet, 10ml"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Administration Frequency
+                  </label>
+                  <select
+                    value={medToAddForm.frequency}
+                    onChange={e => setMedToAddForm({ ...medToAddForm, frequency: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  >
+                    <option value="OD (Once a day)">OD (Once a day)</option>
+                    <option value="BD (Twice a day)">BD (Twice a day)</option>
+                    <option value="TDS (3 times a day)">TDS (3 times a day)</option>
+                    <option value="QID (4 times a day)">QID (4 times a day)</option>
+                    <option value="SOS (As needed)">SOS (As needed / PRN)</option>
+                    <option value="Stat (Immediate single dose)">Stat (Immediate single dose)</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Clinical Instructions
+                  </label>
+                  <input
+                    type="text"
+                    value={medToAddForm.instructions}
+                    onChange={e => setMedToAddForm({ ...medToAddForm, instructions: e.target.value })}
+                    placeholder="e.g. Post-meal, IV drip infusion"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Cost Preview */}
+              {medToAddForm.medId && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 14px', marginTop: '4px' }}>
+                  {(() => {
+                    const selMed = medications.find(m => m.id === medToAddForm.medId);
+                    const cost = (parseFloat(selMed?.price) || 0) * (parseInt(medToAddForm.quantity) || 1);
+                    return (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ color: '#166534', fontSize: '13px' }}>Dispense Cost Addition:</strong>
+                          <div style={{ fontSize: '11px', color: '#15803d' }}>
+                            {selMed?.name} × {medToAddForm.quantity} @ ₹{parseFloat(selMed?.price || 0).toFixed(2)}/unit
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#15803d' }}>
+                          ₹{cost.toFixed(2)}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAdmForProcessingMed(null)}
+                  style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  Confirm & Add to Bill
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
