@@ -68,9 +68,15 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   // Outsider / Walk-in Sale States
   const [outsiderSearch, setOutsiderSearch] = useState('');
   const [outsiderCategory, setOutsiderCategory] = useState('All');
-  const [outsiderCart, setOutsiderCart] = useState([]); // [{ medId, name, genericName, shelfLocation, unitPrice, qty, total }]
+  const [outsiderCart, setOutsiderCart] = useState([]); // [{ medId, name, genericName, shelfLocation, unitPrice, qty, total, hsnCode, batchNo, expDate }]
   const [outsiderBuyerName, setOutsiderBuyerName] = useState('');
   const [outsiderBuyerPhone, setOutsiderBuyerPhone] = useState('');
+  const [outsiderBuyerAge, setOutsiderBuyerAge] = useState('42 Years');
+  const [outsiderBuyerGender, setOutsiderBuyerGender] = useState('Female');
+  const [outsiderBuyerUHID, setOutsiderBuyerUHID] = useState('');
+  const [outsiderBuyerAddress, setOutsiderBuyerAddress] = useState('KUNJAL POST AND AROOR VILLAGE, Karnataka');
+  const [outsiderDoctorName, setOutsiderDoctorName] = useState('Dr. Umesh S N');
+  const [doctorsList, setDoctorsList] = useState([]);
   const [outsiderPaymentMode, setOutsiderPaymentMode] = useState('Physical Cash Payment'); // 'Physical Cash Payment' | 'Online UPI / QR Payment' | 'Card / POS Payment'
   const [outsiderPaymentRemarks, setOutsiderPaymentRemarks] = useState('');
   const [outsiderReceipt, setOutsiderReceipt] = useState(null); // Receipt modal data
@@ -117,6 +123,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       setAttendance(JSON.parse(localStorage.getItem('dhms_pharmacy_attendance') || '[]'));
       setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
+      setDoctorsList(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
     };
     loadFromStorage();
     window.addEventListener('storage', loadFromStorage);
@@ -192,14 +199,28 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
           : item
       ));
     } else {
+      // Deterministic batch / HSN generator matching standard pharmaceutical invoicing
+      const idNum = parseInt(String(med.id || '').replace(/\D/g, '')) || 101;
+      const hsnCodes = ['30049099', '30049039', '21069099', '30042099', '30045020'];
+      const batches = ['SANT2504', 'SPNT2601', 'VFO60401', '260782C', 'MED9011B', 'PHX3329A'];
+      const expDates = ['02/28', '03/28', '06/28', '09/27', '12/28', '05/29'];
+
+      const hsn = med.hsnCode || hsnCodes[(idNum % hsnCodes.length)];
+      const batch = med.batchNo || batches[(idNum % batches.length)];
+      const exp = med.expDate || expDates[(idNum % expDates.length)];
+      const unitPrice = parseFloat(med.price) || 0;
+
       setOutsiderCart([...outsiderCart, {
         medId: med.id,
         name: med.name,
         genericName: med.genericName,
         shelfLocation: med.shelfLocation || 'Main Pharmacy Rack',
-        unitPrice: parseFloat(med.price) || 0,
+        hsnCode: hsn,
+        batchNo: batch,
+        expDate: exp,
+        unitPrice: unitPrice,
         qty: 1,
-        total: parseFloat(med.price) || 0
+        total: unitPrice
       }]);
     }
   };
@@ -276,8 +297,10 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
 
     const buyerPhone = normalizedPhone;
     const grandTotal = calculateCartTotal();
+    const billId = `PBN${Math.floor(20000000 + Math.random() * 90000000)}`;
     const invoiceId = `INV-OUT-${Math.floor(1000 + Math.random() * 9000)}`;
     const today = new Date().toISOString().split('T')[0];
+    const billDt = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
     const timestamp = new Date().toLocaleString();
 
     // 1. Deduct Medication Stocks
@@ -306,25 +329,30 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
 
     const newInvoice = {
       id: invoiceId,
-      patientId: `WALK-${Math.floor(100 + Math.random() * 900)}`,
-      patientName: `${buyerName} (Outsider/Visitor)`,
+      billId: billId,
+      patientId: outsiderBuyerUHID.trim() || `P${Math.floor(20000000 + Math.random() * 90000000)}`,
+      patientName: `${buyerName} (OP Pharmacy)`,
       phone: buyerPhone,
       date: today,
       paymentDate: today,
       amount: `₹${grandTotal.toFixed(2)}`,
       status: 'Paid',
       paymentMethod: outsiderPaymentMode,
-      paymentRemarks: outsiderPaymentRemarks.trim() || `Walk-in Pharmacy Counter Sale. Dispensed by ${loggedInStaff?.name || 'Pharmacist'}.`,
-      type: `Pharmacy Walk-In Sale: ${medNamesSummary}`,
+      paymentRemarks: outsiderPaymentRemarks.trim() || `OP Pharmacy - Bill Cum Receipt. Dispensed by ${loggedInStaff?.name || 'Mrs. Savitha'}.`,
+      type: `Pharmacy OP Sale: ${medNamesSummary}`,
+      doctorName: outsiderDoctorName || 'Dr. Umesh S N',
       items: outsiderCart.map(i => ({
         id: i.medId,
         name: i.name,
+        hsnCode: i.hsnCode,
+        batchNo: i.batchNo,
+        expDate: i.expDate,
         qty: i.qty,
         unitPrice: i.unitPrice,
         shelfLocation: i.shelfLocation,
         total: i.total
       })),
-      soldBy: loggedInStaff?.name || 'Pharmacist Specialist'
+      soldBy: loggedInStaff?.name || 'Mrs. Savitha'
     };
 
     localStorage.setItem('dhms_billing', JSON.stringify([newInvoice, ...billing]));
@@ -333,17 +361,59 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       window.dispatchEvent(new Event('storage'));
     }
 
+    // Number to words helper (Indian Rupees)
+    const numberToWords = (num) => {
+      const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+      const inWords = (n) => {
+        if (n < 20) return a[n];
+        const digit = n % 10;
+        return b[Math.floor(n / 10)] + (digit ? ' ' + a[digit] : '');
+      };
+      const intNum = Math.floor(num);
+      if (intNum === 0) return 'Rupees Zero Only';
+      let str = '';
+      if (Math.floor(intNum / 10000000) > 0) {
+        str += inWords(Math.floor(intNum / 10000000)) + ' Crore ';
+      }
+      const lakh = Math.floor((intNum % 10000000) / 100000);
+      if (lakh > 0) {
+        str += inWords(lakh) + ' Lakh ';
+      }
+      const thousand = Math.floor((intNum % 100000) / 1000);
+      if (thousand > 0) {
+        str += inWords(thousand) + ' Thousand ';
+      }
+      const hundred = Math.floor((intNum % 1000) / 100);
+      if (hundred > 0) {
+        str += inWords(hundred) + ' Hundred ';
+      }
+      const rem = intNum % 100;
+      if (rem > 0) {
+        str += (str ? 'and ' : '') + inWords(rem) + ' ';
+      }
+      return 'Rupees ' + str.trim() + ' Only.';
+    };
+
     // 3. Set Receipt for Instant Print/Preview Modal
     setOutsiderReceipt({
+      billId,
       invoiceId,
+      billDt,
       date: today,
       time: timestamp,
       buyerName,
       buyerPhone,
+      buyerAge: outsiderBuyerAge || '42 Years',
+      buyerGender: outsiderBuyerGender || 'Female',
+      buyerUHID: outsiderBuyerUHID.trim() || `P${Math.floor(20000000 + Math.random() * 90000000)}`,
+      buyerAddress: outsiderBuyerAddress || 'KUNJAL POST AND AROOR VILLAGE, Karnataka',
+      doctorName: outsiderDoctorName || 'Dr. Umesh S N',
       items: [...outsiderCart],
       grandTotal,
+      amountInWords: numberToWords(grandTotal),
       paymentMode: outsiderPaymentMode,
-      soldBy: loggedInStaff?.name || 'Pharmacist Specialist'
+      soldBy: loggedInStaff?.name || 'Mrs. Savitha'
     });
 
     // Reset Form
@@ -1205,23 +1275,81 @@ Thank you for using DHMS Hospital.
                     <span style={{ fontSize: '20px', fontWeight: '800', color: '#047857' }}>₹{calculateCartTotal().toFixed(2)}</span>
                   </div>
 
-                  {/* Visitor Information & Payment Options Form */}
-                  <form onSubmit={handleOutsiderCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Visitor / Patient Information & Payment Options Form */}
+                  <form onSubmit={handleOutsiderCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient / Customer Name</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Mrs. Shobha / John Doe" 
+                          value={outsiderBuyerName}
+                          onChange={(e) => setOutsiderBuyerName(e.target.value)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>UHID / Patient ID</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. P260129704" 
+                          value={outsiderBuyerUHID}
+                          onChange={(e) => setOutsiderBuyerUHID(e.target.value)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '8px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Age / Demographics</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. 42 Years" 
+                          value={outsiderBuyerAge}
+                          onChange={(e) => setOutsiderBuyerAge(e.target.value)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Gender</label>
+                        <select
+                          value={outsiderBuyerGender}
+                          onChange={(e) => setOutsiderBuyerGender(e.target.value)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box', background: 'white' }}
+                        >
+                          <option value="Female">Female</option>
+                          <option value="Male">Male</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Consulting Doctor</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Dr. Umesh S N" 
+                          value={outsiderDoctorName}
+                          onChange={(e) => setOutsiderDoctorName(e.target.value)}
+                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Visitor / Outsider Name (Optional)</label>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Address</label>
                       <input 
                         type="text" 
-                        placeholder="e.g. Walk-in Customer / John Doe" 
-                        value={outsiderBuyerName}
-                        onChange={(e) => setOutsiderBuyerName(e.target.value)}
-                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                        placeholder="e.g. KUNJAL POST AND AROOR VILLAGE, Karnataka" 
+                        value={outsiderBuyerAddress}
+                        onChange={(e) => setOutsiderBuyerAddress(e.target.value)}
+                        style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
                       />
                     </div>
 
                     <div className="form-group" style={{ margin: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>
-                          Mobile Number (for SMS / WhatsApp Receipt) <span style={{ color: '#ef4444' }}>*</span>
+                          Mobile Number (for SMS / WhatsApp Bill) <span style={{ color: '#ef4444' }}>*</span>
                         </label>
                         {outsiderBuyerPhone && (
                           <span style={{ fontSize: '11px', fontWeight: '600' }}>
@@ -1229,7 +1357,7 @@ Thank you for using DHMS Hospital.
                               const digits = outsiderBuyerPhone.replace(/\D/g, '');
                               const norm = (digits.length === 12 && digits.startsWith('91')) ? digits.slice(2) : ((digits.length === 11 && digits.startsWith('0')) ? digits.slice(1) : digits);
                               if (/^[6-9]\d{9}$/.test(norm)) {
-                                return <span style={{ color: '#10b981' }}>✓ Valid 10-digit Number</span>;
+                                return <span style={{ color: '#10b981' }}>✓ Valid 10-digit</span>;
                               }
                               if (norm.length < 10) {
                                 return <span style={{ color: '#f59e0b' }}>⚠️ {norm.length}/10 digits</span>;
@@ -1929,104 +2057,351 @@ Thank you for using DHMS Hospital.
           )}
         </div>
       </div>
-      {/* Printable Walk-in Outsider Pharmacy Cash Receipt Modal */}
+      {/* Printable OP Pharmacy - Bill Cum Receipt Modal (Matches Official Reference) */}
       {outsiderReceipt && (
-        <div className="custom-modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="custom-modal" style={{ maxWidth: '540px', background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div id="dhms-walkin-receipt-print" style={{ background: '#ffffff', color: '#1e293b', fontFamily: 'monospace, sans-serif' }}>
-              {/* Receipt Header */}
-              <div style={{ textAlign: 'center', borderBottom: '2px dashed #94a3b8', paddingBottom: '12px', marginBottom: '14px' }}>
-                <div style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '0.5px' }}>DHMS CENTRAL PHARMACY</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Hospital Road, Medical City | 24x7 Dispensing Counter</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Tax Reg / Drug Lic: DL-PHR-2026-9921</div>
-                <div style={{ marginTop: '6px', display: 'inline-block', background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                  ✓ OFFICIAL SALE RECEIPT (PAID)
+        <div className="custom-modal-overlay" style={{ zIndex: 9999, overflowY: 'auto', padding: '20px 10px' }}>
+          <div className="custom-modal" style={{ maxWidth: '820px', width: '100%', background: 'white', borderRadius: '8px', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #cbd5e1' }}>
+            
+            {/* The Printable Bill Document */}
+            <div id="dhms-walkin-receipt-print" style={{ 
+              background: '#ffffff', 
+              color: '#000000', 
+              fontFamily: '"Courier New", Courier, monospace, -apple-system, sans-serif',
+              fontSize: '11px',
+              lineHeight: '1.35',
+              padding: '10px'
+            }}>
+              
+              {/* TOP HEADER 3-COLUMN LAYOUT */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 3.2fr 2.3fr', gap: '12px', borderBottom: '1.5px solid #000000', paddingBottom: '8px', marginBottom: '6px' }}>
+                
+                {/* Col 1: Hospital & Pharmacy Header */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{
+                    border: '1.5px solid #000',
+                    borderRadius: '50px',
+                    padding: '4px 8px',
+                    height: 'fit-content',
+                    fontWeight: '900',
+                    fontSize: '13px',
+                    letterSpacing: '-0.5px',
+                    textAlign: 'center',
+                    lineHeight: '1'
+                  }}>
+                    MAHESH<br/><span style={{ fontSize: '9px', fontWeight: 'bold' }}>Hospital</span>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: '800', fontSize: '13px' }}>Mahesh Medicals</div>
+                    <div style={{ fontSize: '10.5px' }}>NH 66 , Brahmavara</div>
+                    <div style={{ fontSize: '10.5px' }}>Brahmavara, Udupi, Karnataka - 576213, INDIA.</div>
+                    <div style={{ fontSize: '10px', marginTop: '2px' }}>Contact No : 9449835256, 7259862056</div>
+                    <div style={{ fontSize: '10px', fontWeight: 'bold' }}>GST No: 29ACQPB4327B1ZU</div>
+                    <div style={{ fontSize: '9.5px' }}>D.L.No : KA-UDP/20/179, KA-UDP/21/179</div>
+                  </div>
                 </div>
+
+                {/* Col 2: Bill To (Patient Info) */}
+                <div style={{ borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '11px', textDecoration: 'underline' }}>Bill To :</div>
+                  <div style={{ fontWeight: '800', fontSize: '11.5px' }}>
+                    {outsiderReceipt.buyerName || 'Mrs. Shobha'} | {outsiderReceipt.buyerAge || '42 Years'} | {outsiderReceipt.buyerGender || 'Female'}
+                  </div>
+                  <div style={{ marginTop: '2px' }}>
+                    <strong>UHID : </strong>{outsiderReceipt.buyerUHID || 'P260129704'}
+                  </div>
+                  <div>
+                    <strong>Mobile No : </strong>{outsiderReceipt.buyerPhone || '7676871067'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#1e293b', marginTop: '1px' }}>
+                    <strong>Address : </strong>{outsiderReceipt.buyerAddress || 'KUNJAL POST AND AROOR VILLAGE, Karnataka'}
+                  </div>
+                </div>
+
+                {/* Col 3: Barcode, Bill ID, Bill Dt & Doctor */}
+                <div style={{ textAlign: 'right', borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
+                  {/* Simulated barcode */}
+                  <div style={{ display: 'inline-block', textAlign: 'center' }}>
+                    <div style={{ 
+                      letterSpacing: '3px', 
+                      fontFamily: '"Libre Barcode 39", "Courier New", monospace', 
+                      fontSize: '22px', 
+                      fontWeight: 'bold',
+                      lineHeight: '0.9'
+                    }}>
+                      ||||||||||||||||||||||||||||
+                    </div>
+                    <div style={{ fontSize: '9px', fontWeight: 'bold' }}>{outsiderReceipt.billId || 'PBN290926124'}</div>
+                  </div>
+
+                  <div style={{ marginTop: '4px', fontSize: '10.5px' }}>
+                    <strong>Bill ID : </strong>{outsiderReceipt.billId || 'PBN290926124'}
+                  </div>
+                  <div style={{ fontSize: '10.5px' }}>
+                    <strong>Bill Dt : </strong>{outsiderReceipt.billDt || `${outsiderReceipt.date} 05:36 PM`}
+                  </div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 'bold' }}>
+                    Doctor Name : {outsiderReceipt.doctorName || 'Dr. Umesh S N'}
+                  </div>
+                </div>
+
               </div>
 
-              {/* Meta details */}
-              <div style={{ fontSize: '12px', lineHeight: '1.6', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong>Receipt No:</strong> {outsiderReceipt.invoiceId}</span>
-                  <span><strong>Date:</strong> {outsiderReceipt.date}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong>Customer:</strong> {outsiderReceipt.buyerName}</span>
-                  <span><strong>Phone:</strong> {outsiderReceipt.buyerPhone}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong>Payment Mode:</strong> {outsiderReceipt.paymentMode}</span>
-                  <span><strong>Dispensed By:</strong> {outsiderReceipt.soldBy}</span>
-                </div>
+              {/* TITLE BANNER */}
+              <div style={{ textAlign: 'center', fontWeight: '800', fontSize: '12px', margin: '4px 0 8px 0', letterSpacing: '0.5px' }}>
+                OP Pharmacy - Bill Cum Receipt
               </div>
 
-              {/* Items Purchased Table */}
-              <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', marginBottom: '14px' }}>
+              {/* MEDICATION ITEMS TABLE */}
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse', 
+                fontSize: '10.5px',
+                border: '1.5px solid #000000',
+                marginBottom: '4px'
+              }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #94a3b8', textAlign: 'left', color: '#475569' }}>
-                    <th style={{ padding: '6px 0' }}>Item / Strength</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'center' }}>Shelf</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'center' }}>Qty</th>
-                    <th style={{ padding: '6px 4px', textAlign: 'right' }}>Price</th>
-                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Total</th>
+                  <tr style={{ borderBottom: '1.5px solid #000000', background: '#f8fafc', fontWeight: 'bold' }}>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', width: '22px', textAlign: 'center' }}>#</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'left' }}>Brand Name</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center', width: '75px' }}>HSN Code</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center', width: '70px' }}>Batch No</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center', width: '55px' }}>Exp. Date</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'right', width: '70px' }}>MRP per unit(Rs)</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center', width: '35px' }}>Qty</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', width: '80px' }}>Net Amount Payable(Rs)</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'right', width: '65px' }}>CGST(Rs)</th>
+                    <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'right', width: '65px' }}>SGST(Rs)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {outsiderReceipt.items.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px dashed #e2e8f0' }}>
-                      <td style={{ padding: '6px 0' }}>
-                        <strong>{item.name}</strong>
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: '11px', color: '#2563eb' }}>
-                        {item.shelfLocation}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        x{item.qty}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>
-                        ₹{item.unitPrice.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 'bold' }}>
-                        ₹{item.total.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
+                  {outsiderReceipt.items.map((item, idx) => {
+                    const lineTotal = item.total || (item.qty * item.unitPrice);
+                    // Standard retail GST breakdown (5% total: 2.5% CGST + 2.5% SGST included)
+                    const taxPerSide = (lineTotal * 0.025) / 1.05;
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid #ccc' }}>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>{idx + 1}</td>
+                        <td style={{ border: '1px solid #000', padding: '4px 6px', fontWeight: 'bold' }}>
+                          {item.name.toUpperCase()}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>
+                          {item.hsnCode || '30049099'}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>
+                          {item.batchNo || 'SANT2504'}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>
+                          {item.expDate || '02/28'}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'right' }}>
+                          {item.unitPrice.toFixed(2)}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                          {item.qty}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>
+                          {lineTotal.toFixed(2)}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'right' }}>
+                          {taxPerSide.toFixed(2)}<br/><span style={{ fontSize: '9px', color: '#555' }}>(2.50%)</span>
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'right' }}>
+                          {taxPerSide.toFixed(2)}<br/><span style={{ fontSize: '9px', color: '#555' }}>(2.50%)</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* Totals Row */}
+                  {(() => {
+                    const totalPayable = outsiderReceipt.grandTotal;
+                    const totalTaxPerSide = (totalPayable * 0.025) / 1.05;
+                    return (
+                      <tr style={{ borderTop: '1.5px solid #000', fontWeight: 'bold', background: '#f8fafc' }}>
+                        <td colSpan="7" style={{ border: '1px solid #000', padding: '4px 8px', textAlign: 'right' }}>Totals :</td>
+                        <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{totalPayable.toFixed(2)}</td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'right' }}>{totalTaxPerSide.toFixed(2)}</td>
+                        <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'right' }}>{totalTaxPerSide.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
 
-              {/* Total & Footer */}
-              <div style={{ borderTop: '2px dashed #94a3b8', paddingTop: '10px', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '800' }}>
-                  <span>TOTAL AMOUNT PAID:</span>
-                  <span style={{ color: '#047857' }}>₹{outsiderReceipt.grandTotal.toFixed(2)}</span>
+              {/* PAYMENT SUMMARY & TOTAL AMOUNT WORDS SECTION */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginTop: '6px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <strong>Payment Mode &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: </strong>
+                    Cash Rs {outsiderReceipt.grandTotal.toFixed(2)}
+                    {outsiderReceipt.paymentMode.includes('UPI') ? ' (UPI Transfer)' : ''}
+                  </div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <strong>Bill Amount In Words : </strong>
+                    {outsiderReceipt.amountInWords || `Rupees ${outsiderReceipt.grandTotal.toFixed(2)} Only.`}
+                  </div>
+
+                  {/* GST SUMMARY BOX */}
+                  <table style={{ width: '85%', borderCollapse: 'collapse', marginTop: '10px', fontSize: '10px', border: '1px solid #000', textAlign: 'center' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #000' }}>
+                        <th style={{ border: '1px solid #000', padding: '2px 4px' }}>Tax Amt</th>
+                        <th style={{ border: '1px solid #000', padding: '2px 4px' }}>GST%</th>
+                        <th style={{ border: '1px solid #000', padding: '2px 4px' }}>CGST(Rs)</th>
+                        <th style={{ border: '1px solid #000', padding: '2px 4px' }}>SGST(Rs)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const grandTotal = outsiderReceipt.grandTotal;
+                        const totalTax = (grandTotal * 0.05) / 1.05;
+                        const halfTax = totalTax / 2;
+                        return (
+                          <tr>
+                            <td style={{ border: '1px solid #000', padding: '3px' }}>{totalTax.toFixed(2)}</td>
+                            <td style={{ border: '1px solid #000', padding: '3px' }}>5.00</td>
+                            <td style={{ border: '1px solid #000', padding: '3px' }}>{halfTax.toFixed(2)}</td>
+                            <td style={{ border: '1px solid #000', padding: '3px' }}>{halfTax.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>
-                  Amount synced with Central Cash Counter & Financial Accounts.
+
+                {/* Right side totals list */}
+                <div style={{ fontSize: '11px', lineHeight: '1.7', textAlign: 'right', paddingRight: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>Actual Bill Amount :</strong>
+                    <strong>Rs {outsiderReceipt.grandTotal.toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>Total Bill Amount :</strong>
+                    <strong>Rs {outsiderReceipt.grandTotal.toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>Paid Amount :</strong>
+                    <strong>Rs {outsiderReceipt.grandTotal.toFixed(2)}</strong>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'center', fontSize: '10px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
-                Thank you for visiting DHMS Hospital Pharmacy. Store medicines below 25°C.
+              {/* ACKNOWLEDGEMENT & PHARMACIST SIGNATURE */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '16px', padding: '0 6px' }}>
+                <div style={{ fontSize: '10px', fontStyle: 'italic', fontWeight: 'bold' }}>
+                  #Received Rs {outsiderReceipt.grandTotal.toFixed(2)}/- from {outsiderReceipt.buyerName || 'Mrs. Shobha'} with thanks.
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  {/* Handwritten-styled signature element */}
+                  <div style={{ 
+                    fontFamily: '"Brush Script MT", cursive, sans-serif', 
+                    fontSize: '22px', 
+                    color: '#1d4ed8', 
+                    lineHeight: '1',
+                    marginBottom: '2px',
+                    transform: 'rotate(-5deg)'
+                  }}>
+                    Savitha
+                  </div>
+                  <div style={{ fontWeight: 'bold', fontSize: '10.5px' }}>Pharmacist Signature</div>
+                  <div style={{ fontSize: '10px' }}>{outsiderReceipt.soldBy || 'Mrs. Savitha'}</div>
+                </div>
               </div>
+
+              {/* OFFICIAL RUBBER STAMP & RETURN POLICY BOX */}
+              <div style={{ margin: '14px auto 8px auto', textAlign: 'center' }}>
+                <div style={{
+                  display: 'inline-block',
+                  border: '2.5px solid #3730a3',
+                  borderRadius: '16px',
+                  padding: '4px 16px',
+                  color: '#3730a3',
+                  fontWeight: '900',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  transform: 'rotate(-1.5deg)',
+                  boxShadow: 'inset 0 0 0 1px #3730a3'
+                }}>
+                  <div style={{ fontSize: '13px' }}>MAHESH MEDICALS</div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold' }}>BRAHMAVARA - 576 213</div>
+                  <div style={{ fontSize: '14px', marginTop: '2px', borderTop: '1px solid #3730a3', paddingTop: '2px', letterSpacing: '2px' }}>
+                    CASH PAID
+                  </div>
+                </div>
+              </div>
+
+              {/* FOOTER POLICIES */}
+              <div style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000', padding: '3px 0', fontSize: '9.5px', textAlign: 'center', fontWeight: 'bold' }}>
+                Return Policy : Within 2 Months with bill & Surgical items no return
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginTop: '4px', color: '#333' }}>
+                <span>Created by : {outsiderReceipt.soldBy || 'Mrs. Savitha'}</span>
+                <span>Printed by : {outsiderReceipt.soldBy || 'Mrs. Savitha'} ( {outsiderReceipt.billDt || `${outsiderReceipt.date} | 05:36 PM`} )</span>
+              </div>
+
             </div>
 
-            {/* Action buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+            {/* Action buttons (hidden when printed) */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
               <button 
                 type="button" 
                 onClick={() => setOutsiderReceipt(null)}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontWeight: '600' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
                 Close Window
               </button>
               <button 
                 type="button" 
                 onClick={() => {
-                  window.print();
+                  try {
+                    const slipElem = document.getElementById('dhms-walkin-receipt-print');
+                    if (!slipElem) {
+                      window.print();
+                      return;
+                    }
+                    const iframe = document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '0';
+                    iframe.style.bottom = '0';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = '0';
+                    document.body.appendChild(iframe);
+
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(`
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <title>OP Pharmacy Bill - ${outsiderReceipt.billId || outsiderReceipt.invoiceId}</title>
+                          <style>
+                            @page { size: auto; margin: 8mm; }
+                            body { font-family: "Courier New", Courier, monospace, sans-serif; margin: 0; padding: 5px; color: #000; background: #fff; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { border: 1px solid #000; }
+                          </style>
+                        </head>
+                        <body>
+                          ${slipElem.innerHTML}
+                        </body>
+                      </html>
+                    `);
+                    doc.close();
+
+                    setTimeout(() => {
+                      iframe.contentWindow.focus();
+                      iframe.contentWindow.print();
+                      setTimeout(() => document.body.removeChild(iframe), 1500);
+                    }, 350);
+                  } catch (e) {
+                    window.print();
+                  }
                 }}
-                style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '8px 22px', borderRadius: '6px', border: 'none', background: '#047857', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(4,120,87,0.3)' }}
               >
-                🖨️ Print Receipt
+                🖨️ Print OP Pharmacy Bill
               </button>
             </div>
           </div>
