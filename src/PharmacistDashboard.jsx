@@ -52,6 +52,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const [attendance, setAttendance] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [admissions, setAdmissions] = useState([]);
+  const [registeredPatients, setRegisteredPatients] = useState([]);
 
   // Form states
   const [newMed, setNewMed] = useState({
@@ -77,6 +78,9 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
   const [outsiderBuyerAddress, setOutsiderBuyerAddress] = useState('KUNJAL POST AND AROOR VILLAGE, Karnataka');
   const [outsiderDoctorName, setOutsiderDoctorName] = useState('Dr. Umesh S N');
   const [doctorsList, setDoctorsList] = useState([]);
+  const [patientLookupQuery, setPatientLookupQuery] = useState('');
+  const [showPatientSuggestions, setShowPatientSuggestions] = useState(false);
+  const [selectedRegisteredPatient, setSelectedRegisteredPatient] = useState(null);
   const [outsiderPaymentMode, setOutsiderPaymentMode] = useState('Physical Cash Payment'); // 'Physical Cash Payment' | 'Online UPI / QR Payment' | 'Card / POS Payment'
   const [outsiderPaymentRemarks, setOutsiderPaymentRemarks] = useState('');
   const [outsiderReceipt, setOutsiderReceipt] = useState(null); // Receipt modal data
@@ -124,6 +128,7 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
       setPrescriptions(JSON.parse(localStorage.getItem('dhms_prescriptions') || '[]'));
       setAdmissions(JSON.parse(localStorage.getItem('dhms_admissions') || '[]'));
       setDoctorsList(JSON.parse(localStorage.getItem('dhms_doctors') || '[]'));
+      setRegisteredPatients(JSON.parse(localStorage.getItem('dhms_patients') || '[]'));
     };
     loadFromStorage();
     window.addEventListener('storage', loadFromStorage);
@@ -254,6 +259,50 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
 
   const calculateCartTotal = () => {
     return outsiderCart.reduce((sum, item) => sum + item.total, 0);
+  };
+
+  // Auto-populate patient details if registered in hospital
+  const handleSelectRegisteredPatient = (patient) => {
+    if (!patient) return;
+    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || patient.name || 'Registered Patient';
+    
+    // Calculate age if dob available
+    let calculatedAge = '42 Years';
+    if (patient.dob) {
+      const birthYear = new Date(patient.dob).getFullYear();
+      if (!isNaN(birthYear)) {
+        const diff = new Date().getFullYear() - birthYear;
+        if (diff > 0) calculatedAge = `${diff} Years`;
+      }
+    } else if (patient.age) {
+      calculatedAge = String(patient.age).includes('Year') ? patient.age : `${patient.age} Years`;
+    }
+
+    setOutsiderBuyerName(fullName);
+    setOutsiderBuyerPhone(patient.phone || '');
+    setOutsiderBuyerAge(calculatedAge);
+    setOutsiderBuyerGender(patient.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : 'Female');
+    setOutsiderBuyerUHID(patient.id || `P${Math.floor(20000000 + Math.random() * 90000000)}`);
+    if (patient.address) {
+      setOutsiderBuyerAddress(patient.address);
+    } else if (patient.city || patient.state) {
+      setOutsiderBuyerAddress(`${patient.city || ''}, ${patient.state || 'Karnataka'}`.trim());
+    }
+
+    setSelectedRegisteredPatient(patient);
+    setPatientLookupQuery(fullName);
+    setShowPatientSuggestions(false);
+  };
+
+  const handleClearSelectedPatient = () => {
+    setSelectedRegisteredPatient(null);
+    setPatientLookupQuery('');
+    setOutsiderBuyerName('');
+    setOutsiderBuyerPhone('');
+    setOutsiderBuyerUHID('');
+    setOutsiderBuyerAge('42 Years');
+    setOutsiderBuyerGender('Female');
+    setOutsiderBuyerAddress('KUNJAL POST AND AROOR VILLAGE, Karnataka');
   };
 
   // Outsider Checkout & Bill Sync
@@ -1277,6 +1326,128 @@ Thank you for using DHMS Hospital.
 
                   {/* Visitor / Patient Information & Payment Options Form */}
                   <form onSubmit={handleOutsiderCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    
+                    {/* Patient Fast Lookup Bar */}
+                    <div style={{ position: 'relative', background: '#eff6ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          🔍 Search Hospital Registered Patient (Auto-fills Bill)
+                        </label>
+                        {selectedRegisteredPatient && (
+                          <button
+                            type="button"
+                            onClick={handleClearSelectedPatient}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                          >
+                            ✕ Clear Selected
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder="Type patient name, phone number, or ID (e.g. PT-1002)..."
+                          value={patientLookupQuery}
+                          onChange={(e) => {
+                            setPatientLookupQuery(e.target.value);
+                            setShowPatientSuggestions(true);
+                          }}
+                          onFocus={() => setShowPatientSuggestions(true)}
+                          style={{
+                            width: '100%',
+                            padding: '7px 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #93c5fd',
+                            fontSize: '12.5px',
+                            boxSizing: 'border-box',
+                            background: 'white'
+                          }}
+                        />
+                        
+                        {/* Auto-suggest dropdown */}
+                        {showPatientSuggestions && patientLookupQuery.trim().length > 0 && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            background: 'white',
+                            borderRadius: '6px',
+                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                            border: '1px solid #cbd5e1',
+                            maxHeight: '180px',
+                            overflowY: 'auto',
+                            zIndex: 50,
+                            marginTop: '2px'
+                          }}>
+                            {(() => {
+                              const q = patientLookupQuery.toLowerCase().trim();
+                              const matches = registeredPatients.filter(p => {
+                                const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+                                const phone = (p.phone || '').toLowerCase();
+                                const id = (p.id || '').toLowerCase();
+                                return fullName.includes(q) || phone.includes(q) || id.includes(q);
+                              });
+
+                              if (matches.length === 0) {
+                                return (
+                                  <div style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>
+                                    No registered patient found. You can enter visitor details manually below.
+                                  </div>
+                                );
+                              }
+
+                              return matches.slice(0, 6).map(patient => (
+                                <div
+                                  key={patient.id}
+                                  onClick={() => handleSelectRegisteredPatient(patient)}
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderBottom: '1px solid #f1f5f9',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    transition: 'background 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                >
+                                  <div>
+                                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>
+                                      {patient.firstName} {patient.lastName || ''}
+                                    </strong>
+                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
+                                      ({patient.gender || 'Patient'}{patient.dob ? ` • DOB: ${patient.dob}` : ''})
+                                    </span>
+                                    <div style={{ fontSize: '11px', color: '#0369a1' }}>
+                                      📞 {patient.phone} • ID: {patient.id}
+                                    </div>
+                                  </div>
+                                  <span style={{
+                                    fontSize: '11px',
+                                    background: '#dcfce7',
+                                    color: '#15803d',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontWeight: '700'
+                                  }}>
+                                    Select
+                                  </span>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedRegisteredPatient && (
+                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#15803d', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ✓ Linked to registered profile: <strong>{selectedRegisteredPatient.firstName} {selectedRegisteredPatient.lastName || ''} ({selectedRegisteredPatient.id})</strong>. All fields populated!
+                        </div>
+                      )}
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px' }}>
                       <div className="form-group" style={{ margin: 0 }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient / Customer Name</label>
