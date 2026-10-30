@@ -293,9 +293,32 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     const saved = localStorage.getItem('dhms_triage_staff');
     const list = saved ? JSON.parse(saved) : [];
     const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
-    const filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
-    if (filtered.length !== list.length) {
+    let filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length === 0) {
+      filtered = [
+        { id: 'NUR-101', name: 'Nurse Ananya Sharma', role: 'Chief Triage Officer', department: 'OPD Triage & Emergency Desk', email: 'ananya.triage@dhms.org', phone: '+91 98765 21098', status: 'Available' },
+        { id: 'NUR-102', name: 'Nurse Priya Menon', role: 'Triage / OPD Staff Nurse', department: 'OPD Triage & Vitals Check', email: 'priya.triage@dhms.org', phone: '+91 98765 21099', status: 'Available' }
+      ];
       localStorage.setItem('dhms_triage_staff', JSON.stringify(filtered));
+    } else if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_triage_staff', JSON.stringify(filtered));
+    }
+    return filtered;
+  });
+
+  const [insuranceStaff, setInsuranceStaff] = useState(() => {
+    const saved = localStorage.getItem('dhms_insurance_staff');
+    const list = saved ? JSON.parse(saved) : [];
+    const dummyEmails = ['clara@dhms.org', 'amy@dhms.org', 'banner@dhms.org', 'barry@dhms.org', 'rory@dhms.org', 'river@dhms.org', 'donna@dhms.org', 'martha@dhms.org'];
+    let filtered = list.filter(s => !dummyEmails.includes(s.email?.toLowerCase()));
+    if (filtered.length === 0) {
+      filtered = [
+        { id: 'INS-101', name: 'Rohan Mehra', role: 'Lead TPA Insurance Desk Officer', department: 'Insurance / TPA Desk', email: 'rohan.tpa@dhms.org', phone: '+91 98111 22334', status: 'Available' },
+        { id: 'INS-102', name: 'Sunita Verma', role: 'TPA / Insurance Agent', department: 'Insurance Claims & Empanelment', email: 'sunita.claims@dhms.org', phone: '+91 98222 33445', status: 'Available' }
+      ];
+      localStorage.setItem('dhms_insurance_staff', JSON.stringify(filtered));
+    } else if (filtered.length !== list.length) {
+      localStorage.setItem('dhms_insurance_staff', JSON.stringify(filtered));
     }
     return filtered;
   });
@@ -2144,6 +2167,8 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       setLaboratoryStaff(JSON.parse(localStorage.getItem('dhms_laboratory_staff') || '[]'));
       setPharmacyStaff(JSON.parse(localStorage.getItem('dhms_pharmacy_staff') || '[]'));
       setCashierStaff(JSON.parse(localStorage.getItem('dhms_cashier_staff') || '[]'));
+      setTriageStaff(JSON.parse(localStorage.getItem('dhms_triage_staff') || '[]'));
+      setInsuranceStaff(JSON.parse(localStorage.getItem('dhms_insurance_staff') || '[]'));
       setDepartmentsList(JSON.parse(localStorage.getItem('dhms_departments') || '[]'));
       setInsuranceClaims(JSON.parse(localStorage.getItem('dhms_insurance_claims') || '[]'));
     };
@@ -2728,6 +2753,18 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
   };
 
+  const handleToggleTriageStaffStatus = (staffId, newStatus) => {
+    const updated = triageStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setTriageStaff(updated);
+    localStorage.setItem('dhms_triage_staff', JSON.stringify(updated));
+  };
+
+  const handleToggleInsuranceStaffStatus = (staffId, newStatus) => {
+    const updated = insuranceStaff.map(s => s.id === staffId ? { ...s, status: newStatus } : s);
+    setInsuranceStaff(updated);
+    localStorage.setItem('dhms_insurance_staff', JSON.stringify(updated));
+  };
+
   const handleDeleteDoctor = (docId) => {
     if (window.confirm("Are you sure you want to delete this doctor?")) {
       const updated = doctorsRoster.filter(d => d.id !== docId);
@@ -2765,6 +2802,22 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
       const updated = cashierStaff.filter(s => s.id !== staffId);
       setCashierStaff(updated);
       localStorage.setItem('dhms_cashier_staff', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeleteTriageStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this OPD triage staff member?")) {
+      const updated = triageStaff.filter(s => s.id !== staffId);
+      setTriageStaff(updated);
+      localStorage.setItem('dhms_triage_staff', JSON.stringify(updated));
+    }
+  };
+
+  const handleDeleteInsuranceStaff = (staffId) => {
+    if (window.confirm("Are you sure you want to delete this insurance staff member?")) {
+      const updated = insuranceStaff.filter(s => s.id !== staffId);
+      setInsuranceStaff(updated);
+      localStorage.setItem('dhms_insurance_staff', JSON.stringify(updated));
     }
   };
 
@@ -2813,6 +2866,7 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
     if (newStaffRole === 'laboratory') setLaboratoryStaff(updated);
     if (newStaffRole === 'pharmacist') setPharmacyStaff(updated);
     if (newStaffRole === 'cash_counter') setCashierStaff(updated);
+    if (newStaffRole === 'insurance_agent') setInsuranceStaff(updated);
 
     sendPatientWelcomeEmail({
       patientName: newStaffName.trim(),
@@ -2935,9 +2989,11 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'departments', label: 'Hospital Departments' },
           { id: 'doctors', label: 'Doctors & Medical Roster' },
           { id: 'receptionist_staff', label: 'Receptionist Staff' },
+          { id: 'triage_staff', label: 'OPD Triage Staff' },
           { id: 'laboratory_staff', label: 'Laboratory Staff' },
           { id: 'pharmacy_staff', label: 'Pharmacy Staff' },
           { id: 'cashier_staff', label: 'Cash Counter Staff' },
+          { id: 'insurance_staff', label: 'Insurance Staff' },
           { id: 'cashcounter', label: 'Cash Flow, Billing & Tally Accounting' },
           { id: 'receipt_settings', label: 'Hospital Letterhead & Receipt Configuration' },
           { id: 'payroll', label: 'Staff Payroll & Salaries' },
@@ -2960,8 +3016,6 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
           { id: 'operation_theatre', label: 'Operation Theatre (OT) & CSSD' },
           { id: 'blood_bank', label: 'Blood Bank & Transfusions' },
           { id: 'slot_management', label: 'Manage Slot Capacity' },
-          { id: 'prescriptions', label: 'Prescription History' },
-          { id: 'labs', label: 'Lab Orders History' },
           { id: 'payroll', label: 'My Compensation & Pay Slip' },
           { id: 'attendance', label: 'My Shift Attendance' }
         ];
@@ -3642,6 +3696,152 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
                         </select>
                         <button 
                           onClick={() => handleDeleteCashierStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'triage_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>OPD Triage Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage triage nurses, initial vitals screeners, shift rosters, and active duty status.</p>
+              </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('triage');
+                    setNewStaffDept('OPD Triage & Emergency Desk');
+                    setNewStaffDesignation('Triage / OPD Staff Nurse');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Triage Staff
+                </button>
+              )}
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Department / Desk</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {triageStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }}>{s.role}</span></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontSize: '12px' }}>{s.department || 'OPD Triage Desk'}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleToggleTriageStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                        <button 
+                          onClick={() => handleDeleteTriageStaff(s.id)}
+                          style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'insurance_staff':
+        return (
+          <div className="module-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>Insurance & TPA Staff Roster</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Manage health insurance desk executives, TPA liaison agents, duty statuses, and credentials.</p>
+              </div>
+              {role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setNewStaffRole('insurance_agent');
+                    setNewStaffDept('Insurance / TPA Desk');
+                    setNewStaffDesignation('TPA / Insurance Agent');
+                    setShowAddStaffModal(true);
+                  }}
+                  style={{ padding: '10px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                >
+                  + Add Insurance Staff
+                </button>
+              )}
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Designation / Role</th>
+                  <th>Department / Desk</th>
+                  <th>Contact Email</th>
+                  <th>Active Duty Status</th>
+                  {role === 'admin' && <th>Quick Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {insuranceStaff.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.id}</strong></td>
+                    <td><strong>{s.name}</strong></td>
+                    <td><span style={{ background: '#e0e7ff', color: '#4338ca', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }}>{s.role}</span></td>
+                    <td><span style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontSize: '12px' }}>{s.department || 'Insurance / TPA Desk'}</span></td>
+                    <td>{s.email}</td>
+                    <td>
+                      <span className={`status-badge ${s.status === 'Available' ? 'available' : 'leave'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    {role === 'admin' && (
+                      <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <select 
+                          value={s.status} 
+                          onChange={(e) => handleToggleInsuranceStaffStatus(s.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="On Leave">On Leave</option>
+                        </select>
+                        <button 
+                          onClick={() => handleDeleteInsuranceStaff(s.id)}
                           style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
                         >
                           Delete

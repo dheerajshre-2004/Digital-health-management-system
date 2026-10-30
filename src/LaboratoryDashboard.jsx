@@ -179,9 +179,37 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     }
   };
 
+  const isNumericParameter = (param) => {
+    if (param.min !== null && param.min !== undefined && param.min !== '') return true;
+    if (param.max !== null && param.max !== undefined && param.max !== '') return true;
+    const unit = (param.unit || '').trim().toLowerCase();
+    const nonNumericUnits = ['visual', 'qualitative'];
+    if (nonNumericUnits.includes(unit)) return false;
+    const textRange = (param.textRange || '').toLowerCase();
+    if (textRange.includes('negative') || textRange.includes('nil') || textRange.includes('amber') || textRange.includes('clear')) {
+      return false;
+    }
+    const numericUnits = ['mg/dl', 'g/dl', '%', '/cumm', 'lakhs/cumm', 'million/cumm', 'fl', 'pg', 'µiu/ml', 'ng/dl', 'u/l', 'meq/l', 'ml/min/1.73m²', 'ratio', 'sg', 'ph', '/hpf'];
+    return numericUnits.some(nu => unit.includes(nu));
+  };
+
   const handleCompleteLabWithResults = (e) => {
     e.preventDefault();
     if (!selectedLabForResults) return;
+
+    // Validate that quantitative parameters do not contain text/names
+    for (const p of labParametersState) {
+      if (isNumericParameter(p)) {
+        const valStr = String(p.value || '').trim();
+        // Check if input is a valid number (e.g. "15", "15.5", "-2", "0.95")
+        // Also allow range numbers like "1-2" or "0-1" for microscopic cells /HPF if present
+        const isNum = /^-?\d+(\.\d+)?$/.test(valStr) || /^\d+\s*-\s*\d+$/.test(valStr);
+        if (!isNum) {
+          alert(`⚠️ Invalid Value for "${p.name}":\n\nThis parameter measured in "${p.unit || 'numeric units'}" requires a numeric value (e.g., 12.5), not letters or words. Please correct the value to proceed.`);
+          return;
+        }
+      }
+    }
 
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1036,10 +1064,24 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                             <td style={{ padding: '6px 10px' }}>
                               <input
                                 type="text"
+                                inputMode={isNumericParameter(param) ? 'decimal' : 'text'}
+                                placeholder={isNumericParameter(param) ? '0.00' : 'e.g. Normal'}
                                 value={param.value}
                                 onChange={(e) => {
+                                  let val = e.target.value;
+                                  if (isNumericParameter(param)) {
+                                    // For quantitative parameters, allow only digits, decimal point, negative sign, and hyphen for ranges
+                                    val = val.replace(/[^0-9.\-]/g, '');
+                                    // Ensure at most one decimal point if not a range
+                                    if (!val.includes('-')) {
+                                      const parts = val.split('.');
+                                      if (parts.length > 2) {
+                                        val = parts[0] + '.' + parts.slice(1).join('');
+                                      }
+                                    }
+                                  }
                                   const updated = [...labParametersState];
-                                  updated[pIdx].value = e.target.value;
+                                  updated[pIdx].value = val;
                                   setLabParametersState(updated);
                                 }}
                                 required
