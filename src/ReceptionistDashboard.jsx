@@ -5350,16 +5350,16 @@ End of Generated Health Summary Report
       {selectedAdmForDischarge && (
         <div className="rd-modal-overlay" style={{ zIndex: 9999 }}>
           <div className="rd-modal" style={{ maxWidth: '640px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="rd-modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="rd-modal-header" style={{ borderBottom: '1.5px solid #cbd5e1', paddingBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>💳 Inpatient Pay & Discharge Settlement</h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Reception Billing Clearance & Hospital Discharge: <strong>{selectedAdmForDischarge.patientName}</strong> ({selectedAdmForDischarge.patientId})
+                <h3 style={{ margin: 0, fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>💳 Inpatient Pay & Discharge Settlement</h3>
+                <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: '500', display: 'block', marginTop: '3px' }}>
+                  Reception Billing Clearance & Hospital Discharge: <strong style={{ color: '#0f172a' }}>{selectedAdmForDischarge.patientName}</strong> ({selectedAdmForDischarge.patientId})
                 </span>
               </div>
               <button 
                 onClick={() => setSelectedAdmForDischarge(null)}
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
+                style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', width: '32px', height: '32px', fontSize: '18px', cursor: 'pointer', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}
               >
                 ✕
               </button>
@@ -5370,76 +5370,78 @@ End of Generated Health Summary Report
               return (
                 <form onSubmit={handleReceptionPayAndDischarge} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>
                   {/* Inpatient Stay Info */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', background: '#f8fafc', padding: '14px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block' }}>Admission ID:</span>
-                      <strong>{selectedAdmForDischarge.id}</strong>
+                      <span style={{ color: '#475569', display: 'block', fontSize: '12px', fontWeight: '600' }}>Admission ID</span>
+                      <strong style={{ color: '#0f172a', fontSize: '14px' }}>{selectedAdmForDischarge.id}</strong>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block' }}>Ward & Bed:</span>
-                      <strong>{selectedAdmForDischarge.ward} - {selectedAdmForDischarge.bedNo || 'General'}</strong>
+                      <span style={{ color: '#475569', display: 'block', fontSize: '12px', fontWeight: '600' }}>Ward & Bed</span>
+                      <strong style={{ color: '#0f172a', fontSize: '14px' }}>{selectedAdmForDischarge.ward} - {selectedAdmForDischarge.bedNo || 'General'}</strong>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block' }}>Stay Duration:</span>
-                      <strong>{fin.daysStayed} Day(s)</strong>
+                      <span style={{ color: '#475569', display: 'block', fontSize: '12px', fontWeight: '600' }}>Stay Duration</span>
+                      <strong style={{ color: '#0f172a', fontSize: '14px' }}>{fin.daysStayed} Day(s)</strong>
                     </div>
                   </div>
 
                   {/* Itemized Inpatient Breakdown */}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                    <div style={{ background: '#f1f5f9', padding: '10px 14px', fontWeight: 'bold', fontSize: '13px', color: '#334155' }}>
+                  <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '10px', overflow: 'hidden', background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ background: '#f1f5f9', padding: '12px 16px', fontWeight: '800', fontSize: '13.5px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', letterSpacing: '0.2px' }}>
                       Itemized Discharge Expense Breakdown
                     </div>
-                    <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'collapse' }}>
+                    <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse', color: '#0f172a' }}>
                       <tbody>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px 14px', color: '#475569' }}>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+                          <td style={{ padding: '11px 16px', color: '#1e293b', fontWeight: '500' }}>
                             Room & Nursing Stay ({fin.daysStayed} days @ ₹{fin.wardRate}/day)
                           </td>
-                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>
+                          <td style={{ padding: '11px 16px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
                             ₹{fin.roomCharges.toFixed(2)}
                           </td>
                         </tr>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#faf5ff' }}>
-                          <td style={{ padding: '8px 14px', color: '#6b21a8' }}>
-                            <strong>💊 Total Pharmacy Medications Taken ({(selectedAdmForDischarge.medications || []).length} items)</strong>
-                            <div style={{ fontSize: '11px', color: '#7e22ce', marginTop: '2px' }}>
-                              All medications dispensed during hospital stay sum maintained by Central Pharmacy
+                        <tr style={{ borderBottom: '1px solid #cbd5e1', background: '#f5f3ff' }}>
+                          <td style={{ padding: '12px 16px', color: '#581c87' }}>
+                            <strong style={{ fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              💊 Total Pharmacy Medications Taken ({(selectedAdmForDischarge.medications || []).length} items)
+                            </strong>
+                            <div style={{ fontSize: '11.5px', color: '#6b21a8', marginTop: '3px', fontWeight: '500' }}>
+                              Consolidated sum of all inpatient medications dispensed during hospital stay
                             </div>
                           </td>
-                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '700', color: '#6b21a8' }}>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '800', color: '#581c87', fontSize: '14px' }}>
                             ₹{fin.pharmacyTotal.toFixed(2)}
                           </td>
                         </tr>
                         {fin.labTotal > 0 && (
-                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '8px 14px', color: '#475569' }}>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+                            <td style={{ padding: '11px 16px', color: '#1e293b', fontWeight: '500' }}>
                               Inpatient Diagnostic Laboratory Tests ({fin.patientLabs.length} tests)
                             </td>
-                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>
+                            <td style={{ padding: '11px 16px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
                               ₹{fin.labTotal.toFixed(2)}
                             </td>
                           </tr>
                         )}
-                        <tr style={{ borderBottom: '2px solid #cbd5e1', background: '#f8fafc', fontWeight: 'bold' }}>
-                          <td style={{ padding: '10px 14px', color: '#1e293b' }}>Gross Total Charges</td>
-                          <td style={{ padding: '10px 14px', textAlign: 'right', color: '#1e293b', fontSize: '13.5px' }}>
+                        <tr style={{ borderBottom: '2px solid #94a3b8', background: '#f8fafc' }}>
+                          <td style={{ padding: '12px 16px', color: '#0f172a', fontWeight: '700', fontSize: '13.5px' }}>Gross Total Charges</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a', fontWeight: '800', fontSize: '14.5px' }}>
                             ₹{fin.grossTotal.toFixed(2)}
                           </td>
                         </tr>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9', color: '#16a34a' }}>
-                          <td style={{ padding: '8px 14px' }}>
-                            Less: Advance Deposit Deducted {selectedAdmForDischarge.advanceDepositPaid ? '(Collected)' : '(Adjusted)'}
+                        <tr style={{ borderBottom: '1.5px solid #cbd5e1', background: '#f0fdf4' }}>
+                          <td style={{ padding: '11px 16px', color: '#166534', fontWeight: '600' }}>
+                            Less: Advance Security Deposit Deducted {selectedAdmForDischarge.advanceDepositPaid ? '(Collected)' : '(Adjusted)'}
                           </td>
-                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: '600' }}>
+                          <td style={{ padding: '11px 16px', textAlign: 'right', fontWeight: '800', color: '#15803d', fontSize: '13.5px' }}>
                             - ₹{fin.advancePaid.toFixed(2)}
                           </td>
                         </tr>
-                        <tr style={{ background: '#ecfdf5', fontWeight: '800', fontSize: '14px' }}>
-                          <td style={{ padding: '12px 14px', color: '#065f46' }}>
+                        <tr style={{ background: '#dcfce7', borderTop: '2px solid #22c55e' }}>
+                          <td style={{ padding: '14px 16px', color: '#064e3b', fontWeight: '900', fontSize: '14.5px', letterSpacing: '0.3px' }}>
                             FINAL NET DUE PAYABLE AT RECEPTION
                           </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', color: '#047857', fontSize: '16px' }}>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', color: '#064e3b', fontWeight: '900', fontSize: '17px' }}>
                             ₹{fin.netDue.toFixed(2)}
                           </td>
                         </tr>
@@ -5448,14 +5450,14 @@ End of Generated Health Summary Report
                   </div>
 
                   {/* Payment Method Selector */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                    <label style={{ fontSize: '13.5px', fontWeight: '700', color: '#0f172a' }}>
                       Settlement Payment Method
                     </label>
                     <select
                       value={dischargePaymentMethod}
                       onChange={e => setDischargePaymentMethod(e.target.value)}
-                      style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: '600' }}
+                      style={{ padding: '11px 14px', borderRadius: '8px', border: '1.5px solid #94a3b8', fontSize: '13.5px', fontWeight: '600', color: '#0f172a', background: '#ffffff' }}
                     >
                       <option value="Physical Cash Payment">Physical Cash Payment</option>
                       <option value="Online UPI / QR Payment">Online UPI / QR Payment</option>
