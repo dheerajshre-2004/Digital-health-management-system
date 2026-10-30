@@ -593,10 +593,35 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       window.dispatchEvent(new Event('storage'));
     }
 
+    // Compute accurate patient age and gender from patient details / DOB
+    const getPatientAge = (pat) => {
+      if (!pat) return '35';
+      if (pat.age && pat.age !== '--') return String(pat.age);
+      if (pat.dob) {
+        const birthDate = new Date(pat.dob);
+        if (!isNaN(birthDate.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const m = today.getMonth() - birthDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          if (age >= 0) return String(age);
+        }
+      }
+      return '35';
+    };
+
+    const patientAge = getPatientAge(matchedPatient);
+    const patientGender = (matchedPatient?.gender || 'Male').toUpperCase();
+    const patientAgeGenderStr = `${patientAge} YRS / ${patientGender}`;
+
     // Prepare authentic outpatient bill & token receipt
     const receiptApptData = {
       ...newAppt,
-      patientAgeGender: matchedPatient ? `${matchedPatient.age || '35'} YRS / ${(matchedPatient.gender || 'MALE').toUpperCase()}` : '35 YRS / MALE',
+      patientAge: patientAge,
+      patientGender: patientGender,
+      patientAgeGender: patientAgeGenderStr,
       patientAddress: matchedPatient ? (matchedPatient.address || 'Kunjal Post and Aroor Village, Udupi') : 'Kunjal Post and Aroor Village, Udupi',
       patientPhone: matchedPatient ? (matchedPatient.phone || '7676871067') : '7676871067',
       invoiceId: invoiceId,
@@ -1695,10 +1720,27 @@ End of Generated Health Summary Report
                           type="button"
                           className="rd-btn-small"
                           onClick={() => {
-                            const pObj = patients.find(p => p.id === appt.patientId);
+                            const pObj = patients.find(p => p.id === appt.patientId || (p.firstName && appt.patientName && appt.patientName.toLowerCase().includes(p.firstName.toLowerCase())));
+                            let calcAge = '35';
+                            if (pObj?.age && pObj.age !== '--') {
+                              calcAge = String(pObj.age);
+                            } else if (pObj?.dob) {
+                              const bDate = new Date(pObj.dob);
+                              if (!isNaN(bDate.getTime())) {
+                                const now = new Date();
+                                let a = now.getFullYear() - bDate.getFullYear();
+                                const m = now.getMonth() - bDate.getMonth();
+                                if (m < 0 || (m === 0 && now.getDate() < bDate.getDate())) a--;
+                                if (a >= 0) calcAge = String(a);
+                              }
+                            }
+                            const calcGender = (pObj?.gender || appt.gender || 'MALE').toUpperCase();
+
                             setActiveOutpatientBill({
                               ...appt,
-                              patientAgeGender: pObj ? `${pObj.age || '35'} YRS / ${(pObj.gender || 'MALE').toUpperCase()}` : (appt.patientAgeGender || '35 YRS / MALE'),
+                              patientAge: calcAge,
+                              patientGender: calcGender,
+                              patientAgeGender: `${calcAge} YRS / ${calcGender}`,
                               patientAddress: pObj ? (pObj.address || 'Kunjal Post and Aroor Village, Udupi') : (appt.patientAddress || 'Kunjal Post and Aroor Village, Udupi'),
                               patientPhone: pObj ? (pObj.phone || '7676871067') : (appt.patientPhone || '7676871067'),
                               invoiceId: appt.invoiceId || linkedInvoice?.id,

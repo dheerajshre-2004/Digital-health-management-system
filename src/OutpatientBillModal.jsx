@@ -62,12 +62,68 @@ export default function OutpatientBillModal({ billData, onClose }) {
   const uhid = billData.uhid || billData.patientId || 'MH2005407';
   const hospId = billData.hospId || (billData.id ? String(billData.id).replace(/[^0-9]/g, '').slice(-5) || 'P51831' : 'P51831');
   
-  // Age & Gender
-  let ageGender = '35 YEARS/MALE';
-  if (billData.age || billData.gender) {
-    ageGender = `${billData.age ? billData.age + ' YEARS' : 'ADULT'} / ${(billData.gender || 'MALE').toUpperCase()}`;
-  } else if (billData.patientAgeGender) {
+  // Age & Gender Resolution
+  let resolvedAge = null;
+  let resolvedGender = billData.patientGender || billData.gender || null;
+
+  // 1. Explicit patientAge / age passed in billData
+  if (billData.patientAge && billData.patientAge !== '--') {
+    resolvedAge = String(billData.patientAge);
+  } else if (billData.age && billData.age !== '--') {
+    resolvedAge = String(billData.age);
+  }
+
+  // 2. Fallback: look up patient in dhms_patients registry to get true DOB or age
+  try {
+    const pId = billData.patientId || billData.uhid;
+    const allPatients = JSON.parse(localStorage.getItem('dhms_patients') || '[]');
+    const foundP = allPatients.find(p => 
+      (pId && p.id && p.id.toLowerCase() === String(pId).toLowerCase()) ||
+      (p.firstName && billData.patientName && billData.patientName.toLowerCase().includes(p.firstName.toLowerCase()))
+    );
+
+    if (foundP) {
+      if (!resolvedGender && foundP.gender) {
+        resolvedGender = foundP.gender;
+      }
+      if (!resolvedAge) {
+        if (foundP.age && foundP.age !== '--') {
+          resolvedAge = String(foundP.age);
+        } else if (foundP.dob) {
+          const bDate = new Date(foundP.dob);
+          if (!isNaN(bDate.getTime())) {
+            const today = new Date();
+            let a = today.getFullYear() - bDate.getFullYear();
+            const m = today.getMonth() - bDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < bDate.getDate())) a--;
+            if (a >= 0) resolvedAge = String(a);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 3. Fallback to DOB directly on billData if present
+  if (!resolvedAge && billData.dob) {
+    const bDate = new Date(billData.dob);
+    if (!isNaN(bDate.getTime())) {
+      const today = new Date();
+      let a = today.getFullYear() - bDate.getFullYear();
+      const m = today.getMonth() - bDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < bDate.getDate())) a--;
+      if (a >= 0) resolvedAge = String(a);
+    }
+  }
+
+  let ageGender = '35 YRS / MALE';
+  if (resolvedAge) {
+    ageGender = `${resolvedAge} YRS / ${(resolvedGender || 'MALE').toUpperCase()}`;
+  } else if (billData.patientAgeGender && billData.patientAgeGender !== '35 YRS / MALE') {
     ageGender = billData.patientAgeGender.toUpperCase();
+  } else if (resolvedGender) {
+    ageGender = `ADULT / ${resolvedGender.toUpperCase()}`;
   }
 
   const mobileNumber = billData.patientPhone || billData.phone || billData.mobile || '9876543210';
