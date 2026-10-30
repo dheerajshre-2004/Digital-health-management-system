@@ -68,16 +68,16 @@ function App() {
     window.location.pathname.startsWith('/patient') ||
     (isPWA && portalParam !== 'staff');
 
-  // Clean up any legacy cross-tab localStorage sessions so new tabs don't accidentally load old logins
+  // Clean up legacy staff sessions, but preserve patient sessions for mobile app / PWA persistence
   useEffect(() => {
     localStorage.removeItem('dhms_user_session');
     localStorage.removeItem('dhms_staff_session');
-    localStorage.removeItem('dhms_patient_session');
   }, []);
 
-  // Strict Tab & Module Isolation: sessions are strictly isolated per tab in sessionStorage
+  // Strict Tab & Module Isolation with Persistent Mobile / Patient Login Support
   const getInitialTabSession = () => {
     try {
+      // 1. Check current tab session
       const tabSessionStr = sessionStorage.getItem('dhms_tab_session');
       if (tabSessionStr) {
         const parsed = JSON.parse(tabSessionStr);
@@ -87,6 +87,20 @@ function App() {
           }
           if (!isPatientPortal && parsed.role !== 'patient') {
             return parsed;
+          }
+        }
+      }
+
+      // 2. Persistent Patient Portal & Mobile App fallback:
+      // If we are on mobile / PWA or the patient portal (or opened with a patient session),
+      // restore the logged-in patient so they do not have to log in on every restart.
+      const persistentPatientStr = localStorage.getItem('dhms_patient_session');
+      if (persistentPatientStr) {
+        const parsedPatient = JSON.parse(persistentPatientStr);
+        if (parsedPatient && parsedPatient.role === 'patient' && parsedPatient.user) {
+          // If in patient portal or standalone mobile mode or default view
+          if (isPatientPortal || !portalParam || portalParam === 'patient') {
+            return parsedPatient;
           }
         }
       }
@@ -129,13 +143,18 @@ function App() {
   };
 
   const saveTabSession = (sessionData) => {
-    // Strictly save session in sessionStorage for THIS tab only
+    // Save in sessionStorage for this tab
     sessionStorage.setItem('dhms_tab_session', JSON.stringify(sessionData));
+    // If patient, persist in localStorage so mobile app / browser restarts keep user logged in
+    if (sessionData && sessionData.role === 'patient') {
+      localStorage.setItem('dhms_patient_session', JSON.stringify(sessionData));
+    }
   };
 
   const clearTabSession = () => {
     sessionStorage.removeItem('dhms_tab_session');
     sessionStorage.removeItem('dhms_active_session');
+    localStorage.removeItem('dhms_patient_session');
   };
 
   const handleRoleChange = (newRole) => {

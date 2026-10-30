@@ -5762,6 +5762,27 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
               Blood Bank & Donors
             </li>
+            <li 
+              className="pd-nav-signout" 
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onLogout && onLogout();
+              }}
+              style={{
+                marginTop: '16px',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '12px',
+                color: '#ef4444',
+                cursor: 'pointer'
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: '#ef4444' }}>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Sign Out / Logout
+            </li>
           </ul>
         </aside>
 
