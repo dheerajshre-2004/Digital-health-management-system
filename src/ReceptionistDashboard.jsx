@@ -166,15 +166,9 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
     return JSON.parse(localStorage.getItem('dhms_lab_facilities') || '[]');
   });
   const [recLabSearch, setRecLabSearch] = useState('');
-  const [recLabPatientType, setRecLabPatientType] = useState('walkin'); // 'walkin' | 'registered'
+  const [recLabPatientSearch, setRecLabPatientSearch] = useState('');
   const [recLabSelectedPatient, setRecLabSelectedPatient] = useState(null);
-  const [recLabWalkinForm, setRecLabWalkinForm] = useState({
-    name: '',
-    phone: '',
-    gender: 'Male',
-    age: '',
-    referringDoctor: 'Self / Direct OPD'
-  });
+  const [recLabSelectedDoctor, setRecLabSelectedDoctor] = useState('');
   const [recLabSelectedTests, setRecLabSelectedTests] = useState([]);
   const [recLabPaymentMode, setRecLabPaymentMode] = useState('Physical Cash Payment');
   const [recLabCollectNow, setRecLabCollectNow] = useState(true);
@@ -2954,32 +2948,22 @@ End of Generated Health Summary Report
 
   const handleRegisterLabWalkinSubmit = (e) => {
     e.preventDefault();
+    if (!recLabSelectedPatient) {
+      alert("Please select a registered hospital patient profile.");
+      return;
+    }
+    if (!recLabSelectedDoctor) {
+      alert("Please select the referring doctor who recommended the lab tests.");
+      return;
+    }
     if (recLabSelectedTests.length === 0) {
-      alert("Please select at least one laboratory diagnostic test.");
+      alert("Please select at least one laboratory diagnostic facility / test.");
       return;
     }
 
-    let patId = '';
-    let patName = '';
-    let patPhone = '';
-
-    if (recLabPatientType === 'registered') {
-      if (!recLabSelectedPatient) {
-        alert("Please search and select a registered patient profile.");
-        return;
-      }
-      patId = recLabSelectedPatient.id;
-      patName = `${recLabSelectedPatient.firstName} ${recLabSelectedPatient.lastName}`.trim();
-      patPhone = recLabSelectedPatient.phone || '';
-    } else {
-      if (!recLabWalkinForm.name.trim()) {
-        alert("Please enter the patient's name.");
-        return;
-      }
-      patId = `WALK-LAB-${Math.floor(1000 + Math.random() * 9000)}`;
-      patName = recLabWalkinForm.name.trim();
-      patPhone = recLabWalkinForm.phone.trim();
-    }
+    const patId = recLabSelectedPatient.id;
+    const patName = `${recLabSelectedPatient.firstName} ${recLabSelectedPatient.lastName}`.trim();
+    const patPhone = recLabSelectedPatient.phone || '';
 
     const todayStr = new Date().toISOString().split('T')[0];
     const totalCostNum = recLabSelectedTests.reduce((sum, t) => {
@@ -2988,7 +2972,7 @@ End of Generated Health Summary Report
     }, 0);
     const formattedTotalCost = `₹${totalCostNum.toFixed(2)}`;
 
-    // 1. Create separate lab request items or consolidated panel in dhms_lab_requests
+    // 1. Create laboratory test requests under referring doctor with Reception Clearance
     const newLabOrders = recLabSelectedTests.map((test, idx) => ({
       id: `LAB-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`,
       patientId: patId,
@@ -2996,15 +2980,15 @@ End of Generated Health Summary Report
       patientPhone: patPhone,
       testName: test.name,
       department: test.dept || 'Clinical Diagnostics',
-      doctorName: recLabWalkinForm.referringDoctor || 'Outsider / Walk-In',
+      doctorName: recLabSelectedDoctor,
       date: todayStr,
       cost: test.cost.startsWith('₹') ? test.cost : `₹${test.cost}`,
       status: 'Pending',
       paymentStatus: recLabCollectNow ? 'Paid' : 'Unpaid',
       paymentMethod: recLabCollectNow ? recLabPaymentMode : 'Pending Cash Counter',
-      source: 'Reception Walk-In Lab Booking',
+      source: `Doctor Referral (${recLabSelectedDoctor})`,
       timeline: [
-        { title: "Lab Order Placed at Reception", date: todayStr, done: true },
+        { title: "Doctor Referral Cleared at Reception", date: todayStr, done: true },
         { title: "Sample Collection at Lab", date: "Visit Lab Station", done: false },
         { title: "Pathology Analysis", date: "Pending", done: false },
         { title: "Results Published", date: "Pending", done: false }
@@ -3027,10 +3011,11 @@ End of Generated Health Summary Report
       amount: formattedTotalCost,
       status: recLabCollectNow ? 'Paid' : 'Unpaid',
       type: `Lab Diagnostics (${recLabSelectedTests.map(t => t.name).join(', ')})`,
+      doctorName: recLabSelectedDoctor,
       paymentMethod: recLabCollectNow ? recLabPaymentMode : 'Pending at Cash Counter',
       paymentRemarks: recLabCollectNow 
-        ? `Collected at Reception Desk via ${recLabPaymentMode}` 
-        : 'Outsider Lab order forwarded to Cash Counter for payment collection',
+        ? `Prescribed by ${recLabSelectedDoctor} - Paid at Reception Desk via ${recLabPaymentMode}` 
+        : `Prescribed by ${recLabSelectedDoctor} - Forwarded to Cash Counter for billing clearance`,
       labOrderCount: recLabSelectedTests.length
     };
 
@@ -3046,10 +3031,11 @@ End of Generated Health Summary Report
 
     // Reset Form
     setRecLabSelectedTests([]);
-    setRecLabWalkinForm({ name: '', phone: '', gender: 'Male', age: '', referringDoctor: 'Self / Direct OPD' });
     setRecLabSelectedPatient(null);
+    setRecLabSelectedDoctor('');
+    setRecLabPatientSearch('');
 
-    alert(`Laboratory Order for ${patName} (${formattedTotalCost}) placed successfully! It is now active in the Laboratory Module.`);
+    alert(`Lab appointment for ${patName} referred by ${recLabSelectedDoctor} (${formattedTotalCost}) cleared successfully! It is now active in the Laboratory Module under Doctor Referrals.`);
   };
 
   const renderLabDesk = () => {
@@ -3068,6 +3054,17 @@ End of Generated Health Summary Report
       (f.dept && f.dept.toLowerCase().includes(recLabSearch.toLowerCase()))
     );
 
+    const filteredPatients = patients.filter(p => {
+      const q = recLabPatientSearch.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        (p.firstName && p.firstName.toLowerCase().includes(q)) ||
+        (p.lastName && p.lastName.toLowerCase().includes(q)) ||
+        (p.id && p.id.toLowerCase().includes(q)) ||
+        (p.phone && p.phone.includes(q))
+      );
+    });
+
     const totalSelectedAmount = recLabSelectedTests.reduce((sum, t) => {
       const clean = parseFloat((t.cost || '0').replace(/[^0-9.]/g, '')) || 0;
       return sum + clean;
@@ -3077,18 +3074,18 @@ End of Generated Health Summary Report
       <div className="rd-view-container animate-fade-in">
         <div className="rd-header-banner">
           <div>
-            <h2>🧪 Laboratory Walk-In & Outsider Test Booking</h2>
-            <p>Book separate outpatient lab tests for walk-in visitors or registered patients with instant billing and live synchronization with Central Diagnostic Laboratory.</p>
+            <h2>🧪 Reception Lab Desk — Doctor Referral & Appointment Clearance</h2>
+            <p>Clear and process lab orders suggested by hospital doctors for registered patients: select patient, link referring physician, choose test facilities, process fee payment, and forward to Central Diagnostic Laboratory.</p>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginTop: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: '24px', marginTop: '20px' }}>
           {/* Left Column: Test Catalog Selection */}
           <div className="rd-card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>1. Select Diagnostic Tests & Panels</h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>Click tests to add them to the patient's lab order</span>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>Select Diagnostic Facilities & Tests</h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Select tests prescribed by the doctor</span>
               </div>
               <span style={{ background: '#e0f2fe', color: '#0369a1', fontWeight: 'bold', fontSize: '12px', padding: '4px 10px', borderRadius: '12px' }}>
                 {recLabSelectedTests.length} Selected
@@ -3098,14 +3095,14 @@ End of Generated Health Summary Report
             <div style={{ marginBottom: '14px' }}>
               <input 
                 type="text" 
-                placeholder="Search diagnostic catalog by test name, code, or section..."
+                placeholder="Search diagnostic catalog by test name, code, or department..."
                 value={recLabSearch}
                 onChange={e => setRecLabSearch(e.target.value)}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '460px', overflowY: 'auto', paddingRight: '4px' }}>
               {filteredFacilities.map(fac => {
                 const isSelected = recLabSelectedTests.some(t => t.code === fac.code);
                 return (
@@ -3145,128 +3142,104 @@ End of Generated Health Summary Report
             </div>
           </div>
 
-          {/* Right Column: Patient Details & Payment */}
+          {/* Right Column: Registered Patient, Referring Doctor & Payment */}
           <div className="rd-card" style={{ padding: '20px' }}>
-            <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#1e293b' }}>2. Patient & Billing Information</h3>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#1e293b' }}>Appointment & Billing Clearance</h3>
             
             <form onSubmit={handleRegisterLabWalkinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Patient Type Switcher */}
-              <div style={{ display: 'flex', gap: '8px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <button
-                  type="button"
-                  onClick={() => setRecLabPatientType('walkin')}
-                  style={{
-                    flex: 1,
-                    padding: '8px',
-                    border: 'none',
-                    borderRadius: '6px',
-                    background: recLabPatientType === 'walkin' ? '#0284c7' : 'transparent',
-                    color: recLabPatientType === 'walkin' ? 'white' : '#64748b',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer'
+              {/* Step 1: Registered Patient Selection */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>
+                  1. Select Registered Hospital Patient *
+                </label>
+                
+                <input 
+                  type="text" 
+                  placeholder="Type to filter patients by name, ID or phone..."
+                  value={recLabPatientSearch}
+                  onChange={e => setRecLabPatientSearch(e.target.value)}
+                  style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
+                />
+
+                <select 
+                  required
+                  style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white', marginTop: '4px' }}
+                  value={recLabSelectedPatient ? recLabSelectedPatient.id : ''}
+                  onChange={e => {
+                    const p = patients.find(pat => pat.id === e.target.value);
+                    setRecLabSelectedPatient(p || null);
                   }}
                 >
-                  🚶 Direct Walk-In Visitor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecLabPatientType('registered')}
-                  style={{
-                    flex: 1,
-                    padding: '8px',
-                    border: 'none',
-                    borderRadius: '6px',
-                    background: recLabPatientType === 'registered' ? '#0284c7' : 'transparent',
-                    color: recLabPatientType === 'registered' ? 'white' : '#64748b',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  🏥 Registered Hospital Patient
-                </button>
+                  <option value="">-- Choose Registered Patient Profile --</option>
+                  {filteredPatients.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} (ID: {p.id}) - {p.phone || 'No Phone'}
+                    </option>
+                  ))}
+                </select>
+
+                {recLabSelectedPatient && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', marginTop: '4px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: '#166534', fontSize: '13px' }}>
+                        ✓ {recLabSelectedPatient.firstName} {recLabSelectedPatient.lastName}
+                      </strong>
+                      <span style={{ color: '#15803d', fontWeight: 'bold' }}>ID: {recLabSelectedPatient.id}</span>
+                    </div>
+                    <div style={{ color: '#475569', marginTop: '4px', display: 'flex', gap: '12px' }}>
+                      <span>Gender: <strong>{recLabSelectedPatient.gender || 'N/A'}</strong></span>
+                      <span>DOB/Age: <strong>{recLabSelectedPatient.dob || 'N/A'}</strong></span>
+                      <span>Phone: <strong>{recLabSelectedPatient.phone || 'N/A'}</strong></span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {recLabPatientType === 'registered' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Search Patient Profile</label>
-                  <select 
-                    style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
-                    value={recLabSelectedPatient ? recLabSelectedPatient.id : ''}
-                    onChange={e => {
-                      const p = patients.find(pat => pat.id === e.target.value);
-                      setRecLabSelectedPatient(p || null);
-                    }}
-                  >
-                    <option value="">-- Choose Registered Patient --</option>
-                    {patients.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName} (ID: {p.id}) - {p.phone || 'No Phone'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <>
-                  <div className="rd-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div className="rd-form-group">
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient Full Name *</label>
-                      <input 
-                        type="text" 
-                        required 
-                        placeholder="e.g. Robert Brown"
-                        value={recLabWalkinForm.name}
-                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, name: e.target.value })}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    <div className="rd-form-group">
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Phone Number</label>
-                      <input 
-                        type="tel" 
-                        placeholder="e.g. 9876543210"
-                        value={recLabWalkinForm.phone}
-                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, phone: e.target.value })}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  </div>
+              {/* Step 2: Referring Doctor Selection */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>
+                  2. Select Prescribing / Referring Doctor *
+                </label>
+                <select 
+                  required
+                  value={recLabSelectedDoctor}
+                  onChange={e => setRecLabSelectedDoctor(e.target.value)}
+                  style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                >
+                  <option value="">-- Choose Referring Doctor --</option>
+                  {doctorsList.map(doc => (
+                    <option key={doc.id || doc.name} value={doc.name}>
+                      {doc.name} ({doc.specialty || doc.department || 'Consultant'})
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  Doctor who recommended the lab tests during consultation.
+                </span>
+              </div>
 
-                  <div className="rd-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div className="rd-form-group">
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Gender</label>
-                      <select 
-                        value={recLabWalkinForm.gender} 
-                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, gender: e.target.value })}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', background: 'white' }}
-                      >
-                        <option>Male</option>
-                        <option>Female</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
-                    <div className="rd-form-group">
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Referring Physician</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Dr. Walker / Self"
-                        value={recLabWalkinForm.referringDoctor}
-                        onChange={e => setRecLabWalkinForm({ ...recLabWalkinForm, referringDoctor: e.target.value })}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Order Summary & Payment Method */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginTop: '6px' }}>
+              {/* Step 3: Selected Tests Summary */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '8px', marginBottom: '10px' }}>
                   <span style={{ fontSize: '13px', color: '#64748b' }}>Selected Tests ({recLabSelectedTests.length}):</span>
                   <strong style={{ fontSize: '16px', color: '#0369a1' }}>₹{totalSelectedAmount.toFixed(2)}</strong>
                 </div>
 
+                {recLabSelectedTests.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                    {recLabSelectedTests.map(t => (
+                      <span key={t.code} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11.5px', padding: '3px 8px', borderRadius: '6px', fontWeight: '600' }}>
+                        {t.name} ({t.cost.startsWith('₹') ? t.cost : `₹${t.cost}`})
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No tests selected. Please pick tests from the left catalog.
+                  </p>
+                )}
+
+                {/* Step 4: Payment Collection */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                   <input 
                     type="checkbox" 
@@ -3300,23 +3273,26 @@ End of Generated Health Summary Report
                 )}
               </div>
 
+              {/* Step 5: Submit & Forward */}
               <button 
                 type="submit"
                 className="rd-btn-primary"
-                disabled={recLabSelectedTests.length === 0}
+                disabled={!recLabSelectedPatient || !recLabSelectedDoctor || recLabSelectedTests.length === 0}
                 style={{
-                  background: recLabSelectedTests.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  background: (!recLabSelectedPatient || !recLabSelectedDoctor || recLabSelectedTests.length === 0) 
+                    ? '#cbd5e1' 
+                    : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   padding: '12px',
                   borderRadius: '8px',
                   color: 'white',
                   fontWeight: '700',
                   fontSize: '13.5px',
                   border: 'none',
-                  cursor: recLabSelectedTests.length === 0 ? 'not-allowed' : 'pointer',
+                  cursor: (!recLabSelectedPatient || !recLabSelectedDoctor || recLabSelectedTests.length === 0) ? 'not-allowed' : 'pointer',
                   marginTop: '4px'
                 }}
               >
-                ✓ Book Lab Order & Forward to Diagnostic Lab
+                ✓ Clear Lab Appointment & Forward to Laboratory Module
               </button>
             </form>
           </div>

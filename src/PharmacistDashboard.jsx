@@ -233,7 +233,37 @@ export default function PharmacistDashboard({ onLogout, loggedInStaff }) {
     }
 
     const buyerName = outsiderBuyerName.trim() || 'Walk-in Visitor';
-    const buyerPhone = outsiderBuyerPhone.trim() || 'N/A';
+    const rawBuyerPhone = outsiderBuyerPhone.trim();
+    
+    // Strict 10-digit mobile number validation (required for SMS/WhatsApp receipt)
+    const cleanPhone = rawBuyerPhone.replace(/\D/g, '');
+    const indianPhoneRegex = /^[6-9]\d{9}$/;
+
+    if (!rawBuyerPhone) {
+      alert("Mobile Number Required: Please enter the customer's 10-digit mobile number for SMS / WhatsApp receipt delivery.");
+      return;
+    }
+
+    // Accept 10 digits directly (starts with 6-9) or with +91/91 prefix
+    let normalizedPhone = cleanPhone;
+    if (normalizedPhone.length === 12 && normalizedPhone.startsWith('91')) {
+      normalizedPhone = normalizedPhone.slice(2);
+    } else if (normalizedPhone.length === 11 && normalizedPhone.startsWith('0')) {
+      normalizedPhone = normalizedPhone.slice(1);
+    }
+
+    if (!indianPhoneRegex.test(normalizedPhone)) {
+      if (normalizedPhone.length < 10) {
+        alert(`Invalid Mobile Number: Please enter a full 10-digit mobile number (currently entered ${normalizedPhone.length} digits).`);
+      } else if (!/^[6-9]/.test(normalizedPhone)) {
+        alert("Invalid Mobile Number: Mobile number must begin with 6, 7, 8, or 9.");
+      } else {
+        alert("Invalid Mobile Number: Please enter a valid 10-digit Indian mobile number (e.g., 9876543210).");
+      }
+      return;
+    }
+
+    const buyerPhone = normalizedPhone;
     const grandTotal = calculateCartTotal();
     const invoiceId = `INV-OUT-${Math.floor(1000 + Math.random() * 9000)}`;
     const today = new Date().toISOString().split('T')[0];
@@ -1147,13 +1177,59 @@ Thank you for using DHMS Hospital.
                     </div>
 
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Mobile Number (for SMS / WhatsApp Receipt)</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>
+                          Mobile Number (for SMS / WhatsApp Receipt) <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        {outsiderBuyerPhone && (
+                          <span style={{ fontSize: '11px', fontWeight: '600' }}>
+                            {(() => {
+                              const digits = outsiderBuyerPhone.replace(/\D/g, '');
+                              const norm = (digits.length === 12 && digits.startsWith('91')) ? digits.slice(2) : ((digits.length === 11 && digits.startsWith('0')) ? digits.slice(1) : digits);
+                              if (/^[6-9]\d{9}$/.test(norm)) {
+                                return <span style={{ color: '#10b981' }}>✓ Valid 10-digit Number</span>;
+                              }
+                              if (norm.length < 10) {
+                                return <span style={{ color: '#f59e0b' }}>⚠️ {norm.length}/10 digits</span>;
+                              }
+                              return <span style={{ color: '#ef4444' }}>⚠️ Must start with 6-9</span>;
+                            })()}
+                          </span>
+                        )}
+                      </div>
                       <input 
-                        type="text" 
-                        placeholder="e.g. +91 98765 43210" 
+                        type="tel" 
+                        required
+                        maxLength={13}
+                        placeholder="e.g. 9876543210 or +91 98765 43210" 
                         value={outsiderBuyerPhone}
-                        onChange={(e) => setOutsiderBuyerPhone(e.target.value)}
-                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
+                        onChange={(e) => {
+                          // Allow numbers, spaces, plus and dashes
+                          const clean = e.target.value.replace(/[^0-9+\s-]/g, '');
+                          setOutsiderBuyerPhone(clean);
+                        }}
+                        style={{ 
+                          padding: '8px 12px', 
+                          borderRadius: '6px', 
+                          border: outsiderBuyerPhone ? (
+                            (() => {
+                              const digits = outsiderBuyerPhone.replace(/\D/g, '');
+                              const norm = (digits.length === 12 && digits.startsWith('91')) ? digits.slice(2) : ((digits.length === 11 && digits.startsWith('0')) ? digits.slice(1) : digits);
+                              return /^[6-9]\d{9}$/.test(norm) ? '1.5px solid #10b981' : '1.5px solid #ef4444';
+                            })()
+                          ) : '1px solid #cbd5e1', 
+                          fontSize: '13px', 
+                          width: '100%', 
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          backgroundColor: outsiderBuyerPhone ? (
+                            (() => {
+                              const digits = outsiderBuyerPhone.replace(/\D/g, '');
+                              const norm = (digits.length === 12 && digits.startsWith('91')) ? digits.slice(2) : ((digits.length === 11 && digits.startsWith('0')) ? digits.slice(1) : digits);
+                              return /^[6-9]\d{9}$/.test(norm) ? '#f0fdf4' : '#fff1f2';
+                            })()
+                          ) : 'white'
+                        }}
                       />
                     </div>
 

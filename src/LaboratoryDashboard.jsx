@@ -60,19 +60,6 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
     };
   }, []);
 
-  // Direct lab appointments (Patient booked)
-  const labAppointments = appointments.filter(appt => 
-    (appt.department && appt.department.toLowerCase() === 'laboratory') || 
-    (appt.doctorName && appt.doctorName.toLowerCase().includes('lab')) ||
-    (appt.reason && appt.reason.toLowerCase().includes('lab test'))
-  );
-
-  // Pagination for Direct Appointments
-  const [apptPage, setApptPage] = useState(1);
-  const apptsPerPage = 5;
-  const totalApptPages = Math.ceil(labAppointments.length / apptsPerPage) || 1;
-  const currentAppts = labAppointments.slice((apptPage - 1) * apptsPerPage, apptPage * apptsPerPage);
-
   // Laboratory Attendance State
   const [labAttendanceForm, setLabAttendanceForm] = useState({
     staffId: '',
@@ -424,10 +411,6 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
               Doctor Referrals & Orders
             </li>
-            <li className={activeTab === 'appointments' ? 'active' : ''} onClick={() => { setActiveTab('appointments'); setApptPage(1); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              Direct Lab Appointments
-            </li>
             <li className={activeTab === 'facilities' ? 'active' : ''} onClick={() => setActiveTab('facilities')}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
               Lab Facilities & Services
@@ -476,14 +459,14 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
                   </div>
                 </div>
 
-                <div className="lab-stat-card border-green" onClick={() => setActiveTab('appointments')}>
+                <div className="lab-stat-card border-green" style={{ cursor: 'pointer' }} onClick={() => { setActiveTab('requests'); setSourceFilter('Reception'); }}>
                   <div className="lab-stat-icon-wrapper green">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
                   </div>
                   <div className="lab-stat-details">
-                    <h3>Direct Lab Appointments</h3>
-                    <div className="lab-stat-value">{labAppointments.length}</div>
-                    <span>Sample collections</span>
+                    <h3>Reception Cleared Orders</h3>
+                    <div className="lab-stat-value">{labRequests.filter(l => !isPatientOrder(l) && !isDoctorReferral(l)).length}</div>
+                    <span>Walk-In cleared orders</span>
                   </div>
                 </div>
 
@@ -780,109 +763,7 @@ export default function LaboratoryDashboard({ onLogout, loggedInStaff }) {
             </div>
           )}
 
-          {activeTab === 'appointments' && (
-            <div className="lab-view-container animate-fade-in">
-              <div className="lab-view-header">
-                <div>
-                  <h1>Direct Lab Appointments</h1>
-                  <p>Manage appointments scheduled by patients directly for diagnostic sample collections.</p>
-                </div>
-              </div>
 
-              <div className="lab-card">
-                <div className="table-responsive">
-                  <table className="lab-data-table">
-                    <thead>
-                      <tr>
-                        <th>Appointment ID</th>
-                        <th>Patient Name</th>
-                        <th>Date Scheduled</th>
-                        <th>Time Window</th>
-                        <th>Requested Lab Service</th>
-                        <th>Appointment Type</th>
-                        <th>Payment Status</th>
-                        <th>Roster Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentAppts.map(appt => {
-                        const isPaid = appt.feeStatus === 'Paid' || appt.paymentStatus === 'Paid';
-                        return (
-                          <tr key={appt.id || appt.appointmentId || Math.random()}>
-                            <td><strong>{appt.id || appt.appointmentId || `APT-${Math.abs((appt.patientName || 'APT').split('').reduce((acc,c)=>(((acc<<5)-acc)+c.charCodeAt(0))|0, 0)) % 90000 + 10000}`}</strong></td>
-                            <td><strong>{appt.patientName}</strong><div style={{ fontSize: '11px', color: '#64748b' }}>ID: {appt.patientId}</div></td>
-                            <td>{appt.date}</td>
-                            <td>{appt.time}</td>
-                            <td>{appt.reason || 'General Diagnostic Checkup'}</td>
-                            <td><span className={`priority-pill ${appt.type === 'Telemedicine' ? 'normal' : 'high'}`}>{appt.type}</span></td>
-                            <td>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '3px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11.5px',
-                                fontWeight: '700',
-                                background: isPaid ? '#dcfce7' : '#fef3c7',
-                                color: isPaid ? '#15803d' : '#b45309',
-                                border: isPaid ? '1px solid #bbf7d0' : '1px solid #fde68a'
-                              }}>
-                                {isPaid ? '✓ Paid' : '⏳ Pending at Cash Counter'}
-                              </span>
-                              <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
-                                {appt.consultationFee || appt.cost || '₹45.00'}
-                              </div>
-                            </td>
-                            <td>
-                              <span className={`status-pill ${appt.status.toLowerCase().includes('pending') ? 'pending' : 'completed'}`}>
-                                {appt.status}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {labAppointments.length === 0 && (
-                        <tr><td colSpan="8" style={{ textAlign: 'center', color: '#94a3b8', padding: '32px' }}>No direct laboratory appointments booked.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {totalApptPages > 1 && (
-                  <div className="lab-pagination-row">
-                    <span className="pagination-info">Showing {((apptPage - 1) * apptsPerPage) + 1} to {Math.min(apptPage * apptsPerPage, labAppointments.length)} of {labAppointments.length} records</span>
-                    <div className="pagination-buttons">
-                      <button 
-                        disabled={apptPage === 1}
-                        onClick={() => setApptPage(prev => prev - 1)}
-                        className="pagination-btn"
-                      >
-                        Previous
-                      </button>
-                      {[...Array(totalApptPages)].map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setApptPage(i + 1)}
-                          className={`pagination-btn num ${apptPage === i + 1 ? 'active' : ''}`}
-                        >
-                          {i + 1}
-                        </button>
-                      ))}
-                      <button 
-                        disabled={apptPage === totalApptPages}
-                        onClick={() => setApptPage(prev => prev + 1)}
-                        className="pagination-btn"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {activeTab === 'blood_bank' && (
             <div className="lab-view-container animate-fade-in" style={{ padding: '0 4px' }}>
