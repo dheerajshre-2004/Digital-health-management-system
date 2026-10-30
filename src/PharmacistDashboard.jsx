@@ -1326,46 +1326,62 @@ Thank you for using DHMS Hospital.
 
                   {/* Visitor / Patient Information & Payment Options Form */}
                   <form onSubmit={handleOutsiderCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    
-                    {/* Patient Fast Lookup Bar */}
-                    <div style={{ position: 'relative', background: '#eff6ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          🔍 Search Hospital Registered Patient (Auto-fills Bill)
-                        </label>
-                        {selectedRegisteredPatient && (
-                          <button
-                            type="button"
-                            onClick={handleClearSelectedPatient}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
-                          >
-                            ✕ Clear Selected
-                          </button>
-                        )}
+                    {selectedRegisteredPatient && (
+                      <div style={{ background: '#f0fdf4', padding: '6px 12px', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '11px', color: '#15803d', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>✓ Hospital Registered Profile Linked: <strong>{selectedRegisteredPatient.firstName} {selectedRegisteredPatient.lastName || ''} ({selectedRegisteredPatient.id})</strong></span>
+                        <button
+                          type="button"
+                          onClick={handleClearSelectedPatient}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                        >
+                          ✕ Clear & Edit Manually
+                        </button>
                       </div>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="text"
-                          placeholder="Type patient name, phone number, or ID (e.g. PT-1002)..."
-                          value={patientLookupQuery}
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px' }}>
+                      <div className="form-group" style={{ margin: 0, position: 'relative' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>
+                            Patient / Customer Name
+                          </label>
+                          {selectedRegisteredPatient && (
+                            <span style={{ fontSize: '10.5px', color: '#15803d', fontWeight: 'bold' }}>
+                              ✓ Registered Patient
+                            </span>
+                          )}
+                        </div>
+                        <input 
+                          type="text" 
+                          placeholder="Type registered name (e.g. Mrs. Shobha)..." 
+                          value={outsiderBuyerName}
                           onChange={(e) => {
-                            setPatientLookupQuery(e.target.value);
+                            const val = e.target.value;
+                            setOutsiderBuyerName(val);
+                            setPatientLookupQuery(val);
                             setShowPatientSuggestions(true);
+                            if (selectedRegisteredPatient && val !== `${selectedRegisteredPatient.firstName || ''} ${selectedRegisteredPatient.lastName || ''}`.trim()) {
+                              setSelectedRegisteredPatient(null);
+                            }
                           }}
-                          onFocus={() => setShowPatientSuggestions(true)}
-                          style={{
-                            width: '100%',
-                            padding: '7px 10px',
-                            borderRadius: '6px',
-                            border: '1px solid #93c5fd',
-                            fontSize: '12.5px',
+                          onFocus={() => {
+                            if (outsiderBuyerName.trim().length > 0) {
+                              setShowPatientSuggestions(true);
+                            }
+                          }}
+                          style={{ 
+                            padding: '7px 10px', 
+                            borderRadius: '6px', 
+                            border: selectedRegisteredPatient ? '1.5px solid #10b981' : '1px solid #cbd5e1', 
+                            fontSize: '12.5px', 
+                            width: '100%', 
                             boxSizing: 'border-box',
-                            background: 'white'
+                            background: selectedRegisteredPatient ? '#f0fdf4' : 'white'
                           }}
                         />
-                        
-                        {/* Auto-suggest dropdown */}
-                        {showPatientSuggestions && patientLookupQuery.trim().length > 0 && (
+
+                        {/* Live dropdown matching patient name directly */}
+                        {showPatientSuggestions && outsiderBuyerName.trim().length > 0 && (
                           <div style={{
                             position: 'absolute',
                             top: '100%',
@@ -1373,15 +1389,15 @@ Thank you for using DHMS Hospital.
                             right: 0,
                             background: 'white',
                             borderRadius: '6px',
-                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                            border: '1px solid #cbd5e1',
-                            maxHeight: '180px',
+                            boxShadow: '0 12px 20px -3px rgba(0,0,0,0.18)',
+                            border: '1.5px solid #3b82f6',
+                            maxHeight: '190px',
                             overflowY: 'auto',
-                            zIndex: 50,
+                            zIndex: 100,
                             marginTop: '2px'
                           }}>
                             {(() => {
-                              const q = patientLookupQuery.toLowerCase().trim();
+                              const q = outsiderBuyerName.toLowerCase().trim();
                               const matches = registeredPatients.filter(p => {
                                 const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
                                 const phone = (p.phone || '').toLowerCase();
@@ -1391,73 +1407,58 @@ Thank you for using DHMS Hospital.
 
                               if (matches.length === 0) {
                                 return (
-                                  <div style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>
-                                    No registered patient found. You can enter visitor details manually below.
+                                  <div style={{ padding: '8px 10px', fontSize: '11px', color: '#64748b' }}>
+                                    Not registered in hospital. You can enter details manually.
                                   </div>
                                 );
                               }
 
-                              return matches.slice(0, 6).map(patient => (
-                                <div
-                                  key={patient.id}
-                                  onClick={() => handleSelectRegisteredPatient(patient)}
-                                  style={{
-                                    padding: '8px 12px',
-                                    borderBottom: '1px solid #f1f5f9',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    transition: 'background 0.15s'
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.background = '#f0fdf4'}
-                                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                                >
-                                  <div>
-                                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>
-                                      {patient.firstName} {patient.lastName || ''}
-                                    </strong>
-                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
-                                      ({patient.gender || 'Patient'}{patient.dob ? ` • DOB: ${patient.dob}` : ''})
-                                    </span>
-                                    <div style={{ fontSize: '11px', color: '#0369a1' }}>
-                                      📞 {patient.phone} • ID: {patient.id}
-                                    </div>
+                              return (
+                                <div>
+                                  <div style={{ padding: '5px 8px', fontSize: '10.5px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 'bold', borderBottom: '1px solid #bfdbfe' }}>
+                                    🏥 Hospital Registered Patients Found (Click to Auto-fill):
                                   </div>
-                                  <span style={{
-                                    fontSize: '11px',
-                                    background: '#dcfce7',
-                                    color: '#15803d',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: '700'
-                                  }}>
-                                    Select
-                                  </span>
+                                  {matches.slice(0, 5).map(patient => (
+                                    <div
+                                      key={patient.id}
+                                      onClick={() => handleSelectRegisteredPatient(patient)}
+                                      style={{
+                                        padding: '7px 10px',
+                                        borderBottom: '1px solid #f1f5f9',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        background: 'white'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                      onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                    >
+                                      <div>
+                                        <strong style={{ fontSize: '12px', color: '#0f172a' }}>
+                                          {patient.firstName} {patient.lastName || ''}
+                                        </strong>
+                                        <div style={{ fontSize: '10.5px', color: '#0369a1' }}>
+                                          📞 {patient.phone} • {patient.gender || 'Patient'} • ID: {patient.id}
+                                        </div>
+                                      </div>
+                                      <span style={{
+                                        fontSize: '10.5px',
+                                        background: '#10b981',
+                                        color: 'white',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        fontWeight: 'bold'
+                                      }}>
+                                        Auto-Fill
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ));
+                              );
                             })()}
                           </div>
                         )}
-                      </div>
-
-                      {selectedRegisteredPatient && (
-                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#15803d', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          ✓ Linked to registered profile: <strong>{selectedRegisteredPatient.firstName} {selectedRegisteredPatient.lastName || ''} ({selectedRegisteredPatient.id})</strong>. All fields populated!
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px' }}>
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>Patient / Customer Name</label>
-                        <input 
-                          type="text" 
-                          placeholder="e.g. Mrs. Shobha / John Doe" 
-                          value={outsiderBuyerName}
-                          onChange={(e) => setOutsiderBuyerName(e.target.value)}
-                          style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', width: '100%', boxSizing: 'border-box' }}
-                        />
                       </div>
                       <div className="form-group" style={{ margin: 0 }}>
                         <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>UHID / Patient ID</label>
