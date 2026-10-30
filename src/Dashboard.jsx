@@ -6860,25 +6860,27 @@ export default function Dashboard({ onLogout, role, loggedInDoctor }) {
         <header className="topbar">
           <div className="topbar-title">{role.toUpperCase()} {t('dashboard')}</div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button 
-              type="button"
-              onClick={() => setShowBedModal(true)}
-              style={{
-                background: '#f8fafc',
-                color: '#1e293b',
-                border: '1px solid #cbd5e1',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontWeight: '600',
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              Bed Matrix
-            </button>
+            {role !== 'admin' && (
+              <button 
+                type="button"
+                onClick={() => setShowBedModal(true)}
+                style={{
+                  background: '#f8fafc',
+                  color: '#1e293b',
+                  border: '1px solid #cbd5e1',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                Bed Matrix
+              </button>
+            )}
 
             {role === 'doctor' && (
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', background: '#f1f5f9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>

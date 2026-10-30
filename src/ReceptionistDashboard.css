@@ -880,3 +880,59 @@
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Print Overrides for Appointment Token Slip and OPD Outpatient Bill */
+@media print {
+  /* Hide background elements and navigation */
+  body * {
+    visibility: hidden;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Make Token Slip printable container visible and positioned properly */
+  #printable-booking-slip,
+  #printable-booking-slip *,
+  #opd-bill-printable-content,
+  #opd-bill-printable-content * {
+    visibility: visible !important;
+  }
+
+  #printable-booking-slip {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+    display: block !important;
+  }
+
+  #opd-bill-printable-content {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+    display: block !important;
+  }
+
+  /* Ensure modal overlays don't mask the printout */
+  .rd-container,
+  .rd-topbar,
+  .rd-sidebar {
+    display: none !important;
+  }
+}

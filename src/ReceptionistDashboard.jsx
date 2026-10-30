@@ -11,6 +11,7 @@ import {
   sendLabReportWhatsApp, 
   openWhatsAppMessage 
 } from './whatsappService';
+import OutpatientBillModal from './OutpatientBillModal';
 
 export const WARD_TIERS = [
   {
@@ -439,6 +440,7 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
   const [feePaymentMode, setFeePaymentMode] = useState('Physical Cash Payment');
   const [feeRemarks, setFeeRemarks] = useState('');
   const [printedBookingReceipt, setPrintedBookingReceipt] = useState(null);
+  const [activeOutpatientBill, setActiveOutpatientBill] = useState(null);
   const [appointmentSuccess, setAppointmentSuccess] = useState(false);
   const [patientSearchFocus, setPatientSearchFocus] = useState(false);
   const [selectedBookPatient, setSelectedBookPatient] = useState(null);
@@ -591,12 +593,18 @@ export default function ReceptionistDashboard({ onLogout, loggedInStaff }) {
       window.dispatchEvent(new Event('storage'));
     }
 
-    // Prepare printable receipt/token slip
-    setPrintedBookingReceipt({
+    // Prepare authentic outpatient bill & token receipt
+    const receiptApptData = {
       ...newAppt,
-      invoiceId: collectFeeNow ? invoiceId : null,
+      patientAgeGender: matchedPatient ? `${matchedPatient.age || '35'} YRS / ${(matchedPatient.gender || 'MALE').toUpperCase()}` : '35 YRS / MALE',
+      patientAddress: matchedPatient ? (matchedPatient.address || 'Kunjal Post and Aroor Village, Udupi') : 'Kunjal Post and Aroor Village, Udupi',
+      patientPhone: matchedPatient ? (matchedPatient.phone || '7676871067') : '7676871067',
+      invoiceId: invoiceId,
       collectedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    });
+    };
+    // Open the official Outpatient Bill modal directly so the receptionist can review/print immediately
+    setActiveOutpatientBill(receiptApptData);
+    setPrintedBookingReceipt(null);
 
     setAppointmentSuccess(true);
     setTimeout(() => setAppointmentSuccess(false), 3000);
@@ -1683,6 +1691,37 @@ End of Generated Health Summary Report
                             {appt.status === 'Pending Confirmation' ? 'Confirm Request' : 'Check In'}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="rd-btn-small"
+                          onClick={() => {
+                            const pObj = patients.find(p => p.id === appt.patientId);
+                            setActiveOutpatientBill({
+                              ...appt,
+                              patientAgeGender: pObj ? `${pObj.age || '35'} YRS / ${(pObj.gender || 'MALE').toUpperCase()}` : (appt.patientAgeGender || '35 YRS / MALE'),
+                              patientAddress: pObj ? (pObj.address || 'Kunjal Post and Aroor Village, Udupi') : (appt.patientAddress || 'Kunjal Post and Aroor Village, Udupi'),
+                              patientPhone: pObj ? (pObj.phone || '7676871067') : (appt.patientPhone || '7676871067'),
+                              invoiceId: appt.invoiceId || linkedInvoice?.id,
+                              feeStatus: isPaid ? 'Paid' : 'Unpaid'
+                            });
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            background: '#f1f5f9',
+                            color: '#0f172a',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Generate & View Outpatient Bill (Physical/Online Format)"
+                        >
+                          🧾 OPD Bill
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -4482,7 +4521,7 @@ End of Generated Health Summary Report
             </div>
 
             {/* Printable Slip */}
-            <div style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+            <div id="printable-booking-slip" style={{ padding: '24px 28px', overflowY: 'auto', flex: 1, backgroundColor: 'white', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#1e293b' }}>DHMS CENTRAL CLINICAL HEALTHCARE</h3>
                 <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>Outpatient Department • Token & Consultation Slip</p>
@@ -4549,7 +4588,61 @@ End of Generated Health Summary Report
               </button>
               <button 
                 type="button" 
-                onClick={() => window.print()}
+                onClick={() => {
+                  setActiveOutpatientBill(printedBookingReceipt);
+                  setPrintedBookingReceipt(null);
+                }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                🧾 View Official Outpatient Bill
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  try {
+                    const slipElem = document.getElementById('printable-booking-slip');
+                    if (!slipElem) {
+                      window.print();
+                      return;
+                    }
+                    const iframe = document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '0';
+                    iframe.style.bottom = '0';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = '0';
+                    document.body.appendChild(iframe);
+
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(`
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <title>Token Slip - ${printedBookingReceipt.id}</title>
+                          <style>
+                            @page { size: auto; margin: 10mm; }
+                            body { font-family: 'Inter', Arial, sans-serif; margin: 0; padding: 10px; color: #0f172a; }
+                            table { width: 100%; border-collapse: collapse; }
+                          </style>
+                        </head>
+                        <body>
+                          ${slipElem.innerHTML}
+                        </body>
+                      </html>
+                    `);
+                    doc.close();
+
+                    setTimeout(() => {
+                      iframe.contentWindow.focus();
+                      iframe.contentWindow.print();
+                      setTimeout(() => document.body.removeChild(iframe), 1500);
+                    }, 350);
+                  } catch (e) {
+                    window.print();
+                  }
+                }}
                 style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4338ca', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 🖨️ Print Token Slip
@@ -4557,6 +4650,14 @@ End of Generated Health Summary Report
             </div>
           </div>
         </div>
+      )}
+
+      {/* Authentic Outpatient Doctor Consultation Bill Modal */}
+      {activeOutpatientBill && (
+        <OutpatientBillModal 
+          billData={activeOutpatientBill} 
+          onClose={() => setActiveOutpatientBill(null)} 
+        />
       )}
 
       {/* IPD Admission Processing Modal */}

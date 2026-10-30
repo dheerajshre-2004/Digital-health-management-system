@@ -20,6 +20,7 @@ import {
 } from './whatsappService';
 import OfficialLabReportModal from './OfficialLabReportModal';
 import { getTemplateForTest } from './labTemplates';
+import OutpatientBillModal from './OutpatientBillModal';
 
 export default function PatientDashboard({ onLogout, loggedInPatient }) {
   const [activeTab, setActiveTab] = useState('health_console');
@@ -113,6 +114,7 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
 
   // Invoice / Receipt State
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [activeOutpatientBill, setActiveOutpatientBill] = useState(null);
 
   const openEditProfile = () => {
     setEditDob(currentPatient?.dob || '');
@@ -2231,6 +2233,46 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                           </div>
                         </div>
                         <div className="pd-consult-actions">
+                          {/* Official Outpatient Bill button (Physical & Online appointments) */}
+                          <button
+                            type="button"
+                            className="pd-btn-outline"
+                            onClick={() => {
+                              const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName || ''}`.trim() : (appt.patientName || 'PATIENT');
+                              const pAge = currentPatient?.age || (currentPatient?.dob ? new Date().getFullYear() - new Date(currentPatient.dob).getFullYear() : '35');
+                              const pGender = currentPatient?.gender || 'MALE';
+                              const pAddress = currentPatient?.address || 'Kunjal Post and Aroor Village, Udupi';
+                              const pPhone = currentPatient?.phone || '7676871067';
+                              
+                              setActiveOutpatientBill({
+                                ...appt,
+                                patientName: pName,
+                                patientAgeGender: `${pAge} YRS / ${pGender.toUpperCase()}`,
+                                patientAddress: pAddress,
+                                patientPhone: pPhone,
+                                doctorName: appt.doctorName || appt.doctor,
+                                department: appt.department,
+                                date: appt.date,
+                                consultationFee: appt.consultationFee || '₹150.00',
+                                feeStatus: isPaid ? 'Paid' : 'Unpaid',
+                                paymentStatus: isPaid ? 'Paid' : 'Unpaid',
+                                paymentMethod: appt.paymentMethod || (isPaid ? 'Online Portal' : 'Desk')
+                              });
+                            }}
+                            style={{
+                              background: '#eff6ff',
+                              borderColor: '#bfdbfe',
+                              color: '#1d4ed8',
+                              fontWeight: '700',
+                              fontSize: '12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="View Authentic Outpatient Consultation Bill"
+                          >
+                            🧾 View OPD Bill
+                          </button>
                           {!isPaid && (
                             <button
                               type="button"
@@ -2358,6 +2400,43 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                         <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', background: inv.status === 'Paid' ? '#dcfce7' : '#fee2e2', color: inv.status === 'Paid' ? '#15803d' : '#b91c1c' }}>
                           {inv.status}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName || ''}`.trim() : (inv.patientName || 'PATIENT');
+                            const pAge = currentPatient?.age || (currentPatient?.dob ? new Date().getFullYear() - new Date(currentPatient.dob).getFullYear() : '35');
+                            const pGender = currentPatient?.gender || 'MALE';
+                            const pAddress = currentPatient?.address || 'Kunjal Post and Aroor Village, Udupi';
+                            const pPhone = currentPatient?.phone || '7676871067';
+                            
+                            setActiveOutpatientBill({
+                              ...inv,
+                              patientName: pName,
+                              patientAgeGender: `${pAge} YRS / ${pGender.toUpperCase()}`,
+                              patientAddress: pAddress,
+                              patientPhone: pPhone,
+                              doctorName: inv.doctorName || 'DR. SHARATH MADHYASTHA P',
+                              department: inv.department || 'CONSULTANT PHYSICIAN',
+                              date: inv.date,
+                              consultationFee: inv.amount || '₹150.00',
+                              feeStatus: inv.status,
+                              paymentStatus: inv.status,
+                              invoiceId: inv.id
+                            });
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            color: '#1d4ed8'
+                          }}
+                        >
+                          🧾 OPD Bill
+                        </button>
                         <button
                           type="button"
                           onClick={() => setSelectedInvoice(inv)}
@@ -4857,27 +4936,59 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
                   </div>
                   <div className="pd-tele-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {tele.invoiceId && (
-                      <button 
-                        className="pd-btn-outline"
-                        style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#cbd5e1' }}
-                        onClick={() => {
-                          const bill = billingList.find(b => b.id === tele.invoiceId || b.appointmentId === tele.id) || {
-                            id: tele.invoiceId || 'INV-TELE-001',
-                            patientId: currentPatient?.id || 'PT-80234',
-                            patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'John Doe',
-                            date: tele.date,
-                            paymentDate: tele.date,
-                            type: 'Telemedicine Consultation Fee',
-                            amount: tele.consultationFee || '₹500.00',
-                            status: 'Paid',
-                            paymentMethod: tele.paymentMethod || 'Online Gateway (UPI)',
-                            paymentRemarks: `Online Paid. Txn ID: ${tele.transactionId || 'TXN-ONLINE-999'}`
-                          };
-                          setSelectedInvoice(bill);
-                        }}
-                      >
-                        🧾 Receipt
-                      </button>
+                      <>
+                        <button 
+                          className="pd-btn-outline"
+                          style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontWeight: '700' }}
+                          onClick={() => {
+                            const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName || ''}`.trim() : 'PATIENT';
+                            const pAge = currentPatient?.age || (currentPatient?.dob ? new Date().getFullYear() - new Date(currentPatient.dob).getFullYear() : '35');
+                            const pGender = currentPatient?.gender || 'MALE';
+                            const pAddress = currentPatient?.address || 'Kunjal Post and Aroor Village, Udupi';
+                            const pPhone = currentPatient?.phone || '7676871067';
+                            
+                            setActiveOutpatientBill({
+                              id: tele.id,
+                              invoiceId: tele.invoiceId,
+                              patientId: currentPatient?.id || 'PT-80234',
+                              patientName: pName,
+                              patientAgeGender: `${pAge} YRS / ${pGender.toUpperCase()}`,
+                              patientAddress: pAddress,
+                              patientPhone: pPhone,
+                              doctorName: tele.doctor || 'DR. SHARATH MADHYASTHA P',
+                              department: tele.department || 'TELECONSULTATION PHYSICIAN',
+                              date: tele.date,
+                              consultationFee: tele.consultationFee || '₹500.00',
+                              feeStatus: 'Paid',
+                              paymentStatus: 'Paid',
+                              paymentMethod: tele.paymentMethod || 'Online Gateway (UPI)'
+                            });
+                          }}
+                        >
+                          🧾 OPD Bill
+                        </button>
+                        <button 
+                          className="pd-btn-outline"
+                          style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#cbd5e1' }}
+                          onClick={() => {
+                            const bill = billingList.find(b => b.id === tele.invoiceId || b.appointmentId === tele.id) || {
+                              id: tele.invoiceId || 'INV-TELE-001',
+                              patientId: currentPatient?.id || 'PT-80234',
+                              patientName: currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'John Doe',
+                              date: tele.date,
+                              paymentDate: tele.date,
+                              type: 'Telemedicine Consultation Fee',
+                              amount: tele.consultationFee || '₹500.00',
+                              status: 'Paid',
+                              paymentMethod: tele.paymentMethod || 'Online Gateway (UPI)',
+                              paymentRemarks: `Online Paid. Txn ID: ${tele.transactionId || 'TXN-ONLINE-999'}`
+                            };
+                            setSelectedInvoice(bill);
+                          }}
+                        >
+                          🧾 Receipt
+                        </button>
+                      </>
                     )}
                     {tele.status === "Ready" || tele.status === "Scheduled" ? (
                       <button className="pd-btn-teal" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={async () => {
@@ -6076,10 +6187,47 @@ export default function PatientDashboard({ onLogout, loggedInPatient }) {
             </div>
             <div className="pd-modal-footer">
               <button className="pd-btn-outline" onClick={() => setSelectedInvoice(null)}>Close</button>
+              <button 
+                className="pd-btn-outline"
+                onClick={() => {
+                  const pName = currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName || ''}`.trim() : (selectedInvoice.patientName || 'PATIENT');
+                  const pAge = currentPatient?.age || (currentPatient?.dob ? new Date().getFullYear() - new Date(currentPatient.dob).getFullYear() : '35');
+                  const pGender = currentPatient?.gender || 'MALE';
+                  const pAddress = currentPatient?.address || 'Kunjal Post and Aroor Village, Udupi';
+                  const pPhone = currentPatient?.phone || '7676871067';
+
+                  setActiveOutpatientBill({
+                    ...selectedInvoice,
+                    patientName: pName,
+                    patientAgeGender: `${pAge} YRS / ${pGender.toUpperCase()}`,
+                    patientAddress: pAddress,
+                    patientPhone: pPhone,
+                    doctorName: selectedInvoice.doctorName || 'DR. SHARATH MADHYASTHA P',
+                    department: selectedInvoice.department || 'CONSULTANT PHYSICIAN',
+                    date: selectedInvoice.date,
+                    consultationFee: selectedInvoice.amount || '₹150.00',
+                    feeStatus: selectedInvoice.status,
+                    paymentStatus: selectedInvoice.status,
+                    invoiceId: selectedInvoice.id
+                  });
+                  setSelectedInvoice(null);
+                }}
+                style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8', fontWeight: '700' }}
+              >
+                🧾 View Official Outpatient Bill
+              </button>
               <button className="pd-btn-primary" onClick={() => window.print()}>Print Invoice</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Authentic Outpatient Doctor Consultation Bill Modal */}
+      {activeOutpatientBill && (
+        <OutpatientBillModal 
+          billData={activeOutpatientBill} 
+          onClose={() => setActiveOutpatientBill(null)} 
+        />
       )}
 
       {/* Notification / Message Inbox Modal */}
