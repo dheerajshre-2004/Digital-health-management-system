@@ -2747,29 +2747,23 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                   </select>
                 </div>
 
-                <div className="cc-form-group" style={{ marginTop: '12px' }}>
-                  <label>
-                    {paymentMethod.toLowerCase().includes('cash')
-                      ? 'Transaction Notes (Optional)'
-                      : <>Online Transaction / Reference ID <span style={{ color: '#dc2626' }}>*</span></>}
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder={
-                      paymentMethod.toLowerCase().includes('cash')
-                        ? 'e.g. Cash received at counter (Optional)'
-                        : 'e.g. UPI Ref / UTR / POS Auth ID (Required)'
-                    }
-                    value={paymentRemarks}
-                    onChange={e => setPaymentRemarks(e.target.value)}
-                    required={!paymentMethod.toLowerCase().includes('cash')}
-                  />
-                  {!paymentMethod.toLowerCase().includes('cash') && (
+                {!paymentMethod.toLowerCase().includes('cash') && (
+                  <div className="cc-form-group" style={{ marginTop: '12px' }}>
+                    <label>
+                      Online Transaction / Reference ID <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. UPI Ref / UTR / POS Auth ID"
+                      value={paymentRemarks}
+                      onChange={e => setPaymentRemarks(e.target.value)}
+                      required
+                    />
                     <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
                       Online payment verification requires the digital transaction/UTR reference ID.
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               <div className="cc-modal-footer">
                 <button type="button" className="cc-btn-secondary" onClick={() => setPaymentModalData(null)}>Cancel</button>
@@ -2948,7 +2942,7 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
 
                   {/* Payment Collection Details */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div className="cc-form-group">
+                    <div className="cc-form-group" style={{ gridColumn: settlementPaymentMethod.toLowerCase().includes('cash') ? 'span 2' : 'span 1' }}>
                       <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Payment Method</label>
                       <select 
                         value={settlementPaymentMethod} 
@@ -2962,25 +2956,21 @@ export default function CashCounterDashboard({ onLogout, embedMode = false, admi
                       </select>
                     </div>
 
-                    <div className="cc-form-group">
-                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
-                        {settlementPaymentMethod.toLowerCase().includes('cash')
-                          ? 'Settlement Notes / Remarks (Optional)'
-                          : <>Online Transaction / Ref ID <span style={{ color: '#dc2626' }}>*</span></>}
-                      </label>
-                      <input 
-                        type="text" 
-                        placeholder={
-                          settlementPaymentMethod.toLowerCase().includes('cash')
-                            ? 'e.g. Cleared full cash at counter (Optional)'
-                            : 'e.g. UPI Ref / UTR / Card Auth ID (Required)'
-                        }
-                        value={settlementRemarks} 
-                        onChange={e => setSettlementRemarks(e.target.value)}
-                        required={!settlementPaymentMethod.toLowerCase().includes('cash')}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
-                    </div>
+                    {!settlementPaymentMethod.toLowerCase().includes('cash') && (
+                      <div className="cc-form-group">
+                        <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                          Online Transaction / Ref ID <span style={{ color: '#dc2626' }}>*</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. UPI Ref / UTR / Card Auth ID"
+                          value={settlementRemarks} 
+                          onChange={e => setSettlementRemarks(e.target.value)}
+                          required
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
